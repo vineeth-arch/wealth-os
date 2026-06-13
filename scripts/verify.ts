@@ -7,6 +7,7 @@ import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
+import { breakdownByAccount, topNTransactions, type DrillTxn } from "../src/lib/drilldown.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
@@ -198,6 +199,40 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
     ["instructs bucket-first + Uncategorized Review fallback", prompt.includes("bucket-first") && prompt.includes("Uncategorized Review")],
   ];
   for (const [label, ok] of promptChecks) { if (!ok) failures++; console.log(`PROMPT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Dashboard drill-down aggregation (Pass 1): breakdown-by-account + top-N, pure & gate-checkable ----
+{
+  const dmk = (over: Partial<DrillTxn>): DrillTxn => ({
+    id: "x", txnDate: "2026-03-15", amountPaise: -10000, accountId: "A1", accountName: "SBI",
+    descriptionRaw: "d", merchant: "", categoryId: "c", categoryName: "Groceries",
+    parent: "02 Spend-it Needs", categorySource: "user", tags: [], ...over,
+  });
+  const dtxns: DrillTxn[] = [
+    dmk({ id: "i1", txnDate: "2026-03-05", amountPaise: 18500000, parent: "01 Income", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "i2", txnDate: "2026-03-20", amountPaise: 2000000, parent: "01 Income", accountId: "A2", accountName: "Federal" }),
+    dmk({ id: "s1", txnDate: "2026-03-06", amountPaise: -120000, parent: "03 Spend-it Wants", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "s2", txnDate: "2026-03-07", amountPaise: -450000, parent: "02 Spend-it Needs", accountId: "A2", accountName: "Federal" }),
+    dmk({ id: "s3", txnDate: "2026-03-08", amountPaise: -90000, parent: "02 Spend-it Needs", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "s4", txnDate: "2026-03-09", amountPaise: -300000, parent: "03 Spend-it Wants", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "s5", txnDate: "2026-03-10", amountPaise: -50000, parent: "02 Spend-it Needs", accountId: "A2", accountName: "Federal" }),
+    dmk({ id: "s6", txnDate: "2026-03-11", amountPaise: -200000, parent: "03 Spend-it Wants", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "t1", txnDate: "2026-03-12", amountPaise: -2000000, parent: "10 Transfers & Adjustments", accountId: "A1", accountName: "SBI" }),
+  ];
+  const incBy = breakdownByAccount(dtxns, "income", "2026-03");
+  const incSum = incBy.reduce((s, a) => s + a.subtotalPaise, 0);
+  const spendBy = breakdownByAccount(dtxns, "spend", "2026-03");
+  const spendSum = spendBy.reduce((s, a) => s + a.subtotalPaise, 0);
+  const top = topNTransactions(dtxns, "spend", "2026-03", 5);
+  const emptyBy = breakdownByAccount(dtxns, "income", "2099-01");
+  const emptyTop = topNTransactions(dtxns, "income", "2099-01", 5);
+  const drillChecks: Array<[string, boolean]> = [
+    [`income breakdown sums to headline ₹2,05,000 over 2 accounts = ${incSum}`, incSum === 20500000 && incBy.length === 2],
+    [`spend breakdown sums to headline, transfers excluded = ${spendSum}`, spendSum === 1210000],
+    [`top-5 capped & ordered by |amount| desc = ${top.map((t) => t.id).join(",")}`, top.length === 5 && top.map((t) => t.id).join(",") === "s2,s4,s6,s1,s3"],
+    [`empty month → empty breakdown + empty top-list`, emptyBy.length === 0 && emptyTop.length === 0],
+  ];
+  for (const [label, ok] of drillChecks) { if (!ok) failures++; console.log(`DRILL ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- Zerodha ----

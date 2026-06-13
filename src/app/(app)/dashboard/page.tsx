@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CashFlowChart, type FlowPoint } from "@/components/charts";
+import { FlowKpis } from "@/components/dashboard/flow-kpis";
+import { type DrillTxn } from "@/lib/drilldown";
 import { formatINR, formatMonth, formatDate } from "@/lib/format";
 import {
   type TxnLike, type HoldingLike, type PriceLike, monthlyCashFlow, bucketTotals, leakageByParent,
@@ -30,7 +32,7 @@ export default async function DashboardPage() {
   const supabase = await createSupabaseServer();
   const [{ data: accountsRaw }, { data: txnsRaw }, { data: catsRaw }, { data: snapsRaw }, { data: pricesRaw }] = await Promise.all([
     supabase.from("accounts").select("id,name,kind,anchor_balance_paise,anchor_date"),
-    supabase.from("transactions").select("txn_date,amount_paise,tags,account_id,category_id"),
+    supabase.from("transactions").select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source"),
     supabase.from("categories").select("id,name,parent_id"),
     supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise").order("as_of", { ascending: false }),
     supabase.from("prices").select("isin,price_paise,price_date"),
@@ -95,6 +97,22 @@ export default async function DashboardPage() {
     tags: (t.tags as string[]) ?? [],
   }));
 
+  // Full per-transaction rows for the drill-down modals (pure aggregation runs client-side on these).
+  const drillTxns: DrillTxn[] = txns.map((t) => ({
+    id: t.id as string,
+    txnDate: t.txn_date as string,
+    amountPaise: t.amount_paise as number,
+    accountId: (t.account_id as string) ?? "",
+    accountName: t.account_id ? accNameById.get(t.account_id as string) ?? "" : "",
+    descriptionRaw: (t.description_raw as string) ?? "",
+    merchant: (t.merchant as string | null) ?? "",
+    categoryId: (t.category_id as string) ?? "",
+    categoryName: t.category_id ? nameById.get(t.category_id as string) ?? "" : "",
+    parent: t.category_id ? parentByCatId.get(t.category_id as string) ?? null : null,
+    categorySource: (t.category_source as string) ?? "default",
+    tags: (t.tags as string[]) ?? [],
+  }));
+
   const flows = monthlyCashFlow(halanTxns);
   const flowData: FlowPoint[] = flows.map((f) => ({ month: f.month, income: f.incomePaise, spend: f.spendPaise, invest: f.investPaise }));
   const latest = flows[flows.length - 1];
@@ -126,9 +144,8 @@ export default async function DashboardPage() {
         <Tile label="Cash net worth" value={formatINR(netWorthPaise)} sub="bank + cards; broker cash excluded" />
         {hasHoldings && <Tile label="Investments" value={formatINR(investments.valuePaise)} tone="invest" sub={investments.asOfDate ? `as of ${formatDate(investments.asOfDate)}` : undefined} />}
         {hasHoldings && <Tile label="Total net worth" value={formatINR(netWorthPaise + investments.valuePaise)} sub="cash + investments" />}
-        {latest && <Tile label={`Income · ${formatMonth(latest.month)}`} value={formatINR(latest.incomePaise)} tone="income" />}
-        {latest && <Tile label={`Invested · ${formatMonth(latest.month)}`} value={formatINR(latest.investPaise)} tone="invest" />}
-        {latest && <Tile label={`Leakage · ${formatMonth(latest.month)}`} value={formatINR(latest.leakagePaise)} tone="leakage" sub="tagged at review" />}
+        {latest && <FlowKpis txns={drillTxns} month={latest.month}
+          totals={{ income: latest.incomePaise, spend: latest.spendPaise, invest: latest.investPaise, leakage: latest.leakagePaise }} />}
       </div>
 
       {hasHoldings && (

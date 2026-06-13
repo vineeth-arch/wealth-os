@@ -53,13 +53,18 @@ export async function POST() {
     return NextResponse.json({ disabled: false, suggestions: [], scanned: txns.length, groups: 0, suggested: 0, prompt: "" });
   }
 
-  // Allowed names: auto-assignable only (excludes Leakage 14 / Review 15) so the model can't pick them.
-  const { data: cats } = await supabase.from("categories").select("name,auto_assignable").eq("user_id", user.id);
-  const allowed = new Set<string>((cats ?? []).filter((c) => c.auto_assignable as boolean).map((c) => c.name as string));
+  // Allowed categories: auto-assignable only (excludes Leakage 14 / Review 15) so the model can't pick them.
+  // Carry each leaf's parent bucket so the prompt groups them and the model reasons bucket-first.
+  const { data: cats } = await supabase.from("categories").select("id,name,parent_id,auto_assignable").eq("user_id", user.id);
+  const nameById = new Map<string, string>((cats ?? []).map((c) => [c.id as string, c.name as string]));
+  const allowedCats = (cats ?? [])
+    .filter((c) => c.auto_assignable as boolean)
+    .map((c) => ({ name: c.name as string, parent: c.parent_id ? nameById.get(c.parent_id as string) ?? null : null }));
+  const allowed = new Set<string>(allowedCats.map((c) => c.name));
 
   let result;
   try {
-    result = await suggestCategories(groupList.map((g) => g.sample), [...allowed], model ? { model } : undefined);
+    result = await suggestCategories(groupList.map((g) => g.sample), allowedCats, model ? { model } : undefined);
   } catch (e) {
     if (e instanceof GeminiKeyMissingError) {
       return NextResponse.json({ disabled: true, reason: "GEMINI_API_KEY is not set on the server.", suggestions: [] });

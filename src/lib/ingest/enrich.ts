@@ -47,6 +47,24 @@ const keyOf = (txnDate: string, amountPaise: number): string =>
   `${txnDate}|${Math.abs(amountPaise)}|${amountPaise < 0 ? "-" : "+"}`;
 
 /**
+ * Additively LAYER a counterpart name onto whatever `merchant` a transaction already carries, so a
+ * second UPI source (Google Pay after BHIM) or a re-run adds context instead of wiping it. Enrichment
+ * only ever grows the merchant string; it never replaces `description_raw`.
+ *   - empty/null existing          → the incoming name
+ *   - empty incoming               → existing unchanged (never blank a populated cell)
+ *   - existing already contains it → unchanged (case-insensitive; re-uploads stay idempotent)
+ *   - otherwise                    → `${existing} · ${incoming}`
+ */
+export function mergeMerchant(existing: string | null, incoming: string): string {
+  const cur = (existing ?? "").trim();
+  const add = incoming.trim();
+  if (!cur) return add;
+  if (!add) return cur;
+  if (cur.toLowerCase().includes(add.toLowerCase())) return cur;
+  return `${cur} · ${add}`;
+}
+
+/**
  * Resolve a UPI row's bank to exactly one of the user's accounts, or null when it can't be pinned
  * down. Heuristic on institution keywords — used ONLY to break a ≥2-candidate tie, and accepted only
  * when it yields a single account. Accounts carry no stored account number, so `accountMask` cannot

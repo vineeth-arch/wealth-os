@@ -9,7 +9,7 @@ import { formatINR, formatDate } from "@/lib/format";
 import { Check } from "lucide-react";
 
 export interface ReviewCategory { id: string; name: string; parent: string | null }
-export interface ReviewTxn { id: string; date: string; amountPaise: number; description: string; tags: string[]; categoryId: string; accountName: string }
+export interface ReviewTxn { id: string; date: string; amountPaise: number; description: string; merchant: string; tags: string[]; categoryId: string; accountName: string }
 
 const LEAKAGE = "leakage";
 const REVIEW_NAME = "Uncategorized Review";
@@ -80,13 +80,16 @@ export function ReviewTable({ transactions, categories }: { transactions: Review
               const leak = r.tags.includes(LEAKAGE);
               return (
                 <TableRow key={r.id}>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(r.date)}</TableCell>
-                  <TableCell className="truncate text-xs text-muted-foreground">{r.accountName}</TableCell>
-                  <TableCell className="max-w-[20rem] truncate text-xs" title={r.description}>{r.description}</TableCell>
-                  <TableCell className={cn("whitespace-nowrap text-right text-xs font-medium", r.amountPaise < 0 ? "text-destructive" : "text-income")}>
+                  <TableCell className="whitespace-nowrap align-top text-xs text-muted-foreground">{formatDate(r.date)}</TableCell>
+                  <TableCell className="truncate align-top text-xs text-muted-foreground">{r.accountName}</TableCell>
+                  <TableCell className="max-w-[20rem] align-top text-xs">
+                    <div className="whitespace-normal break-words">{r.description}</div>
+                    {r.merchant && <div className="whitespace-normal break-words text-[11px] text-muted-foreground">{r.merchant}</div>}
+                  </TableCell>
+                  <TableCell className={cn("whitespace-nowrap align-top text-right text-xs font-medium", r.amountPaise < 0 ? "text-destructive" : "text-income")}>
                     {formatINR(r.amountPaise, { sign: true })}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="align-top">
                     <div className="flex items-center gap-1">
                       <select value={r.categoryId} onChange={(e) => setCategory(r.id, e.target.value)}
                         className="h-8 w-full max-w-[14rem] rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring">
@@ -99,7 +102,7 @@ export function ReviewTable({ transactions, categories }: { transactions: Review
                       {saved[r.id] && <Check className="h-3.5 w-3.5 text-income" />}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="align-top">
                     <button onClick={() => toggleLeakage(r.id)}
                       className={cn("rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
                         leak ? "bg-leakage/20 text-leakage" : "bg-muted text-muted-foreground hover:bg-leakage/10")}>

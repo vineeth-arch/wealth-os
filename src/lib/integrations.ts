@@ -23,7 +23,7 @@ export interface LlmProvider {
 export const LLM_PROVIDERS: readonly LlmProvider[] = [
   { id: "anthropic", label: "Anthropic (Claude)", envVar: "ANTHROPIC_API_KEY", models: ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"] },
   { id: "openai", label: "OpenAI", envVar: "OPENAI_API_KEY", models: ["gpt-4o", "gpt-4o-mini"] },
-  { id: "gemini", label: "Google Gemini", envVar: "GEMINI_API_KEY", models: ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.1-flash-lite"] },
+  { id: "gemini", label: "Google Gemini", envVar: "GEMINI_API_KEY", models: ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.1-flash-lite"] },
   { id: "openrouter", label: "OpenRouter", envVar: "OPENROUTER_API_KEY", models: ["auto"] },
 ];
 

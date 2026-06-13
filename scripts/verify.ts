@@ -10,6 +10,7 @@ import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
 import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
 import { selectSourceIds } from "../src/lib/prices/types.js";
+import { autoMapHolding, deriveYahooSymbol, needsConfirmation } from "../src/lib/holdings.js";
 import { formatPaise } from "../src/lib/ingest/util.js";
 import type { StatementParseResult } from "../src/lib/ingest/types.js";
 
@@ -188,6 +189,19 @@ assert("mfapi null on empty payload", parseMfapiNav({ data: [] }) === null ? 1 :
 assert("source select: mutual_fund", JSON.stringify(selectSourceIds("mutual_fund")) === JSON.stringify(["mfapi", "amfi", "mfdata"]) ? 1 : 0, 1);
 assert("source select: equity → yahoo", JSON.stringify(selectSourceIds("equity")) === JSON.stringify(["yahoo"]) ? 1 : 0, 1);
 assert("source select: gold → manual", JSON.stringify(selectSourceIds("gold")) === JSON.stringify(["manual_ibja"]) ? 1 : 0, 1);
+
+// ---- Holdings auto-mapping (Pass D): MF ISIN→scheme, equity symbol→yahoo, unresolved → human ----
+console.log("\n" + "-".repeat(78));
+const navIsin = new Map([["INF209KB1ZH9", { schemeCode: "120503" }]]);
+const mfMap = autoMapHolding({ isin: "INF209KB1ZH9", symbol: "SOMEFUND", assetClass: "mutual_fund" }, navIsin);
+assert("MF auto-maps ISIN → AMFI scheme code", mfMap.amfiSchemeCode === "120503" ? 1 : 0, 1);
+assert("MF mapped ⇒ no human needed", needsConfirmation("mutual_fund", mfMap) ? 1 : 0, 0);
+const mfUnknown = autoMapHolding({ isin: "INF000UNKNOWN", symbol: "X", assetClass: "mutual_fund" }, navIsin);
+assert("MF unknown ISIN ⇒ needs human", needsConfirmation("mutual_fund", mfUnknown) ? 1 : 0, 1);
+assert("equity symbol → yahoo .NS", deriveYahooSymbol("RELIANCE") === "RELIANCE.NS" ? 1 : 0, 1);
+assert("equity explicit .BO preserved", deriveYahooSymbol("500325.BO") === "500325.BO" ? 1 : 0, 1);
+const eqMap = autoMapHolding({ isin: "INE002A01018", symbol: "RELIANCE", assetClass: "equity" }, navIsin);
+assert("equity auto-maps ⇒ no human", needsConfirmation("equity", eqMap) ? 1 : 0, 0);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

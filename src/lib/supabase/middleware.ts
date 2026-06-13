@@ -24,7 +24,7 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
-  const isAuthedArea = ["/dashboard", "/import", "/review", "/accounts", "/integrations"].some((p) => path.startsWith(p));
+  const isAuthedArea = ["/dashboard", "/import", "/review", "/accounts", "/holdings", "/integrations"].some((p) => path.startsWith(p));
 
   if (!user && isAuthedArea) {
     const url = request.nextUrl.clone();

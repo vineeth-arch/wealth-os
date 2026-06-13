@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CashFlowChart, type FlowPoint } from "@/components/charts";
 import { FlowKpis } from "@/components/dashboard/flow-kpis";
+import { SpendBuckets } from "@/components/dashboard/spend-buckets";
 import { type DrillTxn } from "@/lib/drilldown";
 import { formatINR, formatMonth, formatDate } from "@/lib/format";
 import {
   type TxnLike, type HoldingLike, type PriceLike, monthlyCashFlow, bucketTotals, leakageByParent,
   accountBalances, holdingsValue, SPEND_CLASSES,
 } from "@/lib/halan";
-import { TrendingUp, TrendingDown, PiggyBank, AlertTriangle, Wallet, LineChart } from "lucide-react";
+import { TrendingUp, PiggyBank, Wallet, LineChart } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -123,10 +124,7 @@ export default async function DashboardPage() {
   );
 
   const buckets = bucketTotals(halanTxns).filter((b) => SPEND_CLASSES.has(b.cls) && b.outflowPaise > 0).sort((a, b) => b.outflowPaise - a.outflowPaise);
-  const maxBucket = Math.max(1, ...buckets.map((b) => b.outflowPaise));
   const leak = leakageByParent(halanTxns);
-  const maxLeak = Math.max(1, ...leak.map((l) => l.paise));
-  const totalLeak = leak.reduce((s, l) => s + l.paise, 0);
 
   const reviewCount = halanTxns.filter((t) => t.parent === "10 Transfers & Adjustments" && (t.tags.length === 0)).length;
 
@@ -178,49 +176,7 @@ export default async function DashboardPage() {
         <CardContent><CashFlowChart data={flowData} /></CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><TrendingDown className="h-5 w-5" /> Where money went</CardTitle>
-            <CardDescription>Spend by Halan bucket, all time.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {buckets.length === 0 && <p className="text-sm text-muted-foreground">No categorized spend yet.</p>}
-            {buckets.map((b) => (
-              <div key={b.parent} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{b.parent}</span>
-                  <span className="font-medium">{formatINR(b.outflowPaise)}</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div className="h-2 rounded-full bg-primary" style={{ width: `${(b.outflowPaise / maxBucket) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-leakage" /> Leakage watchlist</CardTitle>
-            <CardDescription>Total tagged leakage: <span className="font-medium text-leakage">{formatINR(totalLeak)}</span></CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {leak.length === 0 && <p className="text-sm text-muted-foreground">No leakage tagged yet. Tag impulse spends during review.</p>}
-            {leak.map((l) => (
-              <div key={l.parent} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{l.parent} · {l.count}</span>
-                  <span className="font-medium text-leakage">{formatINR(l.paise)}</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div className="h-2 rounded-full bg-leakage" style={{ width: `${(l.paise / maxLeak) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+      <SpendBuckets txns={drillTxns} buckets={buckets} leak={leak} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

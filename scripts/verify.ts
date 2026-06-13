@@ -7,7 +7,7 @@ import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
-import { breakdownByAccount, topNTransactions, type DrillTxn } from "../src/lib/drilldown.js";
+import { breakdownByAccount, topNTransactions, bucketDrill, type DrillTxn } from "../src/lib/drilldown.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
@@ -233,6 +233,32 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
     [`empty month → empty breakdown + empty top-list`, emptyBy.length === 0 && emptyTop.length === 0],
   ];
   for (const [label, ok] of drillChecks) { if (!ok) failures++; console.log(`DRILL ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Dashboard bucket drill-down (Pass 2): parent → leaf grouping, pure & gate-checkable ----
+{
+  const bmk = (over: Partial<DrillTxn>): DrillTxn => ({
+    id: "x", txnDate: "2026-03-15", amountPaise: -10000, accountId: "A1", accountName: "SBI",
+    descriptionRaw: "d", merchant: "", categoryId: "c", categoryName: "Food Delivery",
+    parent: "03 Spend-it Wants", categorySource: "user", tags: [], ...over,
+  });
+  const bt: DrillTxn[] = [
+    bmk({ id: "a", parent: "03 Spend-it Wants", categoryName: "Food Delivery", amountPaise: -120000 }),
+    bmk({ id: "b", parent: "03 Spend-it Wants", categoryName: "Food Delivery", amountPaise: -80000 }),
+    bmk({ id: "c", parent: "03 Spend-it Wants", categoryName: "Eating Out", amountPaise: -300000 }),
+    bmk({ id: "d", parent: "02 Spend-it Needs", categoryName: "Groceries", amountPaise: -450000 }),
+    bmk({ id: "e", parent: "03 Spend-it Wants", categoryName: "Food Delivery", amountPaise: 50000 }), // refund inflow: listed, not in outflow
+  ];
+  const bd = bucketDrill(bt, "03 Spend-it Wants");
+  const ids = bd.leaves.flatMap((lf) => lf.txns.map((t) => t.id)).sort().join(",");
+  const leafSum = bd.leaves.reduce((s, lf) => s + lf.outflowPaise, 0);
+  const fd = bd.leaves.find((lf) => lf.categoryName === "Food Delivery");
+  const bucketChecks: Array<[string, boolean]> = [
+    [`returns exactly the parent's txns (a,b,c,e — not d) = ${ids}`, ids === "a,b,c,e"],
+    [`leaf subtotals sum to the bucket total = ${leafSum}`, leafSum === bd.totalPaise && bd.totalPaise === 500000],
+    [`leaf groups by category; inflow excluded from outflow (Food Delivery = ₹2,000 over 3 rows)`, !!fd && fd.outflowPaise === 200000 && fd.count === 3],
+  ];
+  for (const [label, ok] of bucketChecks) { if (!ok) failures++; console.log(`BUCKET ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- Zerodha ----

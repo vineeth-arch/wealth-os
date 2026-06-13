@@ -19,11 +19,11 @@ export interface LlmProvider {
   models: string[];
 }
 
-/** Anthropic is the default. Models are display choices only; nothing calls them yet (AI assist deferred). */
+/** Anthropic is the default. Gemini models drive the AI category-suggest pass; the first is the default. */
 export const LLM_PROVIDERS: readonly LlmProvider[] = [
   { id: "anthropic", label: "Anthropic (Claude)", envVar: "ANTHROPIC_API_KEY", models: ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"] },
   { id: "openai", label: "OpenAI", envVar: "OPENAI_API_KEY", models: ["gpt-4o", "gpt-4o-mini"] },
-  { id: "gemini", label: "Google Gemini", envVar: "GEMINI_API_KEY", models: ["gemini-2.0-flash", "gemini-1.5-pro"] },
+  { id: "gemini", label: "Google Gemini", envVar: "GEMINI_API_KEY", models: ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.1-flash-lite"] },
   { id: "openrouter", label: "OpenRouter", envVar: "OPENROUTER_API_KEY", models: ["auto"] },
 ];
 

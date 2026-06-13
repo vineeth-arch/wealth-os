@@ -1,5 +1,6 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { ReviewTable, type ReviewTxn, type ReviewCategory } from "@/components/review-table";
+import { AiSuggestPanel, type AiCategory } from "@/components/ai-suggest-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export default async function ReviewPage() {
     supabase.from("transactions")
       .select("id,txn_date,amount_paise,description_raw,tags,category_id,account_id")
       .order("txn_date", { ascending: false }).limit(300),
-    supabase.from("categories").select("id,name,parent_id"),
+    supabase.from("categories").select("id,name,parent_id,auto_assignable"),
     supabase.from("accounts").select("id,name"),
   ]);
 
@@ -20,6 +21,10 @@ export default async function ReviewPage() {
     id: c.id as string, name: c.name as string,
     parent: c.parent_id ? nameById.get(c.parent_id as string) ?? null : null,
   }));
+  // AI suggestions can only target auto-assignable categories (no Leakage 14 / Review 15).
+  const aiCategories: AiCategory[] = cats
+    .filter((c) => c.auto_assignable as boolean)
+    .map((c) => ({ name: c.name as string, parent: c.parent_id ? nameById.get(c.parent_id as string) ?? null : null }));
   const transactions: ReviewTxn[] = (txnsRaw ?? []).map((t) => ({
     id: t.id as string,
     date: t.txn_date as string,
@@ -36,6 +41,7 @@ export default async function ReviewPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Review</h1>
         <p className="text-sm text-muted-foreground">Re-categorize and tag leakage. Changes save instantly. Showing the most recent 300 transactions.</p>
       </div>
+      <AiSuggestPanel categories={aiCategories} />
       <ReviewTable transactions={transactions} categories={categories} />
     </div>
   );

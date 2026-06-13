@@ -1,34 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { normalizeDesc } from "@/lib/ingest/util";
-import { isForbiddenAutoParent } from "@/lib/ingest/rules";
+import { categoryIndex, guardCategory, insertRule } from "@/lib/server/rules";
 
 export const runtime = "nodejs";
-
-type Supa = Awaited<ReturnType<typeof createSupabaseServer>>;
-interface CatInfo { id: string; name: string; parentName: string; autoAssignable: boolean }
-
-/** name → {id, parentName, autoAssignable} for the user's taxonomy. parentName is the leaf's parent, or its own name when it IS a parent. */
-async function categoryIndex(supabase: Supa, userId: string): Promise<Map<string, CatInfo>> {
-  const { data } = await supabase.from("categories").select("id,name,parent_id,auto_assignable").eq("user_id", userId);
-  const rows = (data ?? []) as Array<{ id: string; name: string; parent_id: string | null; auto_assignable: boolean }>;
-  const nameById = new Map(rows.map((c) => [c.id, c.name]));
-  const byName = new Map<string, CatInfo>();
-  for (const c of rows) {
-    byName.set(c.name, { id: c.id, name: c.name, parentName: c.parent_id ? nameById.get(c.parent_id) ?? "" : c.name, autoAssignable: c.auto_assignable });
-  }
-  return byName;
-}
-
-/** Reuse the rules.ts guard: a rule may never target a Leakage(14)/Review(15) category. Never coerce — return a clear error. */
-function guardCategory(categoryName: string, byName: Map<string, CatInfo>): { id: string } | { error: string } {
-  const info = byName.get(categoryName);
-  if (!info) return { error: `unknown category "${categoryName}"` };
-  if (isForbiddenAutoParent(info.parentName) || !info.autoAssignable) {
-    return { error: `"${categoryName}" is under ${info.parentName} — Leakage/Review categories can't be assigned by a rule (leakage is a tag, set manually at review).` };
-  }
-  return { id: info.id };
-}
 
 /** Create a rule: priority = max(priority)+10; match_text normalized like rules.ts. */
 export async function POST(request: NextRequest) {
@@ -43,20 +18,15 @@ export async function POST(request: NextRequest) {
   const match = normalizeDesc(body.matchText);
   if (!match) return NextResponse.json({ error: "matchText is empty after normalization" }, { status: 422 });
 
-  const byName = await categoryIndex(supabase, user.id);
-  const g = guardCategory(body.categoryName, byName);
+  const g = guardCategory(body.categoryName, await categoryIndex(supabase, user.id));
   if ("error" in g) return NextResponse.json({ error: g.error }, { status: 422 });
 
-  const { data: top } = await supabase.from("vendor_rules")
-    .select("priority").eq("user_id", user.id).order("priority", { ascending: false }).limit(1).maybeSingle();
-  const priority = ((top?.priority as number | undefined) ?? 0) + 10;
-
-  const { data: created, error } = await supabase.from("vendor_rules")
-    .insert({ user_id: user.id, priority, match_text: match, category_id: g.id, active: true })
-    .select("id,priority,match_text,active").single();
-  if (error) return NextResponse.json({ error: `create rule: ${error.message}` }, { status: 500 });
-
-  return NextResponse.json({ rule: { id: created!.id, priority: created!.priority, matchText: created!.match_text, categoryName: body.categoryName, active: created!.active } });
+  try {
+    const rule = await insertRule(supabase, user.id, match, g.id);
+    return NextResponse.json({ rule: { ...rule, categoryName: body.categoryName } });
+  } catch (e) {
+    return NextResponse.json({ error: `create rule: ${(e as Error).message}` }, { status: 500 });
+  }
 }
 
 /** Edit match_text / category, or toggle active. id in the body (same convention as /api/integrations). */

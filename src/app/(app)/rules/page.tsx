@@ -7,14 +7,17 @@ export default async function RulesPage() {
   const supabase = await createSupabaseServer();
   const [{ data: ruleRows }, { data: cats }] = await Promise.all([
     supabase.from("vendor_rules").select("id,priority,match_text,active,category:categories(name)").order("priority"),
-    supabase.from("categories").select("id,name,parent_id"),
+    supabase.from("categories").select("id,name,parent_id,auto_assignable"),
   ]);
 
   const byId = new Map((cats ?? []).map((c) => [c.id as string, c.name as string]));
-  const categories: RuleCategory[] = (cats ?? []).map((c) => ({
-    name: c.name as string,
-    parent: c.parent_id ? byId.get(c.parent_id as string) ?? null : null,
-  }));
+  // Only auto-assignable categories can be a rule target — hide Leakage(14)/Review(15) the guard would reject.
+  const categories: RuleCategory[] = (cats ?? [])
+    .filter((c) => c.auto_assignable as boolean)
+    .map((c) => ({
+      name: c.name as string,
+      parent: c.parent_id ? byId.get(c.parent_id as string) ?? null : null,
+    }));
 
   const rules: RuleRow[] = (ruleRows ?? []).map((r) => ({
     id: r.id as string,

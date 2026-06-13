@@ -6,6 +6,7 @@ import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
+import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
@@ -183,6 +184,20 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
     [`unparseable date headers = ${headerWarns} (expected 0 — proves "Sept" handled)`, headerWarns === 0],
   ];
   for (const [label, ok] of gpayChecks) { if (!ok) failures++; console.log(`GPAY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- AI suggest prompt (Pass 3): bucket-grouped taxonomy + India few-shot, pure & gate-checkable ----
+{
+  const prompt = buildSuggestPrompt(
+    ["UPI/DR/512282836511/LAZYPAY/AIRP · LazyPay"],
+    [{ name: "Food Delivery", parent: "03 Spend-it Wants" }, { name: "Fuel", parent: "02 Spend-it Needs" }],
+  );
+  const promptChecks: Array<[string, boolean]> = [
+    ["groups each leaf under its parent bucket", prompt.includes("03 Spend-it Wants:") && prompt.includes("- Food Delivery")],
+    ["carries India-specific few-shot examples", prompt.includes("Examples:") && prompt.includes("BNPL Payment")],
+    ["instructs bucket-first + Uncategorized Review fallback", prompt.includes("bucket-first") && prompt.includes("Uncategorized Review")],
+  ];
+  for (const [label, ok] of promptChecks) { if (!ok) failures++; console.log(`PROMPT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- Zerodha ----

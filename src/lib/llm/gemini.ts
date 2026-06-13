@@ -2,30 +2,17 @@
 // never a client component (it reads GEMINI_API_KEY and pulls the Node SDK). Hard invariant:
 // only description text + the allowed category NAMES are ever sent — never amount/date/balance/account.
 import { GoogleGenAI, Type, type Schema } from "@google/genai";
+import { buildSuggestPrompt, type PromptCategory } from "./prompt";
 
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+// Quality default; env-overridable via GEMINI_MODEL (see suggestCategories). If gemini-2.5-flash errors
+// on the free tier, set GEMINI_MODEL=gemini-2.5-flash-lite to fall back without a code change.
+export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 export class GeminiKeyMissingError extends Error {
   constructor() { super("GEMINI_API_KEY is not set"); this.name = "GeminiKeyMissingError"; }
 }
 
 export interface CategorySuggestion { index: number; category: string }
-
-/** The EXACT prompt sent to the model. Kept pure so it can be inspected/returned for audit. */
-export function buildSuggestPrompt(descriptions: string[], categoryNames: string[]): string {
-  return [
-    "You categorize Indian bank and credit-card transaction descriptions into a fixed taxonomy.",
-    "For each numbered description, choose the single best category NAME from the allowed list.",
-    'If you are not confident, use "Uncategorized Review".',
-    "Use only names from the list, verbatim. Return one object per description, echoing its index.",
-    "",
-    "Allowed categories:",
-    categoryNames.map((n) => `- ${n}`).join("\n"),
-    "",
-    "Descriptions:",
-    descriptions.map((d, i) => `${i}. ${d}`).join("\n"),
-  ].join("\n");
-}
 
 const SUGGEST_SCHEMA: Schema = {
   type: Type.ARRAY,
@@ -42,13 +29,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Ask Gemini for a category per description. Returns raw {index, category} pairs; the caller validates names. */
 export async function suggestCategories(
   descriptions: string[],
-  categoryNames: string[],
+  categories: PromptCategory[],
   opts?: { model?: string },
 ): Promise<{ suggestions: CategorySuggestion[]; model: string; prompt: string }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new GeminiKeyMissingError();
   const model = opts?.model || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-  const prompt = buildSuggestPrompt(descriptions, categoryNames);
+  const prompt = buildSuggestPrompt(descriptions, categories);
   if (descriptions.length === 0) return { suggestions: [], model, prompt };
 
   const ai = new GoogleGenAI({ apiKey });
@@ -59,7 +46,7 @@ export async function suggestCategories(
       const response = await ai.models.generateContent({
         model,
         contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: SUGGEST_SCHEMA },
+        config: { responseMimeType: "application/json", responseSchema: SUGGEST_SCHEMA, temperature: 0 },
       });
       const text = response.text;
       if (!text) return { suggestions: [], model, prompt };

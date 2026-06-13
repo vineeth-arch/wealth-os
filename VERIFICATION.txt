@@ -1,0 +1,321 @@
+==============================================================================
+WEALTH-OS PARSER VERIFICATION — real fixtures, hard reconciliation gates
+==============================================================================
+
+[PASS] SBI  SBI Savings  2025-05-01 → 2026-05-27
+  txns: 183   opening: ₹38,267.29   closing: ₹13,754.28
+  expected Δ: -₹24,513.01   parsed Σ: -₹24,513.01
+  balance chain verified on every row
+    2025-05-01      -₹8,983.00  WDL TFR UPI/DR/548719072684/CRED Club/UTIB/cred.club@ /pay 0
+    2025-05-02      -₹1,705.60  WDL TFR UPI/DR/512282836511/LAZYPAY /AIRP/lazypayrep/ Lazy 0
+    2025-05-02     -₹12,000.00  WDL TFR UPI/DR/512228560225/CHEQ DIG/YESB/cheq1@yesb/ Invo 0
+
+[PASS] IDFC_BANK  IDFC FIRST Savings  2026-04-01 → 2026-04-30
+  txns: 34   opening: ₹14,435.41   closing: ₹165.66
+  expected Δ: -₹14,269.75   parsed Σ: -₹14,269.75
+  debits 3867875 == stated 3867875; credits 2440900 == stated 2440900; balance chain enforced per row
+    2026-04-01       ₹2,200.00  UPI/CR/120894612315/NIRMITI /HDFC/nirmiti/UPI
+    2026-04-01     -₹15,945.21  IFT-OPT/IFT/20260914959765/01042 6/6873
+    2026-04-01      ₹13,500.00  UPI/CR/120934561771/NIRMITI /HDFC/nirmiti/UPI
+
+[PASS] FEDERAL  Federal Bank Savings  2025-04-01 → 2025-04-30
+  txns: 2   opening: ₹299.20   closing: ₹79.20
+  expected Δ: -₹220.00   parsed Σ: -₹220.00
+  balance-chain + rounded-summary cross-check
+    2025-04-15         ₹280.00  UPI IN/103232444256/nirmiti26mehta@okhdfcban/ 0000
+    2025-04-30        -₹500.00  UPIOUT/548628778825/nirmiti26mehta@okhdfcba n/0000
+
+[PASS] FEDERAL  Federal Bank Savings  2025-05-01 → 2025-05-31
+  txns: 4   opening: ₹79.20   closing: ₹479.20
+  expected Δ: ₹400.00   parsed Σ: ₹400.00
+  balance-chain + rounded-summary cross-check
+    2025-05-01         ₹100.00  UPI IN/104104793629/nirmiti26mehta@okhdfcban/ 0000
+    2025-05-01        -₹100.00  UPIOUT/512119153807/nirmiti26mehta@okhdfcban/ 0000 UPI
+    2025-05-01         ₹100.00  UPI
+
+[PASS] FEDERAL  Federal Bank Savings  2025-06-01 → 2025-06-30
+  txns: 17   opening: ₹479.20   closing: ₹7,514.72
+  expected Δ: ₹7,035.52   parsed Σ: ₹7,035.52
+  balance-chain + rounded-summary cross-check
+    2025-06-01      ₹30,000.00  UPI IN/515245751010/vineethnair-1@fifederal//000 0
+    2025-06-01      -₹1,797.00  UPIOUT/515227825111/rzpzncapexadvertisers@ye/ 5691
+    2025-06-01        -₹830.14  TO ECM/515272060874/DOMESTIKA *INC \\DOME STI
+
+[PASS] FEDERAL  Federal Bank Savings  2025-07-01 → 2025-07-31
+  txns: 5   opening: ₹7,514.72   closing: ₹1,254.22
+  expected Δ: -₹6,260.50   parsed Σ: -₹6,260.50
+  balance-chain + rounded-summary cross-check
+    2025-07-07           ₹4.50  ACHCR/TATAPOWERDIV07072025/2787982/FIO/:3 7050655
+    2025-07-12      -₹4,000.00  UPIOUT/519356229950/trinjhna-2@okaxis/counce/ 0000
+    2025-07-15        -₹235.00  CHRG/DEBIT CARD AMC/XX9421/FY025
+
+[PASS] FEDERAL  Federal Bank Savings  2025-08-01 → 2025-08-31
+  txns: 7   opening: ₹1,254.22   closing: ₹1,345.90
+  expected Δ: ₹91.68   parsed Σ: ₹91.68
+  balance-chain + rounded-summary cross-check
+    2025-08-05          ₹14.00  ACHCR/HAPPIEST MINDS TECHN/6217296/FIO/:37 734991
+    2025-08-08         -₹20.00  UPIOUT/558615128505/zkp.mmmocl@kotak/Paid vi /4111
+    2025-08-08        -₹970.00  UPIOUT/522093233850/aryan25arora-1@okicici/b/ 0000
+
+[PASS] FEDERAL  Federal Bank Savings  2025-09-01 → 2025-09-30
+  txns: 36   opening: ₹1,345.90   closing: ₹11,363.28
+  expected Δ: ₹10,017.38   parsed Σ: ₹10,017.38
+  balance-chain + rounded-summary cross-check
+    2025-09-01      ₹13,000.00  UPI IN/524455755039/vineethnair98@oksbi/UPI/00 00
+    2025-09-01     -₹12,764.28  UPIOUT/561025708082/cred.club@axisb/payment /5413
+    2025-09-03          -₹1.00  UPIOUT/561223064956/nirmiti26mehta@okhdfcba n/0000
+
+[PASS] FEDERAL  Federal Bank Savings  2025-10-01 → 2025-10-31
+  txns: 24   opening: ₹11,363.28   closing: ₹415.04
+  expected Δ: -₹10,948.24   parsed Σ: -₹10,948.24
+  balance-chain + rounded-summary cross-check
+    2025-10-01          -₹8.00  UPIOUT/564013676291/vtech3333-2@okaxis/istri/ 0000
+    2025-10-02         -₹69.00  UPIOUT/564128740306/santoshgupta2558@okicici /0000
+    2025-10-02        -₹159.00  UPIOUT/564126773256/pramodmishra098468@ok hdf/0000
+
+[PASS] FEDERAL  Federal Bank Savings  2025-11-01 → 2025-11-30
+  txns: 36   opening: ₹415.04   closing: ₹20,268.18
+  expected Δ: ₹19,853.14   parsed Σ: ₹19,853.14
+  balance-chain + rounded-summary cross-check
+    2025-11-07       ₹2,000.00  UPI IN/567726582743/8655482753@yescred/Paid /0000
+    2025-11-07        -₹295.00  UPIOUT/567729584147/saharastarfrontoffic.423/70 11
+    2025-11-07       ₹1,000.00  UPI IN/567754739671/nirmiti26mehta@okaxis/UP/0 000
+
+[PASS] FEDERAL  Federal Bank Savings  2025-12-01 → 2025-12-31
+  txns: 36   opening: ₹20,268.18   closing: ₹3,882.19
+  expected Δ: -₹16,385.99   parsed Σ: -₹16,385.99
+  balance-chain + rounded-summary cross-check
+    2025-12-02        -₹211.00  UPIOUT/570209475769/guptashivkumar1996@okh df/0000
+    2025-12-02        -₹313.00  UPIOUT/533661234985/lazypayrepaymen.payu@m ai/6012
+    2025-12-03       ₹5,000.00  UPI IN/570344394937/vinod6265-2@okaxis/For t/ 0000
+
+[PASS] FEDERAL  Federal Bank Savings  2026-01-01 → 2026-01-31
+  txns: 26   opening: ₹3,882.19   closing: ₹2,727.19
+  expected Δ: -₹1,155.00   parsed Σ: -₹1,155.00
+  balance-chain + rounded-summary cross-check
+    2026-01-03        -₹249.00  UPIOUT/130314221277/paytm.d14490745585@pty /C/5812
+    2026-01-04         -₹55.00  UPIOUT/003934277352/Q810011518@ybl/Medical/ 5912
+    2026-01-05        -₹255.00  UPIOUT/133838582495/paytmqr6ro019@ptys/San dw/5814
+
+[PASS] FEDERAL  Federal Bank Savings  2026-02-01 → 2026-02-28
+  txns: 33   opening: ₹2,727.19   closing: ₹3,160.17
+  expected Δ: ₹432.98   parsed Σ: ₹432.98
+  balance-chain + rounded-summary cross-check
+    2026-02-02        -₹150.00  UPIOUT/183950476705/7021571839@ibl/Haircut/0 000
+    2026-02-03         -₹38.00  UPIOUT/102345198555/9137533196-2@ibl/Rick/00 00
+    2026-02-03           ₹5.92  UPI IN/102627065616/bhimcashback@hdfcbank/B H/0000
+
+[PASS] FEDERAL  Federal Bank Savings  2026-03-01 → 2026-03-31
+  txns: 4   opening: ₹3,160.17   closing: ₹1,268.17
+  expected Δ: -₹1,892.00   parsed Σ: -₹1,892.00
+  balance-chain + rounded-summary cross-check
+    2026-03-01      -₹2,000.00  UPIOUT/235350833495/vineeth9@upi/NO REMAR KS/0000
+    2026-03-26          ₹60.00  UPI IN/120606832983/tonianazareth@okhdfcbank/ 0000
+    2026-03-27          ₹18.00  ACHCR/IOCL/30234991/FIO/:44032457
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2025-07-18 → 2025-08-17
+  txns: 61   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: ₹40,920.98
+  debits 2678528 | credits 6770626 — verify against statement summary in verify script
+  warn: statement rendered 3x in file (sizes: 15,5,41) — unioned by content hash
+  warn: date row without DR/CR amount: "| 26,523 | 718 | 12% | 27,241 | 17 MAR 26 | 17 MAY 26 | 3   | 9,018 | "
+  warn: date row without DR/CR amount: "| 26,523 | 718 | 12% | 27,241 | 17 MAR 26 | 17 MAY 26 | 3   | 9,018 | "
+  warn: date row without DR/CR amount: "| 17/Mar/2026     |     | 6575883623       | XXXXXXXXXX1613 |     |   "
+  warn: date row without DR/CR amount: "| 26,523 | 718 | 12% | 27,241 | 17 MAR 26 | 17 MAY 26 | 3   | 9,018 | "
+  warn: date row without DR/CR amount: "| 17/Feb/2026     | 6575883623       |     | XXXXXXXXXX1613 |     |   "
+  warn: date row without DR/CR amount: "| 17/Jan/2026     | 6575883623       | XXXXXXXXXX1613 |     |     |   "
+  warn: date row without DR/CR amount: "| 17/Dec/2025     | 6575883623       | XXXXXXXXXX1613 |     |     |   "
+  warn: date row without DR/CR amount: "| 17/Nov/2025     | 6575883623       | XXXXXXXXXX1613 |     |     |   "
+  warn: date row without DR/CR amount: "| 17/Oct/2025     | 6575883623       | XXXXXXXXXX1613 |     |     |   "
+  warn: date row without DR/CR amount: "| 17,112 | 458 | 16% | 17,571 | 31 AUG 25 | 31 OCT 25 | 3   | 5,857 | "
+  warn: date row without DR/CR amount: "| 17/Sep/2025     | 6575883623       | XXXXXXXXXX1613 |     |     |   "
+  warn: date row without DR/CR amount: "| 17,112 | 458 | 16% | 17,571 | 31 AUG 25 | 31 OCT 25 | 3   | 5,857 | "
+  warn: date row without DR/CR amount: "| 17/Aug/2025     | 6575883623       | XXXXXXXXXX1613 |     |     |   "
+  warn: date row without DR/CR amount: "| 17,112 | 458 | 16% | 17,571 | 31 AUG 25 | 31 OCT 25 | 3   | 5,857 | "
+    2025-07-27          -₹1.00  Adobe Systems Software I, Bangalore
+    2025-07-27      ₹36,572.76  BillDesk BBPS CC Payment/BD015208BAIAAAAI7R11
+    2025-07-28           ₹1.00  Adobe Systems Software I, Bangalore
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2025-08-18 → 2025-09-17
+  txns: 74   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: -₹8,392.23
+  debits 2761550 | credits 1922327 — verify against statement summary in verify script
+  warn: statement rendered 3x in file (sizes: 12,6,56) — unioned by content hash
+    2025-08-18        -₹511.60  UPICC/DR/559627189696/PWC_APO/UTIB/c redpay/paymen
+    2025-08-18      -₹1,000.00  UPICC/DR/523099660317/Parkar /YESB/paytmqr/UPI
+    2025-08-18         -₹11.80  UPI Fuel Surcharge/523099660317
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2025-09-18 → 2025-10-17
+  txns: 63   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: ₹9,714.73
+  debits 4774878 | credits 5746351 — verify against statement summary in verify script
+  warn: statement rendered 3x in file (sizes: 16,7,40) — unioned by content hash
+    2025-09-17        -₹382.32  M S SHELL INN INTERNATI, MUMBAI
+    2025-09-18        -₹242.00  Flipkart, Bengaluru RAZ*WEDNESDAY HEALTH IN -
+    2025-09-18      ₹21,156.51  BillDesk BBPS CC Payment/BD015261BAIAAAB0DIP4
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2025-10-18 → 2025-11-17
+  txns: 54   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: ₹16,162.21
+  debits 3865757 | credits 5481978 — verify against statement summary in verify script
+  warn: statement rendered 3x in file (sizes: 11,6,37) — unioned by content hash
+    2025-10-17        -₹300.00  GUNDAVALI METRO STATIO, MUMBAI
+    2025-10-17         -₹19.00  GUNDAVALI METRO STATIO, MUMBAI 19 Oct 25 PHUNSUKH WANGDU FOO
+    2025-10-19      -₹2,700.00  UPICC/DR/529209505255/RASA VE/UTIB/joon491/Paid v
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2025-11-18 → 2025-12-17
+  txns: 33   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: ₹4,017.67
+  debits 2830990 | credits 3232757 — verify against statement summary in verify script
+  warn: statement rendered 3x in file (sizes: 8,4,21) — unioned by content hash
+    2025-11-17      -₹7,402.56  AMAZON PAY INDIA PRIVATE, WWW.AMAZON.IN
+    2025-11-18        -₹299.00  YOUTUBE, MUMBAI 18 Nov 25 PADDLE.NET* APPHOUSEKI, LONDON Con
+    2025-11-18        -₹399.00  UPICC/DR/532247534682/LOVE AN/HDFC/loveand/Genera
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2025-12-18 → 2026-01-17
+  txns: 22   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: -₹5,267.56
+  debits 1493764 | credits 967008 — verify against statement summary in verify script
+  warn: statement rendered 3x in file (sizes: 9,4,9) — unioned by content hash
+    2025-12-16      -₹1,120.57  CLOUDFLARE, CLOUDFLARE.CO
+    2025-12-16      -₹1,120.57  CLOUDFLARE, CLOUDFLARE.CO
+    2025-12-18        -₹299.00  YOUTUBE DI SI, MUMBAI
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2026-01-18 → 2026-02-17
+  txns: 15   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: -₹5,742.11
+  debits 1565975 | credits 991764 — verify against statement summary in verify script
+  warn: statement rendered 3x in file (sizes: 6,2,7) — unioned by content hash
+    2026-01-18        -₹299.00  YOUTUBE DI SI, MUMBAI
+    2026-01-20      -₹2,603.00  AMAZONIN, GURGAON AMAZON PAY INDIA PRIVATE,
+    2026-01-25      -₹1,999.00  UPICC/DR/340795300904/OpenAI /NSPB/openail/Mandat
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2026-02-18 → 2026-03-17
+  txns: 17   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: ₹11,358.54
+  debits 1794346 | credits 2930200 — verify against statement summary in verify script
+  warn: statement rendered 5x in file (sizes: 8,4,2,2,1) — unioned by content hash
+    2026-02-18        -₹299.00  YOUTUBE DI SI, MUMBAI
+    2026-02-19      -₹8,372.00  INDIGO AIRLINE, GURGAON
+    2026-02-25        -₹265.23  EMI processing fee
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2026-03-18 → 2026-04-17
+  txns: 10   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: ₹1,359.37
+  debits 1458584 | credits 1594521 — verify against statement summary in verify script
+  warn: statement rendered 3x in file (sizes: 4,5,1) — unioned by content hash
+    2026-03-18        -₹299.00  YOUTUBE DI SI, MUMBAI
+    2026-03-25        -₹265.23  
+    2026-03-25      -₹8,753.18  
+
+[PASS] IDFC_CC  IDFC FIRST Credit Card  2026-04-18 → 2026-05-17
+  txns: 19   opening: n/a   closing: n/a
+  expected Δ: n/a   parsed Σ: -₹14,747.43
+  debits 2933327 | credits 1458584 — verify against statement summary in verify script
+  warn: statement rendered 4x in file (sizes: 6,9,2,2) — unioned by content hash
+    2026-04-18        -₹299.00  YOUTUBE DI SI, MUMBAI CREEM.IO*IMAGETOLAYERS, HARJU
+    2026-04-23      -₹1,783.70  MAAKOND
+    2026-04-25        -₹471.60  ANTHROPIC, ANTHROPIC.COM
+
+[PASS] SURYODAY_CC  Suryoday Credit Card  ? → 2025-12-15
+  txns: 7   opening: ₹0.00   closing: ₹2,709.25
+  expected Δ: ₹2,709.25   parsed Σ: -₹2,709.25
+  liability delta matches signed txn sum exactly (ref-deduped; boundary txns reconciliation-assigned)
+    2025-11-21        -₹399.00  PRET A MANGER
+    2025-11-21        -₹341.00  PRET A MANGER
+    2025-11-21        -₹156.45  PRET A MANGER
+
+[PASS] SURYODAY_CC  Suryoday Credit Card  2025-12-15 → 2026-01-15
+  txns: 34   opening: ₹2,709.25   closing: -₹13.56
+  expected Δ: -₹2,722.81   parsed Σ: ₹2,722.81
+  liability delta matches signed txn sum exactly (ref-deduped; boundary txns reconciliation-assigned)
+  warn: 2 boundary txn(s) on 2026-01-15 assigned to next cycle by reconciliation
+    2025-12-16      -₹1,360.00  AVARYA RETAIL
+    2025-12-16      -₹1,089.00  AVARYA RETAIL
+    2025-12-17        -₹200.00  VAKU LUXOS
+
+[PASS] SURYODAY_CC  Suryoday Credit Card  2026-01-15 → 2026-02-15
+  txns: 57   opening: -₹13.56   closing: ₹18,098.59
+  expected Δ: ₹18,112.15   parsed Σ: -₹18,112.15
+  liability delta matches signed txn sum exactly (ref-deduped; boundary txns reconciliation-assigned)
+  warn: 1 boundary txn(s) on 2026-02-15 assigned to next cycle by reconciliation
+    2026-01-15        -₹186.95  ZOMATOFOOD
+    2026-01-15      -₹1,060.00  PARDESI KHARPATTU KANOJIYA
+    2026-01-16        -₹210.00  MAHAVIR AGENCY
+
+[PASS] SURYODAY_CC  Suryoday Credit Card  2026-02-15 → 2026-03-15
+  txns: 38   opening: ₹18,098.59   closing: ₹13,602.54
+  expected Δ: -₹4,496.05   parsed Σ: ₹4,496.05
+  liability delta matches signed txn sum exactly (ref-deduped; boundary txns reconciliation-assigned)
+  warn: 2 boundary txn(s) on 2026-03-15 assigned to next cycle by reconciliation
+    2026-02-15        -₹230.00  HARIKESH GUPTA
+    2026-02-16        -₹436.00  
+    2026-02-19        -₹503.00  JOJO MEDICAL AND GENERAL STORE
+
+[PASS] SURYODAY_CC  Suryoday Credit Card  2026-03-15 → 2026-04-15
+  txns: 59   opening: ₹13,602.54   closing: ₹18,356.80
+  expected Δ: ₹4,754.26   parsed Σ: -₹4,754.26
+  liability delta matches signed txn sum exactly (ref-deduped; boundary txns reconciliation-assigned)
+    2026-03-15        -₹180.00  
+    2026-03-15        -₹266.00  
+    2026-03-16        -₹224.00  
+
+[PASS] SURYODAY_CC  Suryoday Credit Card  2026-04-15 → 2026-05-15
+  txns: 43   opening: ₹18,356.80   closing: ₹15,927.04
+  expected Δ: -₹2,429.76   parsed Σ: ₹2,429.76
+  liability delta matches signed txn sum exactly (ref-deduped; boundary txns reconciliation-assigned)
+    2026-04-16        -₹100.00  PRAVIN LAXMAN POOJARY
+    2026-04-16          -₹8.00  PRAVIN LAXMAN POOJARY
+    2026-04-16      -₹1,760.00  NARMADA CHANDRESH PRAJAPATI
+
+------------------------------------------------------------------------------
+COUNT PASS: SBI txns = 183 (expected 183)
+COUNT PASS: IDFC bank txns = 34 (expected 34)
+COUNT PASS: Federal statements = 12 (expected 12)
+COUNT PASS: IDFC CC statements = 10 (expected 10)
+COUNT PASS: Suryoday statements = 6 (expected 6)
+
+------------------------------------------------------------------------------
+DEDUP: 1053 unique txns; cross-statement hash collisions: 0; re-import inserts: 0 (PASS — idempotent)
+
+BHIM UPI: 784 SUCCESS rows (80 non-success skipped)
+   464  SURYODAY SMALL FINANCE BANK CREDIT CARD
+   182  IDFC FIRST BANK LTD
+    12  IDFC BANK CREDIT CARD
+    28  State Bank Of India
+    98  FEDERAL BANK
+  enrichment match-rate vs IDFC bank statement period: 54/56 UPI rows matched by (date, amount)
+
+ZERODHA: 7 holdings (as of 2026-06-13)  invested ₹46,866.69  present ₹47,653.53  reconcile: PASS
+  equity       ATHERENERG                   INE0LEZ01016  qty 6
+  equity       ETERNAL                      INE758T01015  qty 118
+  equity       JIOFIN                       INE758E01017  qty 20
+  equity       PINELABS                     INE15B701018  qty 21
+  equity       URBANCO                      INE0CAZ01013  qty 27
+  mutual_fund  ADITYA BIRLA SUN LIFE LIQUID INF209K01VA3  qty 0.168
+  mutual_fund  ICICI PRUDENTIAL NIFTY NEXT  INF109K01Y80  qty 21.094
+
+TAXONOMY: 276 names (15 parents, 261 leaves)
+RULES: 110 loaded — all categories validated, Leakage/Review guards enforced at load
+AUTO-CATEGORIZATION: 137/1053 matched a rule; 916 → Uncategorized Review
+    24×  "AMAZON" → Shopping Personal
+    20×  "CASHBACK" → Refunds Received
+    14×  "BLINKIT" → Groceries
+    12×  "ZERODHA" → Investment Funding Transfer
+     9×  "JIO" → Mobile Phone
+     9×  "ZOMATO" → Food Delivery
+     9×  "ZEPTO" → Groceries
+     8×  "EMI" → Personal Loan EMI
+
+------------------------------------------------------------------------------
+HALAN PASS: classify 14→leakage_watch = 1 (expected 1)
+HALAN PASS: Mar income = 18500000 (expected 18500000)
+HALAN PASS: Mar spend (needs+wants, transfers/invest excluded) = 570000 (expected 570000)
+HALAN PASS: Mar invest = 5000000 (expected 5000000)
+HALAN PASS: Mar leakage (tag) = 120000 (expected 120000)
+HALAN PASS: total leakage across window = 200000 (expected 200000)
+HALAN PASS: transfer bucket excluded from spend but tracked = 2300000 (expected 2300000)
+HALAN PASS: account balance respects anchor date = 19050000 (expected 19050000)
+
+==============================================================================
+ALL GATES PASSED

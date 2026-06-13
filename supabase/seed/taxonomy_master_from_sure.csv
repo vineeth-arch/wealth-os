@@ -1,0 +1,277 @@
+name,color,parent_category,lucide_icon
+Digital Gold Purchase,#0f766e,08 Invest-it,coins
+Unplanned Social Spend,#ef4444,14 Cash Leakage Watchlist,users
+Business Loan EMI,#7c3aed,05 Debt & Credit,briefcase
+Home Repairs Planned,#0891b2,06 Planned Needs,hammer
+Fitness Classes,#f97316,03 Spend-it Wants,dumbbell
+Income Tax Payment,#ca8a04,12 Taxes & Compliance,landmark
+Portfolio Rebalance,#0f766e,08 Invest-it,shuffle
+Emergency Fund Contribution,#dc2626,04 Protect,shield
+Fitness Gear,#ec4899,07 Planned Wants,dumbbell
+Personal Development Course Optional,#ec4899,07 Planned Wants,book-open
+Needs Review,#334155,15 Review Buckets,clipboard-check
+Business Assets,#475569,09 Assets & Net Worth,briefcase-business
+Borrowed Money Received,#7c3aed,05 Debt & Credit,hand-coins
+Recurring Deposit,#0f766e,08 Invest-it,calendar-days
+Business Equipment Essential,#0891b2,06 Planned Needs,briefcase
+Debt Fund Investment,#0f766e,08 Invest-it,landmark
+Job Loss Buffer,#dc2626,04 Protect,briefcase
+Religious / Community Giving,#be123c,13 Family & Giving,flower-2
+Gifting Fund Optional,#ec4899,07 Planned Wants,gift
+Income Protection Buffer,#dc2626,04 Protect,shield-check
+Document Renewal Reserve,#dc2626,04 Protect,file-check
+Gas,#2563eb,02 Spend-it Needs,flame
+Zerodha Coin Mutual Funds,#475569,09 Assets & Net Worth,pie-chart
+Website Tools,#9333ea,11 Work & Business,layout-template
+Wallet Withdrawal,#64748b,10 Transfers & Adjustments,wallet
+Anniversary / Birthday Plan,#ec4899,07 Planned Wants,cake
+Packaging Samples,#9333ea,11 Work & Business,package
+Dividend Reinvestment,#0f766e,08 Invest-it,refresh-cw
+Emergency Fund Review,#334155,15 Review Buckets,shield-check
+Education / Course Essential,#0891b2,06 Planned Needs,graduation-cap
+Games,#f97316,03 Spend-it Wants,gamepad-2
+Goal Investment,#0f766e,08 Invest-it,target
+Annual Insurance Reserve,#dc2626,04 Protect,calendar-clock
+Parents Support Essential,#2563eb,02 Spend-it Needs,heart
+Goal Funding Review,#334155,15 Review Buckets,target
+Courier / Shipping Business,#9333ea,11 Work & Business,truck
+Reversal,#64748b,10 Transfers & Adjustments,rotate-ccw
+Movies / Events,#f97316,03 Spend-it Wants,ticket
+Home Loan EMI,#7c3aed,05 Debt & Credit,home
+Rent Deposit / Moving Cost,#0891b2,06 Planned Needs,home
+Printing / Proofing,#9333ea,11 Work & Business,printer
+Investment Funding Transfer,#64748b,10 Transfers & Adjustments,trending-up
+Invest-it to Income Transfer,#64748b,10 Transfers & Adjustments,arrow-left-right
+Cash Withdrawal,#64748b,10 Transfers & Adjustments,banknote
+Money Returned To Others,#7c3aed,05 Debt & Credit,rotate-ccw
+08 Invest-it,#0f766e,,trending-up
+Domestic Help,#2563eb,02 Spend-it Needs,handshake
+Beauty / Grooming,#f97316,03 Spend-it Wants,scissors
+Client Hospitality,#9333ea,11 Work & Business,coffee
+Lumpsum Mutual Fund,#0f766e,08 Invest-it,bar-chart-3
+Credit Card Late Fee,#7c3aed,05 Debt & Credit,alert-triangle
+Advance Tax,#ca8a04,12 Taxes & Compliance,calendar-clock
+Wallet Load,#64748b,10 Transfers & Adjustments,wallet-cards
+Design Project Income,#16a34a,01 Income,palette
+Zerodha Kite Holdings,#475569,09 Assets & Net Worth,candlestick-chart
+Child Education Reserve,#0891b2,06 Planned Needs,school
+Professional Tax,#ca8a04,12 Taxes & Compliance,badge-indian-rupee
+Duplicate Review,#334155,15 Review Buckets,copy-check
+Loan Processing Fee,#7c3aed,05 Debt & Credit,file-text
+Tax Refund Received,#ca8a04,12 Taxes & Compliance,undo-2
+Laundry & Cleaning,#2563eb,02 Spend-it Needs,shirt
+Internet / WiFi,#2563eb,02 Spend-it Needs,wifi
+Consulting Income,#16a34a,01 Income,presentation
+Food Delivery Leakage,#ef4444,14 Cash Leakage Watchlist,bike
+Cash Balance Snapshot,#475569,09 Assets & Net Worth,wallet
+Duplicate / Ignore,#64748b,10 Transfers & Adjustments,ban
+Eating Out,#f97316,03 Spend-it Wants,utensils
+Income to Invest-it Transfer,#64748b,10 Transfers & Adjustments,arrow-right-left
+Client Meeting Travel,#9333ea,11 Work & Business,car
+Pet Care Essentials,#2563eb,02 Spend-it Needs,paw-print
+Appliance Replacement Essential,#0891b2,06 Planned Needs,plug
+Wants Review,#334155,15 Review Buckets,clipboard-list
+Portfolio / Case Study Expense,#9333ea,11 Work & Business,presentation
+Annual Tax Payment,#0891b2,06 Planned Needs,landmark
+Design Software,#9333ea,11 Work & Business,monitor-cog
+Late Fees Leakage,#ef4444,14 Cash Leakage Watchlist,alert-triangle
+Net Worth Adjustment,#475569,09 Assets & Net Worth,sliders-horizontal
+Household Supplies,#2563eb,02 Spend-it Needs,shopping-cart
+Equity Sale,#0f766e,08 Invest-it,line-chart
+Education Loan EMI,#7c3aed,05 Debt & Credit,graduation-cap
+Lifestyle Upgrade,#f97316,03 Spend-it Wants,gem
+Contingency Buffer,#dc2626,04 Protect,life-buoy
+Society Maintenance,#2563eb,02 Spend-it Needs,building
+BNPL Payment,#7c3aed,05 Debt & Credit,calendar
+Basic Personal Care,#2563eb,02 Spend-it Needs,bath
+Travel Local Leisure,#f97316,03 Spend-it Wants,map
+Tax Review,#334155,15 Review Buckets,file-text
+Gadgets Non-essential,#f97316,03 Spend-it Wants,smartphone
+ETF Purchase,#0f766e,08 Invest-it,layers
+Invest-it Transfer,#0f766e,08 Invest-it,repeat
+Rent Received,#16a34a,01 Income,home
+Furniture Upgrade,#ec4899,07 Planned Wants,armchair
+Children Essentials,#2563eb,02 Spend-it Needs,baby
+Professional Software Renewal,#0891b2,06 Planned Needs,monitor-cog
+Professional Learning,#9333ea,11 Work & Business,graduation-cap
+Subscription Creep,#ef4444,14 Cash Leakage Watchlist,repeat
+Emergency Fund Withdrawal,#dc2626,04 Protect,shield-alert
+Brokerage Charges,#0f766e,08 Invest-it,receipt
+Home Decor,#f97316,03 Spend-it Wants,sofa
+Parents Support,#be123c,13 Family & Giving,heart
+Festival / Celebration Fund,#ec4899,07 Planned Wants,party-popper
+Business Phone / Internet,#9333ea,11 Work & Business,wifi
+Balance Correction,#64748b,10 Transfers & Adjustments,sliders-horizontal
+Personal Loan EMI,#7c3aed,05 Debt & Credit,banknote
+Tax Filing Reserve,#0891b2,06 Planned Needs,file-check
+Parents Medical Reserve,#0891b2,06 Planned Needs,heart-pulse
+Home Insurance Premium,#dc2626,04 Protect,home
+Loan Repayment Received,#16a34a,01 Income,hand-coins
+Equipment for Studio,#9333ea,11 Work & Business,laptop
+Rent / Housing,#2563eb,02 Spend-it Needs,house
+09 Assets & Net Worth,#475569,,landmark
+Mobile Phone,#2563eb,02 Spend-it Needs,smartphone
+11 Work & Business,#9333ea,,briefcase-business
+15 Review Buckets,#334155,,clipboard-check
+Sovereign Gold Bond,#0f766e,08 Invest-it,medal
+Family Gifts,#be123c,13 Family & Giving,gift
+Festival Splurge,#f97316,03 Spend-it Wants,sparkles
+Refunds Received,#16a34a,01 Income,undo-2
+07 Planned Wants,#ec4899,,calendar-heart
+Money Lent To Others,#7c3aed,05 Debt & Credit,handshake
+Wedding / Family Event,#be123c,13 Family & Giving,party-popper
+13 Family & Giving,#be123c,,heart-handshake
+Weekend Trips,#f97316,03 Spend-it Wants,backpack
+Coffee / Cafes,#f97316,03 Spend-it Wants,coffee
+Vehicle Service Planned,#0891b2,06 Planned Needs,car
+Impulse Purchases,#f97316,03 Spend-it Wants,zap
+Laptop Replacement for Work,#0891b2,06 Planned Needs,laptop
+CAS / Demat Holdings,#475569,09 Assets & Net Worth,files
+Own Account Transfer,#64748b,10 Transfers & Adjustments,repeat
+Interest Income,#16a34a,01 Income,percent
+03 Spend-it Wants,#f97316,,sparkles
+ATM / Bank Fees Leakage,#ef4444,14 Cash Leakage Watchlist,landmark
+Essential Subscriptions,#2563eb,02 Spend-it Needs,badge-check
+Apps & Digital Subscriptions,#f97316,03 Spend-it Wants,app-window
+Legal / Accounting,#9333ea,11 Work & Business,scale
+Groceries,#2563eb,02 Spend-it Needs,shopping-basket
+01 Income,#16a34a,,wallet
+Loan To Family / Friend,#be123c,13 Family & Giving,handshake
+Vacation Spend,#f97316,03 Spend-it Wants,plane
+Medical Procedure Planned,#0891b2,06 Planned Needs,hospital
+Vehicle Insurance Premium,#dc2626,04 Protect,car
+Fonts / Assets,#9333ea,11 Work & Business,type
+Food Delivery,#f97316,03 Spend-it Wants,bike
+Real Estate Value,#475569,09 Assets & Net Worth,home
+Business Income,#16a34a,01 Income,building-2
+E-commerce Leakage,#ef4444,14 Cash Leakage Watchlist,shopping-cart
+Marketing / Ads,#9333ea,11 Work & Business,megaphone
+Books & Hobbies,#f97316,03 Spend-it Wants,book-open
+Emergency Fund Top-up,#0891b2,06 Planned Needs,shield-plus
+Index Fund Investment,#0f766e,08 Invest-it,chart-no-axes-combined
+Electricity,#2563eb,02 Spend-it Needs,zap
+Capital Gains Realized,#16a34a,01 Income,line-chart
+Taxi / Cab / Auto,#2563eb,02 Spend-it Needs,car-taxi-front
+Medical Visits,#2563eb,02 Spend-it Needs,stethoscope
+Upstox Holdings,#475569,09 Assets & Net Worth,bar-chart
+Home Maintenance,#2563eb,02 Spend-it Needs,hammer
+Credit Card Purchase,#7c3aed,05 Debt & Credit,credit-card
+Income to Spend-it Transfer,#64748b,10 Transfers & Adjustments,arrow-right-left
+Spend-it to Income Transfer,#64748b,10 Transfers & Adjustments,arrow-left-right
+Home Decor Upgrade,#ec4899,07 Planned Wants,sofa
+Credit Card Fees,#7c3aed,05 Debt & Credit,badge-indian-rupee
+Equity Purchase,#0f766e,08 Invest-it,candlestick-chart
+Liquid Fund Parking,#0f766e,08 Invest-it,droplet
+Salary,#16a34a,01 Income,briefcase
+Canva / Design Tools,#9333ea,11 Work & Business,palette
+Consultants / Freelancers,#9333ea,11 Work & Business,users
+Gadget Leakage,#ef4444,14 Cash Leakage Watchlist,smartphone
+Reimbursements,#16a34a,01 Income,receipt
+Travel Upgrade,#ec4899,07 Planned Wants,luggage
+10 Transfers & Adjustments,#64748b,,repeat
+Cloud Hosting,#9333ea,11 Work & Business,cloud
+Tickertape Gold / Assets,#475569,09 Assets & Net Worth,coins
+Credit Card Payment,#7c3aed,05 Debt & Credit,receipt
+Bad Debt / Write-off,#7c3aed,05 Debt & Credit,x-circle
+Unplanned Travel Leakage,#ef4444,14 Cash Leakage Watchlist,map
+Dividend Income,#16a34a,01 Income,coins
+12 Taxes & Compliance,#ca8a04,,file-text
+Public Transport,#2563eb,02 Spend-it Needs,bus
+Vehicle Value,#475569,09 Assets & Net Worth,car
+Shopping Personal,#f97316,03 Spend-it Wants,shopping-bag
+Freelance Income,#16a34a,01 Income,paintbrush
+Stock Images / Mockups,#9333ea,11 Work & Business,image
+Premium Phone Upgrade,#ec4899,07 Planned Wants,smartphone
+Clothing Non-essential,#f97316,03 Spend-it Wants,shirt
+Cash Deposit,#64748b,10 Transfers & Adjustments,wallet
+Small Cash Unknown,#ef4444,14 Cash Leakage Watchlist,circle-help
+Charity / Donation,#be123c,13 Family & Giving,hand-heart
+Jewellery / Physical Gold,#475569,09 Assets & Net Worth,gem
+Stable Money Investment,#0f766e,08 Invest-it,badge-indian-rupee
+Debt Settlement,#7c3aed,05 Debt & Credit,check-circle
+Bank Balance Snapshot,#475569,09 Assets & Net Worth,landmark
+Repairs Essential,#2563eb,02 Spend-it Needs,wrench
+Medical Help To Others,#be123c,13 Family & Giving,heart-pulse
+Critical Illness Cover,#dc2626,04 Protect,shield-plus
+Credit Card Interest Leakage,#ef4444,14 Cash Leakage Watchlist,percent
+Uncategorized Review,#64748b,10 Transfers & Adjustments,circle-help
+GST Payment,#ca8a04,12 Taxes & Compliance,receipt-text
+NPS Contribution,#0f766e,08 Invest-it,tree-pine
+Vegetables & Fruits,#2563eb,02 Spend-it Needs,apple
+Camera / Creative Gear,#ec4899,07 Planned Wants,camera
+Retainer Income,#16a34a,01 Income,calendar-days
+Receivables,#475569,09 Assets & Net Worth,file-plus
+Digital Gold Sale,#0f766e,08 Invest-it,coins
+Payables,#475569,09 Assets & Net Worth,file-minus
+UPI Transfer Between Own Accounts,#64748b,10 Transfers & Adjustments,smartphone
+OTT / Entertainment,#f97316,03 Spend-it Wants,tv
+Family Medical Emergency,#dc2626,04 Protect,hospital
+06 Planned Needs,#0891b2,,calendar-check
+Debt Prepayment,#7c3aed,05 Debt & Credit,scissors
+Coworking / Office,#9333ea,11 Work & Business,building-2
+Manual Correction Needed,#334155,15 Review Buckets,pencil
+Water,#2563eb,02 Spend-it Needs,droplets
+02 Spend-it Needs,#2563eb,,home
+Sale / Discount Impulse,#ef4444,14 Cash Leakage Watchlist,tag
+Dining Social,#f97316,03 Spend-it Wants,wine
+Phone Replacement Essential,#0891b2,06 Planned Needs,smartphone
+SIP Mutual Fund,#0f766e,08 Invest-it,trending-up
+Luxury Purchase Fund,#ec4899,07 Planned Wants,gem
+Loan Insurance,#7c3aed,05 Debt & Credit,shield
+AI Tools,#9333ea,11 Work & Business,bot
+Health Insurance Premium,#dc2626,04 Protect,heart-pulse
+Spouse / Household Shared Expenses,#2563eb,02 Spend-it Needs,users
+Retirement Investing,#0f766e,08 Invest-it,hourglass
+Cafes Leakage,#ef4444,14 Cash Leakage Watchlist,coffee
+Bank Charges,#2563eb,02 Spend-it Needs,landmark
+Medical Emergency,#dc2626,04 Protect,ambulance
+Milk & Dairy,#2563eb,02 Spend-it Needs,milk
+Annual Insurance Premium,#0891b2,06 Planned Needs,calendar-check
+CA / Tax Filing Fee,#ca8a04,12 Taxes & Compliance,file-check
+Credit Card Bill Payment Transfer,#64748b,10 Transfers & Adjustments,credit-card
+Opening Balance,#64748b,10 Transfers & Adjustments,circle-plus
+Vacation Fund,#ec4899,07 Planned Wants,plane
+05 Debt & Credit,#7c3aed,,credit-card
+Dental / Eye Care Planned,#0891b2,06 Planned Needs,eye
+Term Insurance Premium,#dc2626,04 Protect,umbrella
+Refund Adjustment,#64748b,10 Transfers & Adjustments,undo-2
+Wardrobe Upgrade,#ec4899,07 Planned Wants,shirt
+Fixed Deposit,#0f766e,08 Invest-it,piggy-bank
+Medicines,#2563eb,02 Spend-it Needs,pill
+STT / Transaction Taxes,#0f766e,08 Invest-it,file-text
+Credit Card Interest,#7c3aed,05 Debt & Credit,percent
+PPF Contribution,#0f766e,08 Invest-it,shield
+Dining Experience Fund,#ec4899,07 Planned Wants,utensils
+EPF / PF Contribution,#0f766e,08 Invest-it,briefcase
+GST / Compliance Service,#9333ea,11 Work & Business,file-text
+Debt Review,#334155,15 Review Buckets,credit-card
+Gifts Non-essential,#f97316,03 Spend-it Wants,gift
+Business Reimbursement Paid,#9333ea,11 Work & Business,receipt
+Bonus,#16a34a,01 Income,badge-indian-rupee
+Hobby Equipment,#ec4899,07 Planned Wants,palette
+Investment Review,#334155,15 Review Buckets,line-chart
+Education Essentials,#2563eb,02 Spend-it Needs,graduation-cap
+Vehicle Loan EMI,#7c3aed,05 Debt & Credit,car
+Category Rule Needed,#334155,15 Review Buckets,settings
+Bonds / Fixed Income,#0f766e,08 Invest-it,file-lock
+Penalty / Interest Tax,#ca8a04,12 Taxes & Compliance,alert-triangle
+Books for Work,#9333ea,11 Work & Business,book-open
+Spouse Support / Shared,#be123c,13 Family & Giving,users
+14 Cash Leakage Watchlist,#ef4444,,alarm-clock
+Audit / Compliance,#ca8a04,12 Taxes & Compliance,clipboard-check
+Legal / Compliance Cost,#0891b2,06 Planned Needs,scale
+Domain & Email,#9333ea,11 Work & Business,globe
+04 Protect,#dc2626,,shield-check
+Bank Charges Business,#9333ea,11 Work & Business,landmark
+Other Income,#16a34a,01 Income,plus-circle
+Cash Gifts Received,#16a34a,01 Income,gift
+Parking & Tolls,#2563eb,02 Spend-it Needs,parking-circle
+Fuel,#2563eb,02 Spend-it Needs,fuel
+Family Obligation Planned,#0891b2,06 Planned Needs,users
+Creative Experiment Fund,#ec4899,07 Planned Wants,sparkles
+Government Fees,#ca8a04,12 Taxes & Compliance,building
+Capital Gains Tax Reserve,#ca8a04,12 Taxes & Compliance,line-chart
+Business Reimbursement Received,#9333ea,11 Work & Business,undo-2
+Shoes & Accessories,#f97316,03 Spend-it Wants,watch
+Education Help To Others,#be123c,13 Family & Giving,graduation-cap
+TDS / TCS,#ca8a04,12 Taxes & Compliance,file-search

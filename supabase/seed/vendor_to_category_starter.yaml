@@ -1,0 +1,283 @@
+# vendor_to_category.yaml
+# Starter rules for the Sure.am Import Converter (v0.2 onwards).
+# Maps merchant/vendor substrings (case-insensitive) to Halan taxonomy categories.
+#
+# RULES OF THE GAME:
+# - First match wins. Order top-to-bottom matters.
+# - Never auto-assign Leakage (parent 14) or Review (parent 15) categories.
+# - Default for unmatched vendors is `Uncategorized Review`.
+# - LEAKAGE IS A TAG, NOT A CATEGORY. During review, the user adds tag `leakage`
+#   to impulse rows. The category stays as the underlying spend type
+#   (e.g. `Food Delivery`, `Coffee / Cafes`). Filter by tag in Sure to see leakage.
+#
+# To extend: append new rules at the bottom of the relevant section,
+# or at the top if you need them to take precedence over a generic rule.
+
+# ─────────────────────────────────────────────────────────────────────────
+# 01 Income
+# ─────────────────────────────────────────────────────────────────────────
+- match: "SALARY"
+  category: "Salary"
+- match: "INT.PD"           # HDFC interest credit narration
+  category: "Interest Income"
+- match: "SB INT"
+  category: "Interest Income"
+- match: "FD INT"
+  category: "Interest Income"
+- match: "INTEREST CR"
+  category: "Interest Income"
+- match: "DIVIDEND"
+  category: "Dividend Income"
+- match: "CASHBACK"
+  category: "Refunds Received"
+- match: "REFUND"
+  category: "Refunds Received"
+
+# ─────────────────────────────────────────────────────────────────────────
+# 02 Spend-it Needs
+# ─────────────────────────────────────────────────────────────────────────
+# Utilities
+- match: "MSEDCL"
+  category: "Electricity"
+- match: "TATA POWER"
+  category: "Electricity"
+- match: "ADANI ELECTRICITY"
+  category: "Electricity"
+- match: "BESCOM"
+  category: "Electricity"
+- match: "ELECTRICITY"
+  category: "Electricity"
+- match: "MAHANAGAR GAS"
+  category: "Gas"
+- match: "INDRAPRASTHA GAS"
+  category: "Gas"
+- match: "GUJARAT GAS"
+  category: "Gas"
+- match: "BWSSB"
+  category: "Water"
+- match: "WATER BILL"
+  category: "Water"
+- match: "AIRTEL"          # could be mobile or broadband; default mobile
+  category: "Mobile Phone"
+- match: "JIO"
+  category: "Mobile Phone"
+- match: "VI POSTPAID"
+  category: "Mobile Phone"
+- match: "VODAFONE IDEA"
+  category: "Mobile Phone"
+- match: "ACT FIBERNET"
+  category: "Internet / WiFi"
+- match: "TIKONA"
+  category: "Internet / WiFi"
+- match: "HATHWAY"
+  category: "Internet / WiFi"
+
+# Groceries
+- match: "BIGBASKET"
+  category: "Groceries"
+- match: "BLINKIT"
+  category: "Groceries"
+- match: "ZEPTO"
+  category: "Groceries"
+- match: "DMART"
+  category: "Groceries"
+- match: "RELIANCE FRESH"
+  category: "Groceries"
+- match: "MORE SUPER"
+  category: "Groceries"
+
+# Transport (essential)
+- match: "INDIAN OIL"
+  category: "Fuel"
+- match: "BHARAT PETROLEUM"
+  category: "Fuel"
+- match: "HPCL"
+  category: "Fuel"
+- match: "RELIANCE PETROL"
+  category: "Fuel"
+- match: "SHELL"
+  category: "Fuel"
+- match: "UBER"
+  category: "Taxi / Cab / Auto"
+- match: "OLA"
+  category: "Taxi / Cab / Auto"
+- match: "RAPIDO"
+  category: "Taxi / Cab / Auto"
+- match: "FASTAG"
+  category: "Parking & Tolls"
+- match: "TOLL"
+  category: "Parking & Tolls"
+- match: "BMRCL"
+  category: "Public Transport"
+- match: "DMRC"
+  category: "Public Transport"
+- match: "IRCTC"
+  category: "Public Transport"
+
+# Banking fees
+- match: "AMC CHARGES"
+  category: "Bank Charges"
+- match: "SMS CHARGES"
+  category: "Bank Charges"
+- match: "MIN.BAL"
+  category: "Bank Charges"
+- match: "NEFT CHARGES"
+  category: "Bank Charges"
+
+# Healthcare
+- match: "APOLLO PHARMACY"
+  category: "Medicines"
+- match: "1MG"
+  category: "Medicines"
+- match: "PHARMEASY"
+  category: "Medicines"
+- match: "NETMEDS"
+  category: "Medicines"
+- match: "PRACTO"
+  category: "Medical Visits"
+
+# ─────────────────────────────────────────────────────────────────────────
+# 03 Spend-it Wants
+# ─────────────────────────────────────────────────────────────────────────
+- match: "SWIGGY"
+  category: "Food Delivery"
+- match: "ZOMATO"
+  category: "Food Delivery"
+- match: "EATSURE"
+  category: "Food Delivery"
+- match: "STARBUCKS"
+  category: "Coffee / Cafes"
+- match: "BLUE TOKAI"
+  category: "Coffee / Cafes"
+- match: "THIRD WAVE"
+  category: "Coffee / Cafes"
+- match: "AMAZON"           # default; user reviews case-by-case
+  category: "Shopping Personal"
+- match: "FLIPKART"
+  category: "Shopping Personal"
+- match: "MYNTRA"
+  category: "Clothing Non-essential"
+- match: "AJIO"
+  category: "Clothing Non-essential"
+- match: "NYKAA"
+  category: "Beauty / Grooming"
+- match: "BOOKMYSHOW"
+  category: "Movies / Events"
+- match: "PVR"
+  category: "Movies / Events"
+- match: "INOX"
+  category: "Movies / Events"
+- match: "NETFLIX"
+  category: "OTT / Entertainment"
+- match: "HOTSTAR"
+  category: "OTT / Entertainment"
+- match: "PRIME VIDEO"
+  category: "OTT / Entertainment"
+- match: "SPOTIFY"
+  category: "OTT / Entertainment"
+- match: "YOUTUBE PREMIUM"
+  category: "OTT / Entertainment"
+- match: "APPLE.COM/BILL"
+  category: "Apps & Digital Subscriptions"
+- match: "GOOGLE *YOUTUBE"
+  category: "OTT / Entertainment"
+- match: "MAKEMYTRIP"
+  category: "Vacation Spend"
+- match: "GOIBIBO"
+  category: "Vacation Spend"
+- match: "BOOKING.COM"
+  category: "Vacation Spend"
+- match: "AIRBNB"
+  category: "Vacation Spend"
+- match: "INDIGO"
+  category: "Vacation Spend"
+- match: "VISTARA"
+  category: "Vacation Spend"
+
+# ─────────────────────────────────────────────────────────────────────────
+# 04 Protect (insurance premiums)
+# ─────────────────────────────────────────────────────────────────────────
+- match: "LIC OF INDIA"
+  category: "Term Insurance Premium"
+- match: "HDFC LIFE"
+  category: "Term Insurance Premium"
+- match: "STAR HEALTH"
+  category: "Health Insurance Premium"
+- match: "HDFC ERGO"
+  category: "Health Insurance Premium"
+- match: "ICICI LOMBARD"
+  category: "Health Insurance Premium"
+- match: "MAX BUPA"
+  category: "Health Insurance Premium"
+- match: "NIVA BUPA"
+  category: "Health Insurance Premium"
+- match: "BAJAJ ALLIANZ"
+  category: "Vehicle Insurance Premium"
+
+# ─────────────────────────────────────────────────────────────────────────
+# 05 Debt & Credit
+# ─────────────────────────────────────────────────────────────────────────
+# NOTE: These match on the bank-side narration when paying a credit card bill.
+# The CC statement itself uses underlying-purpose categories.
+- match: "CREDIT CARD PAYMENT"
+  category: "Credit Card Payment"
+- match: "CC BILL PAYMENT"
+  category: "Credit Card Payment"
+- match: "BILLDESK CREDIT CARD"
+  category: "Credit Card Payment"
+- match: "EMI"
+  category: "Personal Loan EMI"          # user refines if home/vehicle/etc.
+
+# ─────────────────────────────────────────────────────────────────────────
+# 08 Invest-it
+# ─────────────────────────────────────────────────────────────────────────
+- match: "ZERODHA"
+  category: "Investment Funding Transfer"
+- match: "GROWW"
+  category: "Investment Funding Transfer"
+- match: "UPSTOX"
+  category: "Investment Funding Transfer"
+- match: "BSE STAR MF"
+  category: "SIP Mutual Fund"
+- match: "SIP"
+  category: "SIP Mutual Fund"
+- match: "MUTUAL FUND"
+  category: "SIP Mutual Fund"
+- match: "PPF"
+  category: "PPF Contribution"
+- match: "NPS"
+  category: "NPS Contribution"
+- match: "SAFEGOLD"
+  category: "Digital Gold Purchase"
+- match: "MMTC PAMP"
+  category: "Digital Gold Purchase"
+
+# ─────────────────────────────────────────────────────────────────────────
+# 10 Transfers & Adjustments
+# ─────────────────────────────────────────────────────────────────────────
+- match: "ATM WDL"
+  category: "Cash Withdrawal"
+- match: "NWD-"             # NEFT withdrawal common prefix
+  category: "Cash Withdrawal"
+- match: "ATM CASH"
+  category: "Cash Withdrawal"
+- match: "CASH DEPOSIT"
+  category: "Cash Deposit"
+
+# ─────────────────────────────────────────────────────────────────────────
+# 12 Taxes & Compliance
+# ─────────────────────────────────────────────────────────────────────────
+- match: "TDS"
+  category: "TDS / TCS"
+- match: "INCOME TAX"
+  category: "Income Tax Payment"
+- match: "ADVANCE TAX"
+  category: "Advance Tax"
+- match: "GST PAYMENT"
+  category: "GST Payment"
+
+# ─────────────────────────────────────────────────────────────────────────
+# FALLBACK
+# ─────────────────────────────────────────────────────────────────────────
+# Any transaction not matched above gets `Uncategorized Review` at runtime
+# (handled in code, not via a rule). Do not add a catch-all here.

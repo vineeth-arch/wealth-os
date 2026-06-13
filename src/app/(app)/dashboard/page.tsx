@@ -4,12 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CashFlowChart, type FlowPoint } from "@/components/charts";
-import { formatINR, formatINRCompact, formatMonth } from "@/lib/format";
+import { formatINR, formatMonth, formatDate } from "@/lib/format";
 import {
-  type TxnLike, monthlyCashFlow, bucketTotals, leakageByParent, accountBalances,
-  classifyParent, SPEND_CLASSES,
+  type TxnLike, type HoldingLike, type PriceLike, monthlyCashFlow, bucketTotals, leakageByParent,
+  accountBalances, holdingsValue, SPEND_CLASSES,
 } from "@/lib/halan";
-import { TrendingUp, TrendingDown, PiggyBank, AlertTriangle, Wallet } from "lucide-react";
+import { TrendingUp, TrendingDown, PiggyBank, AlertTriangle, Wallet, LineChart } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +28,41 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServer();
-  const [{ data: accountsRaw }, { data: txnsRaw }, { data: catsRaw }] = await Promise.all([
+  const [{ data: accountsRaw }, { data: txnsRaw }, { data: catsRaw }, { data: snapsRaw }, { data: pricesRaw }] = await Promise.all([
     supabase.from("accounts").select("id,name,kind,anchor_balance_paise,anchor_date"),
     supabase.from("transactions").select("txn_date,amount_paise,tags,account_id,category_id"),
     supabase.from("categories").select("id,name,parent_id"),
+    supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise").order("as_of", { ascending: false }),
+    supabase.from("prices").select("isin,price_paise,price_date"),
   ]);
 
   const accounts = accountsRaw ?? [];
   const txns = txnsRaw ?? [];
   const cats = catsRaw ?? [];
+
+  // Investments: current holdings (latest snapshot per account) valued at latest prices, last-known fallback.
+  const latestAsOf = new Map<string, string>();
+  for (const s of snapsRaw ?? []) {
+    const a = s.account_id as string, d = s.as_of as string;
+    if (!latestAsOf.has(a) || d > latestAsOf.get(a)!) latestAsOf.set(a, d);
+  }
+  const currentHoldings: HoldingLike[] = (snapsRaw ?? [])
+    .filter((s) => latestAsOf.get(s.account_id as string) === (s.as_of as string))
+    .map((s) => ({ isin: s.isin as string, qty: Number(s.qty), lastPricePaise: s.last_price_paise as number, asOf: s.as_of as string }));
+  const priceRows: PriceLike[] = (pricesRaw ?? []).map((p) => ({ isin: p.isin as string, pricePaise: p.price_paise as number, priceDate: p.price_date as string }));
+  const investments = holdingsValue(currentHoldings, priceRows);
+  const hasHoldings = currentHoldings.length > 0;
+
+  // per-account snapshot coverage range (earliest → latest as_of)
+  const covMap = new Map<string, { from: string; to: string }>();
+  for (const s of snapsRaw ?? []) {
+    const id = s.account_id as string, d = s.as_of as string;
+    const cur = covMap.get(id);
+    if (!cur) covMap.set(id, { from: d, to: d });
+    else { if (d < cur.from) cur.from = d; if (d > cur.to) cur.to = d; }
+  }
+  const accNameById = new Map(accounts.map((a) => [a.id as string, a.name as string]));
+  const coverage = [...covMap.entries()].map(([id, r]) => ({ name: accNameById.get(id) ?? id, from: r.from, to: r.to }));
 
   if (txns.length === 0) {
     return (
@@ -97,11 +123,35 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Tile label="Net worth" value={formatINR(netWorthPaise)} sub="anchored to earliest statement" />
+        <Tile label="Cash net worth" value={formatINR(netWorthPaise)} sub="bank + cards; broker cash excluded" />
+        {hasHoldings && <Tile label="Investments" value={formatINR(investments.valuePaise)} tone="invest" sub={investments.asOfDate ? `as of ${formatDate(investments.asOfDate)}` : undefined} />}
+        {hasHoldings && <Tile label="Total net worth" value={formatINR(netWorthPaise + investments.valuePaise)} sub="cash + investments" />}
         {latest && <Tile label={`Income · ${formatMonth(latest.month)}`} value={formatINR(latest.incomePaise)} tone="income" />}
         {latest && <Tile label={`Invested · ${formatMonth(latest.month)}`} value={formatINR(latest.investPaise)} tone="invest" />}
         {latest && <Tile label={`Leakage · ${formatMonth(latest.month)}`} value={formatINR(latest.leakagePaise)} tone="leakage" sub="tagged at review" />}
       </div>
+
+      {hasHoldings && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><LineChart className="h-5 w-5 text-invest" /> Investments</CardTitle>
+            <CardDescription>
+              Present value {formatINR(investments.valuePaise)}
+              {investments.asOfDate && <> · priced as of {formatDate(investments.asOfDate)}</>}
+              {investments.fallbackCount > 0 && <> · {investments.fallbackCount} using last-known price (refresh pending)</>}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {coverage.map((c) => (
+              <div key={c.name} className="flex items-center justify-between border-b py-2 text-sm last:border-0">
+                <span className="text-muted-foreground">{c.name}</span>
+                <span className="text-xs text-muted-foreground">{c.from === c.to ? formatDate(c.to) : `${formatDate(c.from)} → ${formatDate(c.to)}`}</span>
+              </div>
+            ))}
+            <Button asChild variant="outline" className="mt-1"><Link href="/holdings">Manage holdings</Link></Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

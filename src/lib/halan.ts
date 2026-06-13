@@ -128,3 +128,41 @@ export function accountBalances(accounts: AccountLike[], txns: Array<{ accountId
   const balances = accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, balancePaise: sums.get(a.id) ?? 0 }));
   return { balances, netWorthPaise: balances.reduce((s, b) => s + b.balancePaise, 0) };
 }
+
+export interface HoldingLike {
+  isin: string;
+  qty: number;
+  lastPricePaise: number; // snapshot's own last price — the last-known fallback
+  asOf: string;           // snapshot date
+}
+export interface PriceLike { isin: string; pricePaise: number; priceDate: string }
+export interface HoldingsValuation {
+  valuePaise: number;
+  asOfDate: string | null; // most recent price/snapshot date contributing to the value
+  pricedCount: number;     // holdings valued from a fetched price row
+  fallbackCount: number;   // holdings valued from the snapshot's last-known price
+}
+
+/**
+ * Present value of holdings = Σ qty × latest price. Price source is the most recent `prices` row per
+ * ISIN; when none exists (refresh hasn't run, or fetch failed) it falls back to the snapshot's own
+ * last price — it NEVER blanks. Returns the as-of date actually used so the UI can label staleness.
+ */
+export function holdingsValue(holdings: HoldingLike[], prices: PriceLike[]): HoldingsValuation {
+  const latestPrice = new Map<string, PriceLike>();
+  for (const p of prices) {
+    const cur = latestPrice.get(p.isin);
+    if (!cur || p.priceDate > cur.priceDate) latestPrice.set(p.isin, p);
+  }
+  let valuePaise = 0, pricedCount = 0, fallbackCount = 0;
+  let asOfDate: string | null = null;
+  for (const h of holdings) {
+    const p = latestPrice.get(h.isin);
+    const unit = p ? p.pricePaise : h.lastPricePaise;
+    const usedDate = p ? p.priceDate : h.asOf;
+    if (p) pricedCount++; else fallbackCount++;
+    valuePaise += Math.round(h.qty * unit);
+    if (usedDate && (asOfDate === null || usedDate > asOfDate)) asOfDate = usedDate;
+  }
+  return { valuePaise, asOfDate, pricedCount, fallbackCount };
+}

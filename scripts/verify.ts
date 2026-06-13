@@ -124,7 +124,7 @@ for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${
 
 // ---- Halan bucket math: synthetic, hard-asserted ----
 console.log("\n" + "-".repeat(78));
-import { bucketTotals, monthlyCashFlow, leakageByParent, accountBalances, classifyParent } from "../src/lib/halan.js";
+import { bucketTotals, monthlyCashFlow, leakageByParent, accountBalances, classifyParent, holdingsValue } from "../src/lib/halan.js";
 const synth = [
   { txnDate: "2026-03-05", amountPaise: 18500000, parent: "01 Income", tags: [] as string[] },             // salary +185000
   { txnDate: "2026-03-06", amountPaise: -120000, parent: "03 Spend-it Wants", tags: ["leakage"] },          // impulse, tagged
@@ -202,6 +202,23 @@ assert("equity symbol → yahoo .NS", deriveYahooSymbol("RELIANCE") === "RELIANC
 assert("equity explicit .BO preserved", deriveYahooSymbol("500325.BO") === "500325.BO" ? 1 : 0, 1);
 const eqMap = autoMapHolding({ isin: "INE002A01018", symbol: "RELIANCE", assetClass: "equity" }, navIsin);
 assert("equity auto-maps ⇒ no human", needsConfirmation("equity", eqMap) ? 1 : 0, 0);
+
+// ---- Holdings present value (Pass E): latest price wins, last-known fallback, never blanks ----
+console.log("\n" + "-".repeat(78));
+const val = holdingsValue(
+  [
+    { isin: "A", qty: 10, lastPricePaise: 10000, asOf: "2026-06-01" }, // priced below
+    { isin: "B", qty: 5, lastPricePaise: 20000, asOf: "2026-06-01" },  // no price → fallback
+  ],
+  [
+    { isin: "A", pricePaise: 11000, priceDate: "2026-06-05" },
+    { isin: "A", pricePaise: 12000, priceDate: "2026-06-10" }, // latest for A wins
+  ],
+);
+assert("present value (10×12000 + 5×20000)", val.valuePaise, 10 * 12000 + 5 * 20000);
+assert("uses latest price date as as-of", val.asOfDate === "2026-06-10" ? 1 : 0, 1);
+assert("priced count", val.pricedCount, 1);
+assert("fallback to last-known count", val.fallbackCount, 1);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

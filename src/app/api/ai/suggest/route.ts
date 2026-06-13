@@ -34,16 +34,19 @@ export async function POST() {
 
   // Committed transactions still on the default fallback.
   const { data: txnRows } = await supabase.from("transactions")
-    .select("id,description_raw").eq("user_id", user.id).eq("category_source", "default");
-  const txns = (txnRows ?? []) as Array<{ id: string; description_raw: string }>;
+    .select("id,description_raw,merchant").eq("user_id", user.id).eq("category_source", "default");
+  const txns = (txnRows ?? []) as Array<{ id: string; description_raw: string; merchant: string | null }>;
 
-  // Dedup by normalized description → one suggestion per distinct vendor string.
+  // Dedup by normalized description → one suggestion per distinct vendor string. Fold in the
+  // UPI-enriched counterpart name when present (description-level text, like description_raw — never
+  // money) so the model sees the real merchant. Still NO amount/date/balance/account is sent.
   const groups = new Map<string, { sample: string; txnIds: string[] }>();
   for (const t of txns) {
-    const key = normalizeDesc(t.description_raw);
+    const desc = t.merchant ? `${t.description_raw} · ${t.merchant}` : t.description_raw;
+    const key = normalizeDesc(desc);
     const g = groups.get(key);
     if (g) g.txnIds.push(t.id);
-    else groups.set(key, { sample: t.description_raw, txnIds: [t.id] });
+    else groups.set(key, { sample: desc, txnIds: [t.id] });
   }
   const groupList = [...groups.values()];
   if (groupList.length === 0) {

@@ -30,13 +30,14 @@ export async function POST() {
   );
 
   const { data: txns } = await supabase.from("transactions")
-    .select("id,description_raw").eq("user_id", user.id).eq("category_source", "default");
-  const rows = (txns ?? []) as Array<{ id: string; description_raw: string }>;
+    .select("id,description_raw,merchant").eq("user_id", user.id).eq("category_source", "default");
+  const rows = (txns ?? []) as Array<{ id: string; description_raw: string; merchant: string | null }>;
 
   // Group the matched transactions by their resulting category so we issue one update per category.
+  // Match against the UPI-enriched counterpart name too, so a rule like LAZYPAY fires off `merchant`.
   const byCategory = new Map<string, string[]>();
   for (const t of rows) {
-    const { category } = categorize(t.description_raw, rules);
+    const { category } = categorize(t.description_raw + " " + (t.merchant ?? ""), rules);
     if (category === FALLBACK_CATEGORY) continue;
     const info = byName.get(category);
     if (!info || !info.autoAssignable) continue;

@@ -1,6 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { ReviewTable, type ReviewTxn, type ReviewCategory } from "@/components/review-table";
 import { AiSuggestPanel, type AiCategory } from "@/components/ai-suggest-panel";
+import { EnrichPanel } from "@/components/enrich-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export default async function ReviewPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Review</h1>
         <p className="text-sm text-muted-foreground">Re-categorize and tag leakage. Changes save instantly. Showing the most recent 300 transactions.</p>
       </div>
+      <EnrichPanel />
       <AiSuggestPanel categories={aiCategories} />
       <ReviewTable transactions={transactions} categories={categories} />
     </div>

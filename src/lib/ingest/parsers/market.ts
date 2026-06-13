@@ -37,6 +37,80 @@ export function parseBhimUpi(html: string): { rows: UpiEnrichmentRow[]; skipped:
   return { rows, skipped };
 }
 
+/** Month names → 2-digit, full + 3-letter abbreviations. `sept` (not just `sep`) is the one Google uses. */
+const GPAY_MONTHS: Record<string, string> = {
+  january: "01", jan: "01",
+  february: "02", feb: "02",
+  march: "03", mar: "03",
+  april: "04", apr: "04",
+  may: "05",
+  june: "06", jun: "06",
+  july: "07", jul: "07",
+  august: "08", aug: "08",
+  september: "09", sept: "09", sep: "09",
+  october: "10", oct: "10",
+  november: "11", nov: "11",
+  december: "12", dec: "12",
+};
+
+/**
+ * Google Pay "My Activity" export (Google Takeout → markdown). ENRICHMENT ONLY — same contract and
+ * same `UpiEnrichmentRow` shape as BHIM, so the Pass-1 matcher is unchanged. Newest-first.
+ *
+ * A `## DD Month [YYYY]` header sets the date carried forward across every transaction beneath it,
+ * until the next header. Google omits the year for current-year dates → year inference uses
+ * `currentYear` (injectable so the gate is deterministic regardless of the container clock).
+ *
+ * No statement totals exist, so reconciliation = PARSE-COMPLETENESS: the caller asserts
+ * `rows.length` equals the count of `^(Paid|Sent|Received) ₹` lines. An unparseable header is
+ * REPORTED (warnings), never silently nulled.
+ */
+export function parseGooglePay(
+  md: string,
+  opts?: { currentYear?: number },
+): { rows: UpiEnrichmentRow[]; warnings: string[] } {
+  const currentYear = opts?.currentYear ?? new Date().getFullYear();
+  const headerRe = /^##\s+(\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?\s*$/;
+  const startRe = /^(Paid|Sent|Received)\s+₹/;
+  const activityRe = /^(Paid|Sent|Received)\s+₹([\d,]+\.\d{2})(?:\s+(?:to|from)\s+(.+?))?(?:\s+using Bank Account\s+(\S+))?\s*$/;
+
+  const rows: UpiEnrichmentRow[] = [];
+  const warnings: string[] = [];
+  let curDate: string | null = null;
+
+  for (const raw of md.split(/\r?\n/)) {
+    const line = raw.trim();
+
+    const h = headerRe.exec(line);
+    if (h) {
+      const mon = GPAY_MONTHS[h[2].toLowerCase()];
+      if (!mon) { warnings.push(`unparseable date header: "${line}"`); curDate = null; continue; }
+      curDate = `${h[3] ?? String(currentYear)}-${mon}-${h[1].padStart(2, "0")}`;
+      continue;
+    }
+
+    if (!startRe.test(line)) continue; // not an activity line
+    const a = activityRe.exec(line);
+    if (!a) { warnings.push(`unparseable activity line: "${line}"`); continue; }
+    if (!curDate) { warnings.push(`activity before any date header: "${line}"`); continue; }
+
+    const [, verb, amountStr, nameRaw, mask] = a;
+    const { paise } = parseAmount(amountStr);
+    rows.push({
+      txnDate: curDate,
+      amountPaise: verb === "Received" ? paise : -paise, // Received = inflow (+); Paid/Sent = outflow (−)
+      bankName: "", // Google Pay rows carry no bank name (only a mask) — account can't be resolved
+      accountMask: mask ?? "",
+      counterpartyVpa: "",
+      counterpartyName: nameRaw ? nameRaw.replace(/\\_/g, "_").trim() : "", // P2P transfers often have no name
+      refNo: "",
+      status: "SUCCESS",
+    });
+  }
+
+  return { rows, warnings };
+}
+
 /** Zerodha Console holdings workbook → snapshot. ISIN is the canonical instrument key. */
 export function parseZerodhaHoldings(buf: Buffer): HoldingsSnapshot {
   const wb = XLSX.read(buf, { type: "buffer" });

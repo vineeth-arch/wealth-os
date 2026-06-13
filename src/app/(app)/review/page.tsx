@@ -9,7 +9,7 @@ export default async function ReviewPage() {
   const supabase = await createSupabaseServer();
   const [{ data: txnsRaw }, { data: catsRaw }, { data: acctsRaw }] = await Promise.all([
     supabase.from("transactions")
-      .select("id,txn_date,amount_paise,description_raw,merchant,tags,category_id,account_id")
+      .select("id,txn_date,amount_paise,description_raw,merchant,tags,category_id,category_source,account_id")
       .order("txn_date", { ascending: false }).limit(300),
     supabase.from("categories").select("id,name,parent_id,auto_assignable"),
     supabase.from("accounts").select("id,name"),
@@ -34,6 +34,7 @@ export default async function ReviewPage() {
     merchant: (t.merchant as string | null) ?? "",
     tags: (t.tags as string[]) ?? [],
     categoryId: (t.category_id as string) ?? "",
+    categorySource: (t.category_source as string) ?? "default",
     accountName: t.account_id ? acctById.get(t.account_id as string) ?? "" : "",
   }));
 

@@ -7,6 +7,8 @@ import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
+import { breakdownByAccount, topNTransactions, bucketDrill, type DrillTxn } from "../src/lib/drilldown.js";
+import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
@@ -14,7 +16,7 @@ import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
 import { selectSourceIds } from "../src/lib/prices/types.js";
 import { autoMapHolding, deriveYahooSymbol, needsConfirmation } from "../src/lib/holdings.js";
 import { computeRegime, compareRegimes } from "../src/lib/calc/tax.js";
-import { formatPaise } from "../src/lib/ingest/util.js";
+import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
@@ -198,6 +200,81 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
     ["instructs bucket-first + Uncategorized Review fallback", prompt.includes("bucket-first") && prompt.includes("Uncategorized Review")],
   ];
   for (const [label, ok] of promptChecks) { if (!ok) failures++; console.log(`PROMPT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Dashboard drill-down aggregation (Pass 1): breakdown-by-account + top-N, pure & gate-checkable ----
+{
+  const dmk = (over: Partial<DrillTxn>): DrillTxn => ({
+    id: "x", txnDate: "2026-03-15", amountPaise: -10000, accountId: "A1", accountName: "SBI",
+    descriptionRaw: "d", merchant: "", categoryId: "c", categoryName: "Groceries",
+    parent: "02 Spend-it Needs", categorySource: "user", tags: [], ...over,
+  });
+  const dtxns: DrillTxn[] = [
+    dmk({ id: "i1", txnDate: "2026-03-05", amountPaise: 18500000, parent: "01 Income", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "i2", txnDate: "2026-03-20", amountPaise: 2000000, parent: "01 Income", accountId: "A2", accountName: "Federal" }),
+    dmk({ id: "s1", txnDate: "2026-03-06", amountPaise: -120000, parent: "03 Spend-it Wants", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "s2", txnDate: "2026-03-07", amountPaise: -450000, parent: "02 Spend-it Needs", accountId: "A2", accountName: "Federal" }),
+    dmk({ id: "s3", txnDate: "2026-03-08", amountPaise: -90000, parent: "02 Spend-it Needs", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "s4", txnDate: "2026-03-09", amountPaise: -300000, parent: "03 Spend-it Wants", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "s5", txnDate: "2026-03-10", amountPaise: -50000, parent: "02 Spend-it Needs", accountId: "A2", accountName: "Federal" }),
+    dmk({ id: "s6", txnDate: "2026-03-11", amountPaise: -200000, parent: "03 Spend-it Wants", accountId: "A1", accountName: "SBI" }),
+    dmk({ id: "t1", txnDate: "2026-03-12", amountPaise: -2000000, parent: "10 Transfers & Adjustments", accountId: "A1", accountName: "SBI" }),
+  ];
+  const incBy = breakdownByAccount(dtxns, "income", "2026-03");
+  const incSum = incBy.reduce((s, a) => s + a.subtotalPaise, 0);
+  const spendBy = breakdownByAccount(dtxns, "spend", "2026-03");
+  const spendSum = spendBy.reduce((s, a) => s + a.subtotalPaise, 0);
+  const top = topNTransactions(dtxns, "spend", "2026-03", 5);
+  const emptyBy = breakdownByAccount(dtxns, "income", "2099-01");
+  const emptyTop = topNTransactions(dtxns, "income", "2099-01", 5);
+  const drillChecks: Array<[string, boolean]> = [
+    [`income breakdown sums to headline ₹2,05,000 over 2 accounts = ${incSum}`, incSum === 20500000 && incBy.length === 2],
+    [`spend breakdown sums to headline, transfers excluded = ${spendSum}`, spendSum === 1210000],
+    [`top-5 capped & ordered by |amount| desc = ${top.map((t) => t.id).join(",")}`, top.length === 5 && top.map((t) => t.id).join(",") === "s2,s4,s6,s1,s3"],
+    [`empty month → empty breakdown + empty top-list`, emptyBy.length === 0 && emptyTop.length === 0],
+  ];
+  for (const [label, ok] of drillChecks) { if (!ok) failures++; console.log(`DRILL ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Dashboard bucket drill-down (Pass 2): parent → leaf grouping, pure & gate-checkable ----
+{
+  const bmk = (over: Partial<DrillTxn>): DrillTxn => ({
+    id: "x", txnDate: "2026-03-15", amountPaise: -10000, accountId: "A1", accountName: "SBI",
+    descriptionRaw: "d", merchant: "", categoryId: "c", categoryName: "Food Delivery",
+    parent: "03 Spend-it Wants", categorySource: "user", tags: [], ...over,
+  });
+  const bt: DrillTxn[] = [
+    bmk({ id: "a", parent: "03 Spend-it Wants", categoryName: "Food Delivery", amountPaise: -120000 }),
+    bmk({ id: "b", parent: "03 Spend-it Wants", categoryName: "Food Delivery", amountPaise: -80000 }),
+    bmk({ id: "c", parent: "03 Spend-it Wants", categoryName: "Eating Out", amountPaise: -300000 }),
+    bmk({ id: "d", parent: "02 Spend-it Needs", categoryName: "Groceries", amountPaise: -450000 }),
+    bmk({ id: "e", parent: "03 Spend-it Wants", categoryName: "Food Delivery", amountPaise: 50000 }), // refund inflow: listed, not in outflow
+  ];
+  const bd = bucketDrill(bt, "03 Spend-it Wants");
+  const ids = bd.leaves.flatMap((lf) => lf.txns.map((t) => t.id)).sort().join(",");
+  const leafSum = bd.leaves.reduce((s, lf) => s + lf.outflowPaise, 0);
+  const fd = bd.leaves.find((lf) => lf.categoryName === "Food Delivery");
+  const bucketChecks: Array<[string, boolean]> = [
+    [`returns exactly the parent's txns (a,b,c,e — not d) = ${ids}`, ids === "a,b,c,e"],
+    [`leaf subtotals sum to the bucket total = ${leafSum}`, leafSum === bd.totalPaise && bd.totalPaise === 500000],
+    [`leaf groups by category; inflow excluded from outflow (Food Delivery = ₹2,000 over 3 rows)`, !!fd && fd.outflowPaise === 200000 && fd.count === 3],
+  ];
+  for (const [label, ok] of bucketChecks) { if (!ok) failures++; console.log(`BUCKET ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Inline re-categorize + add-as-rule (Pass 3): pure payload/guard shapes, gate-checkable ----
+{
+  const upd = buildUserCategoryUpdate("cat-123");
+  const validIds = new Set(["cat-123", "cat-456"]);
+  const draft = buildRuleDraft(normalizeDesc("UPI/DR/512282836511/ZOMATO  Zomato"), "cat-123"); // collapse + uppercase
+  const recatChecks: Array<[string, boolean]> = [
+    [`re-categorize writes category_source='user'`, upd.category_source === "user" && upd.category_id === "cat-123"],
+    [`known category accepted; non-taxonomy + empty rejected`,
+      isKnownCategory("cat-123", validIds) && !isKnownCategory("cat-999", validIds) && !isKnownCategory("", validIds)],
+    [`add-as-rule row shape {match_text(normalized), category_id, active} = "${draft.match_text}"`,
+      draft.match_text === "UPI/DR/512282836511/ZOMATO ZOMATO" && draft.category_id === "cat-123" && draft.active === true],
+  ];
+  for (const [label, ok] of recatChecks) { if (!ok) failures++; console.log(`RECAT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- Zerodha ----

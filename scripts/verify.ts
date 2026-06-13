@@ -6,6 +6,7 @@ import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
+import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { formatPaise } from "../src/lib/ingest/util.js";
 import type { StatementParseResult } from "../src/lib/ingest/types.js";
 
@@ -152,6 +153,13 @@ const bal = accountBalances(
   ],
 );
 assert("account balance respects anchor date", bal.netWorthPaise, 1000000 + 18500000 - 450000);
+
+// ---- Integrations: LLM status is derived purely from server env-var presence ----
+console.log("\n" + "-".repeat(78));
+assert("LLM connected when key present", deriveLlmStatus(true) === "connected" ? 1 : 0, 1);
+assert("LLM not_connected when key absent", deriveLlmStatus(false) === "not_connected" ? 1 : 0, 1);
+assert("anthropic is a known LLM provider (default)", isLlmProvider(DEFAULT_LLM_PROVIDER) ? 1 : 0, 1);
+assert("unknown LLM provider rejected", isLlmProvider("totally-made-up") ? 1 : 0, 0);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

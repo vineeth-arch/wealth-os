@@ -4,7 +4,7 @@ import { parseIdfcBank } from "../src/lib/ingest/parsers/idfc-bank.js";
 import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
 import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
-import { parseBhimUpi, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
+import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { matchEnrichment } from "../src/lib/ingest/enrich.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
@@ -141,6 +141,28 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
   const okAmb = amb.ambiguous === 1 && amb.matched === 0 && amb.updates.length === 0;
   if (!okAmb) failures++;
   console.log(`ENRICH ${okAmb ? "PASS" : "FAIL"}: same-date+amount pair reported ambiguous (not guessed)`);
+}
+
+// ---- Google Pay enrichment parser (Pass 3) ----
+{
+  const gpayMd = F("google_pay_sample.md");
+  const { rows: gp, warnings: gpw } = parseGooglePay(gpayMd, { currentYear: 2026 }); // fixed year → deterministic gate
+  const startLines = (gpayMd.match(/^(Paid|Sent|Received) ₹/gm) ?? []).length;
+  const named = gp.filter((r) => r.counterpartyName !== "").length;
+  const masks = new Set(gp.map((r) => r.accountMask).filter(Boolean));
+  const dates = gp.map((r) => r.txnDate).sort();
+  const headerWarns = gpw.filter((w) => w.startsWith("unparseable date header")).length;
+  const gpayChecks: Array<[string, boolean]> = [
+    [`rows = ${gp.length} (expected 200)`, gp.length === 200],
+    [`parse-completeness: rows == ${startLines} activity lines`, gp.length === startLines],
+    [`named = ${named} (expected 143)`, named === 143],
+    [`distinct masks = ${masks.size} (expected 3: ...7358, ...0498, 653018...61)`,
+      masks.size === 3 && masks.has("XXXXXX7358") && masks.has("XXXXXXXXXX0498") && masks.has("653018XXXXXXXX61")],
+    [`date range ${dates[0]} → ${dates[dates.length - 1]} (expected 2024-12-30 → 2026-06-07)`,
+      dates[0] === "2024-12-30" && dates[dates.length - 1] === "2026-06-07"],
+    [`unparseable date headers = ${headerWarns} (expected 0 — proves "Sept" handled)`, headerWarns === 0],
+  ];
+  for (const [label, ok] of gpayChecks) { if (!ok) failures++; console.log(`GPAY ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- Zerodha ----

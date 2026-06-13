@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import { parseBhimUpi } from "@/lib/ingest/parsers/market";
+import { parseBhimUpi, parseGooglePay } from "@/lib/ingest/parsers/market";
 import { matchEnrichment, type MatchableTxn, type MatchableAccount } from "@/lib/ingest/enrich";
 import type { UpiEnrichmentRow } from "@/lib/ingest/types";
 
@@ -29,6 +29,8 @@ export async function POST(request: NextRequest) {
   try {
     if (source === "bhim") {
       rows = parseBhimUpi(text).rows;
+    } else if (source === "gpay") {
+      rows = parseGooglePay(text).rows;
     } else {
       return NextResponse.json({ error: `unsupported source: ${source}` }, { status: 400 });
     }

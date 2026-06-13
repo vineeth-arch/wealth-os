@@ -18,6 +18,9 @@ export function EnrichPanel() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EnrichResult | null>(null);
 
+  const accept = source === "gpay" ? ".md,.markdown,.txt,text/markdown" : ".html,.htm,text/html";
+  const filePrompt = source === "gpay" ? "Choose a Google Pay .md export" : "Choose a BHIM .html export";
+
   async function upload() {
     if (!file) { setError("Choose a UPI export file."); return; }
     setBusy(true); setError(null); setResult(null);
@@ -45,18 +48,18 @@ export function EnrichPanel() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Source</label>
-            <select value={source} onChange={(e) => setSource(e.target.value as Source)}
+            <select value={source} onChange={(e) => { setSource(e.target.value as Source); setFile(null); setFileName(""); setResult(null); }}
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
               <option value="bhim">BHIM UPI</option>
-              <option value="gpay" disabled>Google Pay (coming soon)</option>
+              <option value="gpay">Google Pay</option>
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Export file (.html)</label>
+            <label className="text-sm font-medium">Export file ({source === "gpay" ? ".md" : ".html"})</label>
             <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-dashed border-input px-3 text-sm text-muted-foreground hover:bg-accent">
               <FileUp className="h-4 w-4" />
-              <span className="truncate">{fileName || "Choose a BHIM .html export"}</span>
-              <input type="file" accept=".html,.htm,text/html" className="hidden"
+              <span className="truncate">{fileName || filePrompt}</span>
+              <input type="file" accept={accept} className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setFileName(f?.name ?? ""); }} />
             </label>
           </div>

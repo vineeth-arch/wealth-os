@@ -5,6 +5,7 @@ import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
 import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
+import { matchEnrichment } from "../src/lib/ingest/enrich.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
@@ -13,7 +14,7 @@ import { selectSourceIds } from "../src/lib/prices/types.js";
 import { autoMapHolding, deriveYahooSymbol, needsConfirmation } from "../src/lib/holdings.js";
 import { computeRegime, compareRegimes } from "../src/lib/calc/tax.js";
 import { formatPaise } from "../src/lib/ingest/util.js";
-import type { StatementParseResult } from "../src/lib/ingest/types.js";
+import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -98,6 +99,49 @@ const idfcKey = new Set(idfc.transactions.map((t) => `${t.txnDate}|${Math.abs(t.
 const matched = upi.rows.filter((r) => r.bankName.includes("IDFC") && idfcKey.has(`${r.txnDate}|${Math.abs(r.amountPaise)}`)).length;
 const idfcUpiRows = upi.rows.filter((r) => r.bankName.includes("IDFC") && r.txnDate >= (idfc.periodStart ?? "") && r.txnDate <= (idfc.periodEnd ?? "")).length;
 console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/${idfcUpiRows} UPI rows matched by (date, amount)`);
+
+// hard gates on the BHIM parse — the fixture is the spec
+{
+  const r0 = upi.rows[0];
+  const bhimChecks: Array<[string, boolean]> = [
+    [`rows = ${upi.rows.length} (expected 784)`, upi.rows.length === 784],
+    [`skipped = ${upi.skipped} (expected 80)`, upi.skipped === 80],
+    [`row[0] date = ${r0?.txnDate} (expected 2026-06-12)`, r0?.txnDate === "2026-06-12"],
+    [`row[0] amount = ${r0?.amountPaise} (expected -4500, ₹45 DR → outflow)`, r0?.amountPaise === -4500],
+    ["row[0] carries a counterpart name/VPA", !!(r0 && (r0.counterpartyName.trim() || r0.counterpartyVpa.trim()))],
+  ];
+  for (const [label, ok] of bhimChecks) { if (!ok) failures++; console.log(`BHIM ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// matcher: a unique (date,amount,sign) hit enriches; a same-date+amount pair is ambiguous, never guessed
+{
+  const mkRow = (over: Partial<UpiEnrichmentRow>): UpiEnrichmentRow => ({
+    txnDate: "2026-03-05", amountPaise: -5000, bankName: "", accountMask: "",
+    counterpartyVpa: "", counterpartyName: "", refNo: "", status: "SUCCESS", ...over,
+  });
+  const accounts = [{ id: "X", name: "IDFC", institution: "IDFC_BANK", kind: "bank" }];
+  const uniq = matchEnrichment(
+    [mkRow({ amountPaise: -5000, counterpartyName: "ZOMATO" })],
+    [{ id: "A", accountId: "X", txnDate: "2026-03-05", amountPaise: -5000 }],
+    accounts,
+  );
+  const okUnique = uniq.matched === 1 && uniq.ambiguous === 0 && uniq.unmatched === 0 &&
+    uniq.updates.length === 1 && uniq.updates[0].id === "A" && uniq.updates[0].merchant === "ZOMATO";
+  if (!okUnique) failures++;
+  console.log(`ENRICH ${okUnique ? "PASS" : "FAIL"}: unique match sets counterparty (A → ZOMATO)`);
+
+  const amb = matchEnrichment(
+    [mkRow({ txnDate: "2026-03-06", amountPaise: -8000, counterpartyName: "SOMEVENDOR" })],
+    [
+      { id: "B", accountId: "X", txnDate: "2026-03-06", amountPaise: -8000 },
+      { id: "C", accountId: "X", txnDate: "2026-03-06", amountPaise: -8000 },
+    ],
+    accounts,
+  );
+  const okAmb = amb.ambiguous === 1 && amb.matched === 0 && amb.updates.length === 0;
+  if (!okAmb) failures++;
+  console.log(`ENRICH ${okAmb ? "PASS" : "FAIL"}: same-date+amount pair reported ambiguous (not guessed)`);
+}
 
 // ---- Zerodha ----
 const z = parseZerodhaHoldings(readFileSync("fixtures/holdingsVUZ281.xlsx"));

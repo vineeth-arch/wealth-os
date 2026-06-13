@@ -11,6 +11,7 @@ import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
 import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
 import { selectSourceIds } from "../src/lib/prices/types.js";
 import { autoMapHolding, deriveYahooSymbol, needsConfirmation } from "../src/lib/holdings.js";
+import { computeRegime, compareRegimes } from "../src/lib/calc/tax.js";
 import { formatPaise } from "../src/lib/ingest/util.js";
 import type { StatementParseResult } from "../src/lib/ingest/types.js";
 
@@ -219,6 +220,18 @@ assert("present value (10×12000 + 5×20000)", val.valuePaise, 10 * 12000 + 5 * 
 assert("uses latest price date as as-of", val.asOfDate === "2026-06-10" ? 1 : 0, 1);
 assert("priced count", val.pricedCount, 1);
 assert("fallback to last-known count", val.fallbackCount, 1);
+
+// ---- Tax regime calculator (Pass F): slabs verified by web search, asserted at build time ----
+console.log("\n" + "-".repeat(78));
+const P = 100; // paise per rupee
+// New regime, ₹12,00,000 taxable → ₹0 (§87A rebate covers the ₹60,000 slab tax).
+assert("new regime ₹12L taxable → ₹0", computeRegime(1_200_000 * P, "new").totalTaxPaise, 0);
+// Salaried gross ₹12,75,000 → taxable ₹12,00,000 after ₹75k standard deduction → ₹0.
+assert("new regime ₹12.75L gross salaried → ₹0", compareRegimes({ grossSalaryPaise: 1_275_000 * P }).new.totalTaxPaise, 0);
+// New regime, ₹20,00,000 taxable: 20000+40000+60000+80000 = 200000 tax + 4% cess = 208000.
+assert("new regime ₹20L taxable → ₹2,08,000", computeRegime(2_000_000 * P, "new").totalTaxPaise, 208_000 * P);
+// Old regime, ₹10,00,000 taxable: 12500 + 100000 = 112500 tax + 4% cess = 117000.
+assert("old regime ₹10L taxable → ₹1,17,000", computeRegime(1_000_000 * P, "old").totalTaxPaise, 117_000 * P);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

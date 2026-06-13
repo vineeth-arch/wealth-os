@@ -7,6 +7,9 @@ import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
+import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
+import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
+import { selectSourceIds } from "../src/lib/prices/types.js";
 import { formatPaise } from "../src/lib/ingest/util.js";
 import type { StatementParseResult } from "../src/lib/ingest/types.js";
 
@@ -160,6 +163,31 @@ assert("LLM connected when key present", deriveLlmStatus(true) === "connected" ?
 assert("LLM not_connected when key absent", deriveLlmStatus(false) === "not_connected" ? 1 : 0, 1);
 assert("anthropic is a known LLM provider (default)", isLlmProvider(DEFAULT_LLM_PROVIDER) ? 1 : 0, 1);
 assert("unknown LLM provider rejected", isLlmProvider("totally-made-up") ? 1 : 0, 0);
+
+// ---- Price layer: pure parse + source selection (no network, no yahoo-finance2 in the gate) ----
+console.log("\n" + "-".repeat(78));
+const NAVALL_SAMPLE = [
+  "Scheme Code;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date",
+  "",
+  "Aditya Birla Sun Life Mutual Fund",
+  "Open Ended Schemes(Equity Scheme - Large Cap)",
+  "120503;INF209KB1ZH9;INF209KB1ZI7;Some Fund - Growth;123.4567;13-Jun-2026",
+  "999999;-;-;Bad NAV Fund;N.A.;13-Jun-2026",
+].join("\n");
+const navMap = parseNavAll(NAVALL_SAMPLE);
+assert("AMFI NAV parsed to paise (123.4567 → 12346)", navMap.get("120503")?.navPaise ?? -1, 12346);
+assert("AMFI NAV date → ISO", navMap.get("120503")?.date === "2026-06-13" ? 1 : 0, 1);
+assert("AMFI skips N.A. NAV rows", navMap.has("999999") ? 1 : 0, 0);
+const isinMap = parseNavAllForIsinMap(NAVALL_SAMPLE);
+assert("AMFI ISIN→scheme (growth ISIN)", isinMap.get("INF209KB1ZH9")?.schemeCode === "120503" ? 1 : 0, 1);
+assert("AMFI ISIN→scheme (reinvestment ISIN)", isinMap.get("INF209KB1ZI7")?.schemeCode === "120503" ? 1 : 0, 1);
+const mfapiQuote = parseMfapiNav({ status: "SUCCESS", data: [{ date: "13-06-2026", nav: "123.4567" }] });
+assert("mfapi NAV → paise", mfapiQuote?.pricePaise ?? -1, 12346);
+assert("mfapi date DD-MM-YYYY → ISO", mfapiQuote?.priceDate === "2026-06-13" ? 1 : 0, 1);
+assert("mfapi null on empty payload", parseMfapiNav({ data: [] }) === null ? 1 : 0, 1);
+assert("source select: mutual_fund", JSON.stringify(selectSourceIds("mutual_fund")) === JSON.stringify(["mfapi", "amfi", "mfdata"]) ? 1 : 0, 1);
+assert("source select: equity → yahoo", JSON.stringify(selectSourceIds("equity")) === JSON.stringify(["yahoo"]) ? 1 : 0, 1);
+assert("source select: gold → manual", JSON.stringify(selectSourceIds("gold")) === JSON.stringify(["manual_ibja"]) ? 1 : 0, 1);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

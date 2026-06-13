@@ -33,7 +33,8 @@ the bucket math. 30 PASS reports + "ALL GATES PASSED" = good. Anything else = no
 
 - **DONE — ingestion core:** parsers for SBI, Federal, IDFC bank, IDFC CC, Suryoday CC (markdown), plus Zerodha holdings (xlsx) and BHIM UPI (html). All reconcile. `src/lib/ingest/`.
 - **DONE — app spine:** auth, workspace bootstrap, import wizard (parse->reconcile->categorize->commit), review screen, dashboard (net worth, cash flow, Halan buckets, leakage). `next build` green.
-- **NEXT sub-pass (build ONLY this when asked):** integrations page (LLM + price-source connect/status), `PriceSource` adapters + Vercel cron, weekly Supabase keep-alive cron, calculators (tax-regime first), holdings/snapshot UI, AI assist. Anything beyond the current sub-pass goes in `README.md` "Deferred", not into code.
+- **DONE — integrations/price/holdings/calculators sub-pass:** `/integrations` (LLM provider select — keys are SERVER env vars, not browser-encrypted; price-source status), `src/lib/prices/*` adapters + a single daily Vercel cron (keepalive + weekly refresh), `/holdings` (Zerodha → instruments/holdings_snapshots with ISIN auto-mapping) + dashboard present value, `/calculators` (tax-regime, gate-verified slabs). AI assist remains deferred (`README.md`).
+- **NEXT sub-pass:** AI assist (description cleanup + category suggestions; no money to LLM), statement-password browser encryption (`bank_profiles`), physical gold ingestion, §87A marginal relief. Anything beyond the current sub-pass goes in `README.md` "Deferred", not into code.
 
 ## Confirmed facts (hard-won — do not re-derive or "fix")
 

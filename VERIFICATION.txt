@@ -1,3 +1,10 @@
+wealth-os — npm run verify output (regenerated after the integrations/price/holdings/calculators sub-pass)
+Date: 2026-06-13T07:27:34Z
+
+
+> wealth-os@0.1.0 verify
+> tsx scripts/verify.ts
+
 ==============================================================================
 WEALTH-OS PARSER VERIFICATION — real fixtures, hard reconciliation gates
 ==============================================================================
@@ -316,6 +323,45 @@ HALAN PASS: Mar leakage (tag) = 120000 (expected 120000)
 HALAN PASS: total leakage across window = 200000 (expected 200000)
 HALAN PASS: transfer bucket excluded from spend but tracked = 2300000 (expected 2300000)
 HALAN PASS: account balance respects anchor date = 19050000 (expected 19050000)
+
+------------------------------------------------------------------------------
+HALAN PASS: LLM connected when key present = 1 (expected 1)
+HALAN PASS: LLM not_connected when key absent = 1 (expected 1)
+HALAN PASS: anthropic is a known LLM provider (default) = 1 (expected 1)
+HALAN PASS: unknown LLM provider rejected = 0 (expected 0)
+
+------------------------------------------------------------------------------
+HALAN PASS: AMFI NAV parsed to paise (123.4567 → 12346) = 12346 (expected 12346)
+HALAN PASS: AMFI NAV date → ISO = 1 (expected 1)
+HALAN PASS: AMFI skips N.A. NAV rows = 0 (expected 0)
+HALAN PASS: AMFI ISIN→scheme (growth ISIN) = 1 (expected 1)
+HALAN PASS: AMFI ISIN→scheme (reinvestment ISIN) = 1 (expected 1)
+HALAN PASS: mfapi NAV → paise = 12346 (expected 12346)
+HALAN PASS: mfapi date DD-MM-YYYY → ISO = 1 (expected 1)
+HALAN PASS: mfapi null on empty payload = 1 (expected 1)
+HALAN PASS: source select: mutual_fund = 1 (expected 1)
+HALAN PASS: source select: equity → yahoo = 1 (expected 1)
+HALAN PASS: source select: gold → manual = 1 (expected 1)
+
+------------------------------------------------------------------------------
+HALAN PASS: MF auto-maps ISIN → AMFI scheme code = 1 (expected 1)
+HALAN PASS: MF mapped ⇒ no human needed = 0 (expected 0)
+HALAN PASS: MF unknown ISIN ⇒ needs human = 1 (expected 1)
+HALAN PASS: equity symbol → yahoo .NS = 1 (expected 1)
+HALAN PASS: equity explicit .BO preserved = 1 (expected 1)
+HALAN PASS: equity auto-maps ⇒ no human = 0 (expected 0)
+
+------------------------------------------------------------------------------
+HALAN PASS: present value (10×12000 + 5×20000) = 220000 (expected 220000)
+HALAN PASS: uses latest price date as as-of = 1 (expected 1)
+HALAN PASS: priced count = 1 (expected 1)
+HALAN PASS: fallback to last-known count = 1 (expected 1)
+
+------------------------------------------------------------------------------
+HALAN PASS: new regime ₹12L taxable → ₹0 = 0 (expected 0)
+HALAN PASS: new regime ₹12.75L gross salaried → ₹0 = 0 (expected 0)
+HALAN PASS: new regime ₹20L taxable → ₹2,08,000 = 20800000 (expected 20800000)
+HALAN PASS: old regime ₹10L taxable → ₹1,17,000 = 11700000 (expected 11700000)
 
 ==============================================================================
 ALL GATES PASSED

@@ -57,22 +57,39 @@ so a Leakage/Review auto-rule or unknown category fails generation.
 ## Layout
 
 ```
-src/app/                 App Router: login, auth/callback, (app)/{dashboard,import,review,accounts}, api/{import,commit,bootstrap}
-src/components/          app-shell, import-wizard, review-table, charts, ui/* (vendored shadcn-style primitives)
+src/app/                 App Router: login, auth/callback, (app)/{dashboard,import,review,accounts,holdings,calculators,integrations}, api/{import,commit,bootstrap,integrations,holdings/*,cron/daily}
+src/components/          app-shell, import-wizard, review-table, charts, integrations-panel, holdings-panel, tax-calculator, ui/* (vendored shadcn-style primitives)
 src/lib/ingest/          verified parsers, money/date utils, hashing, rule engine, dispatch, wire types
-src/lib/halan.ts         bucket aggregation math (pure, tested)
-src/lib/supabase/        server/browser/middleware clients (@supabase/ssr)
+src/lib/prices/          PriceSource adapters (mfapi/amfi/mfdata/yahoo/manual) + refreshPrices; pure parse helpers tested in the gate
+src/lib/holdings.ts      instrument auto-mapping (ISIN -> AMFI scheme / Yahoo symbol), pure
+src/lib/calc/tax.ts      tax-regime engine (integer paise; slabs verified + gate-asserted)
+src/lib/integrations.ts  LLM provider catalog + pure status derivation
+src/lib/halan.ts         bucket aggregation + holdings present value (pure, tested)
+src/lib/supabase/        server/browser/middleware/service clients (@supabase/ssr; service = reference-table writes)
 src/lib/seed-data.ts     GENERATED taxonomy + rules + accounts for in-app bootstrap
 scripts/verify.ts        the gate - parsers + Halan math
 supabase/migrations/0001_init.sql   full schema with RLS, dedup unique index, reference seeds
 fixtures/                real statements (git-ignored)
 ```
 
-## Deferred to the next sub-pass (cleanly separable)
+## Shipped in this sub-pass
 
-- Calculators (tax-regime comparison first; FY slabs verified at build time, not from memory).
-- Integrations page - LLM providers (Anthropic default, OpenAI/Gemini/OpenRouter swap) and price sources, with connected/not-connected status; client-side key encryption.
-- Price refresh - PriceSource adapters (mfapi.in primary, mfdata.in / AMFI fallback, yahoo-finance2 for NSE/BSE + listed SGBs, IBJA-anchored manual gold), Vercel cron.
-- Weekly Supabase keep-alive cron (free tier pauses ~weekly).
-- Holdings & snapshot imports - Zerodha holdings (parser already verified) -> holdings_snapshots; BHIM UPI merchant enrichment.
-- AI assist - description cleanup + category suggestions (amounts/dates never sent).
+- Integrations page (`/integrations`) - LLM provider selection (Anthropic default; OpenAI/Gemini/OpenRouter) and price-source connect/status. **LLM keys are server env vars** (presence ⇒ "connected"), never in the browser or DB - see strategy note below.
+- Price layer - `PriceSource` adapters: mfapi (primary MF NAV), amfi (NAVAll.txt, shared with MF auto-mapping), mfdata fallback, yahoo-finance2 (NSE/BSE/demat-SGB), manual_ibja (gold). `refreshPrices()` writes `prices` via the service role.
+- One daily Vercel cron (`/api/cron/daily`): keepalive every run (Supabase free pauses at ~7 days idle) + weekly price refresh gated inside the handler.
+- Holdings (`/holdings`) - Zerodha workbook -> `instruments` + `holdings_snapshots`, with ISIN->source-code auto-mapping (human confirms the rest). Dashboard shows present value (last-known-price fallback), as-of date, and cash-vs-total net worth.
+- Calculators (`/calculators`) - old vs new tax regime (salaried, v1); FY 2025-26 / AY 2026-27 slabs verified by web search and asserted in the gate.
+
+### Integrations strategy (scope boundary)
+
+- APIs integrated here are **price APIs only** (mfapi / mfdata / amfi / Yahoo / manual_ibja).
+- Explicitly **out of scope**: Kite/Upstox brokerage APIs, Tickertape, any third-party MCP integration.
+- **Account Aggregator is the north-star** for a real-time account feed - logged as direction, not a build item.
+
+## Deferred to a later sub-pass (cleanly separable)
+
+- AI assist - `description_clean` cleanup + category *suggestions* only; amounts/dates/balances never sent to an LLM. This is what consumes the integrations LLM selection.
+- Server-encrypted LLM key entry from the UI (into `integrations.encrypted_secret`), and browser-encrypted statement passwords (`bank_profiles`).
+- Physical/digital gold ingestion (`manual_ibja`) + an `asset_snapshot` account. Demat-held SGBs are already covered via the Zerodha + Yahoo path.
+- §87A marginal relief (and the new-regime special marginal-relief band); more calculators.
+- BHIM UPI merchant enrichment surfacing.

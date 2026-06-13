@@ -8,6 +8,7 @@ import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/i
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { breakdownByAccount, topNTransactions, bucketDrill, type DrillTxn } from "../src/lib/drilldown.js";
+import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
@@ -15,7 +16,7 @@ import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
 import { selectSourceIds } from "../src/lib/prices/types.js";
 import { autoMapHolding, deriveYahooSymbol, needsConfirmation } from "../src/lib/holdings.js";
 import { computeRegime, compareRegimes } from "../src/lib/calc/tax.js";
-import { formatPaise } from "../src/lib/ingest/util.js";
+import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
@@ -259,6 +260,21 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
     [`leaf groups by category; inflow excluded from outflow (Food Delivery = ₹2,000 over 3 rows)`, !!fd && fd.outflowPaise === 200000 && fd.count === 3],
   ];
   for (const [label, ok] of bucketChecks) { if (!ok) failures++; console.log(`BUCKET ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Inline re-categorize + add-as-rule (Pass 3): pure payload/guard shapes, gate-checkable ----
+{
+  const upd = buildUserCategoryUpdate("cat-123");
+  const validIds = new Set(["cat-123", "cat-456"]);
+  const draft = buildRuleDraft(normalizeDesc("UPI/DR/512282836511/ZOMATO  Zomato"), "cat-123"); // collapse + uppercase
+  const recatChecks: Array<[string, boolean]> = [
+    [`re-categorize writes category_source='user'`, upd.category_source === "user" && upd.category_id === "cat-123"],
+    [`known category accepted; non-taxonomy + empty rejected`,
+      isKnownCategory("cat-123", validIds) && !isKnownCategory("cat-999", validIds) && !isKnownCategory("", validIds)],
+    [`add-as-rule row shape {match_text(normalized), category_id, active} = "${draft.match_text}"`,
+      draft.match_text === "UPI/DR/512282836511/ZOMATO ZOMATO" && draft.category_id === "cat-123" && draft.active === true],
+  ];
+  for (const [label, ok] of recatChecks) { if (!ok) failures++; console.log(`RECAT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- Zerodha ----

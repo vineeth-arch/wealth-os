@@ -7,6 +7,7 @@ import { CashFlowChart, type FlowPoint } from "@/components/charts";
 import { FlowKpis } from "@/components/dashboard/flow-kpis";
 import { SpendBuckets } from "@/components/dashboard/spend-buckets";
 import { type DrillTxn } from "@/lib/drilldown";
+import { type CategoryOption } from "@/components/category-select";
 import { formatINR, formatMonth, formatDate } from "@/lib/format";
 import {
   type TxnLike, type HoldingLike, type PriceLike, monthlyCashFlow, bucketTotals, leakageByParent,
@@ -90,6 +91,11 @@ export default async function DashboardPage() {
     // a leaf's bucket is its parent; a parent maps to itself
     parentByCatId.set(c.id as string, parentName ?? (c.name as string));
   }
+  // Taxonomy options for the inline category dropdown in the drill-downs (same shape the review screen uses).
+  const categoryOptions: CategoryOption[] = cats.map((c) => ({
+    id: c.id as string, name: c.name as string,
+    parent: c.parent_id ? nameById.get(c.parent_id as string) ?? null : null,
+  }));
 
   const halanTxns: TxnLike[] = txns.map((t) => ({
     txnDate: t.txn_date as string,
@@ -142,7 +148,7 @@ export default async function DashboardPage() {
         <Tile label="Cash net worth" value={formatINR(netWorthPaise)} sub="bank + cards; broker cash excluded" />
         {hasHoldings && <Tile label="Investments" value={formatINR(investments.valuePaise)} tone="invest" sub={investments.asOfDate ? `as of ${formatDate(investments.asOfDate)}` : undefined} />}
         {hasHoldings && <Tile label="Total net worth" value={formatINR(netWorthPaise + investments.valuePaise)} sub="cash + investments" />}
-        {latest && <FlowKpis txns={drillTxns} month={latest.month}
+        {latest && <FlowKpis txns={drillTxns} month={latest.month} categories={categoryOptions}
           totals={{ income: latest.incomePaise, spend: latest.spendPaise, invest: latest.investPaise, leakage: latest.leakagePaise }} />}
       </div>
 
@@ -176,7 +182,7 @@ export default async function DashboardPage() {
         <CardContent><CashFlowChart data={flowData} /></CardContent>
       </Card>
 
-      <SpendBuckets txns={drillTxns} buckets={buckets} leak={leak} />
+      <SpendBuckets txns={drillTxns} buckets={buckets} leak={leak} categories={categoryOptions} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

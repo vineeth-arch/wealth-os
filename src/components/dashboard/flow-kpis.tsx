@@ -3,7 +3,9 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { breakdownByAccount, topNTransactions, type DrillTxn, type DrillMetric } from "@/lib/drilldown";
-import { formatINR, formatMonth, formatDate } from "@/lib/format";
+import { DrillTxnRow } from "@/components/dashboard/drill-txn-row";
+import { type CategoryOption } from "@/components/category-select";
+import { formatINR, formatMonth } from "@/lib/format";
 
 const META: Record<DrillMetric, { label: string; tone: string }> = {
   income: { label: "Income", tone: "text-income" },
@@ -17,7 +19,7 @@ const ORDER: DrillMetric[] = ["income", "spend", "invest", "leakage"];
  * The four monthly cash-flow KPIs, each clickable to a drill-down (breakdown by account + top 5 txns).
  * Pure aggregation runs client-side on the rows the dashboard already loaded — see src/lib/drilldown.ts.
  */
-export function FlowKpis({ txns, month, totals }: { txns: DrillTxn[]; month: string; totals: Record<DrillMetric, number> }) {
+export function FlowKpis({ txns, month, totals, categories }: { txns: DrillTxn[]; month: string; totals: Record<DrillMetric, number>; categories: CategoryOption[] }) {
   const [metric, setMetric] = useState<DrillMetric | null>(null);
   return (
     <>
@@ -35,14 +37,14 @@ export function FlowKpis({ txns, month, totals }: { txns: DrillTxn[]; month: str
 
       <Dialog open={metric !== null} onOpenChange={(o) => !o && setMetric(null)}>
         <DialogContent>
-          {metric && <DrillBody txns={txns} metric={metric} month={month} />}
+          {metric && <DrillBody txns={txns} metric={metric} month={month} categories={categories} />}
         </DialogContent>
       </Dialog>
     </>
   );
 }
 
-function DrillBody({ txns, metric, month }: { txns: DrillTxn[]; metric: DrillMetric; month: string }) {
+function DrillBody({ txns, metric, month, categories }: { txns: DrillTxn[]; metric: DrillMetric; month: string; categories: CategoryOption[] }) {
   const byAccount = breakdownByAccount(txns, metric, month);
   const top = topNTransactions(txns, metric, month, 5);
   const headline = byAccount.reduce((s, a) => s + a.subtotalPaise, 0);
@@ -74,19 +76,7 @@ function DrillBody({ txns, metric, month }: { txns: DrillTxn[]; metric: DrillMet
         <div>
           <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Top {Math.min(5, top.length)} transactions</div>
           {top.length === 0 && <p className="text-sm text-muted-foreground">Nothing to show.</p>}
-          {top.map((t) => (
-            <div key={t.id} className="flex items-start justify-between gap-3 border-b py-1.5 text-xs last:border-0">
-              <div className="min-w-0">
-                <div className="break-words">{t.descriptionRaw}</div>
-                <div className="text-[11px] text-muted-foreground">
-                  {formatDate(t.txnDate)} · {t.accountName || "—"} · {t.categoryName || "Uncategorized"}
-                </div>
-              </div>
-              <span className={`shrink-0 whitespace-nowrap font-medium ${t.amountPaise < 0 ? "text-destructive" : "text-income"}`}>
-                {formatINR(t.amountPaise, { sign: true })}
-              </span>
-            </div>
-          ))}
+          {top.map((t) => <DrillTxnRow key={t.id} t={t} categories={categories} />)}
         </div>
       </div>
     </>

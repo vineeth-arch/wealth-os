@@ -3,7 +3,9 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { bucketDrill, type DrillTxn } from "@/lib/drilldown";
-import { formatINR, formatDate } from "@/lib/format";
+import { DrillTxnRow } from "@/components/dashboard/drill-txn-row";
+import { type CategoryOption } from "@/components/category-select";
+import { formatINR } from "@/lib/format";
 import { TrendingDown, AlertTriangle } from "lucide-react";
 
 interface Bucket { parent: string; outflowPaise: number; count: number }
@@ -16,7 +18,7 @@ type DrillState = { parent: string; mode: "bucket" | "leakage" } | null;
  * expandable. Pure aggregation = bucketDrill (src/lib/drilldown.ts); leakage rows drill the same shape
  * over only the leakage-tagged subset, so the drill total matches the row.
  */
-export function SpendBuckets({ txns, buckets, leak }: { txns: DrillTxn[]; buckets: Bucket[]; leak: Leak[] }) {
+export function SpendBuckets({ txns, buckets, leak, categories }: { txns: DrillTxn[]; buckets: Bucket[]; leak: Leak[]; categories: CategoryOption[] }) {
   const [drill, setDrill] = useState<DrillState>(null);
   const maxBucket = Math.max(1, ...buckets.map((b) => b.outflowPaise));
   const maxLeak = Math.max(1, ...leak.map((l) => l.paise));
@@ -72,14 +74,14 @@ export function SpendBuckets({ txns, buckets, leak }: { txns: DrillTxn[]; bucket
 
       <Dialog open={drill !== null} onOpenChange={(o) => !o && setDrill(null)}>
         <DialogContent>
-          {drill && <BucketBody txns={txns} parent={drill.parent} mode={drill.mode} />}
+          {drill && <BucketBody txns={txns} parent={drill.parent} mode={drill.mode} categories={categories} />}
         </DialogContent>
       </Dialog>
     </>
   );
 }
 
-function BucketBody({ txns, parent, mode }: { txns: DrillTxn[]; parent: string; mode: "bucket" | "leakage" }) {
+function BucketBody({ txns, parent, mode, categories }: { txns: DrillTxn[]; parent: string; mode: "bucket" | "leakage"; categories: CategoryOption[] }) {
   const source = mode === "leakage" ? txns.filter((t) => t.tags.includes("leakage")) : txns;
   const { totalPaise, leaves } = bucketDrill(source, parent);
   return (
@@ -97,15 +99,7 @@ function BucketBody({ txns, parent, mode }: { txns: DrillTxn[]; parent: string; 
               <span className="font-medium">{formatINR(lf.outflowPaise)}</span>
             </summary>
             <div className="pb-2">
-              {lf.txns.map((t) => (
-                <div key={t.id} className="flex items-start justify-between gap-3 border-t py-1.5 text-xs">
-                  <div className="min-w-0">
-                    <div className="break-words">{t.descriptionRaw}{t.merchant ? ` · ${t.merchant}` : ""}</div>
-                    <div className="text-[11px] text-muted-foreground">{formatDate(t.txnDate)} · {t.accountName || "—"} · {t.categoryName || "Uncategorized"} · {t.categorySource}</div>
-                  </div>
-                  <span className={`shrink-0 whitespace-nowrap font-medium ${t.amountPaise < 0 ? "text-destructive" : "text-income"}`}>{formatINR(t.amountPaise, { sign: true })}</span>
-                </div>
-              ))}
+              {lf.txns.map((t) => <DrillTxnRow key={t.id} t={t} categories={categories} />)}
             </div>
           </details>
         ))}

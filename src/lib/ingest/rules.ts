@@ -5,8 +5,17 @@ export interface Category { name: string; parent: string; color: string; icon: s
 export interface VendorRule { match: string; category: string; }
 
 export const FALLBACK_CATEGORY = "Uncategorized Review";
-const LEAKAGE_PARENT = "14 Cash Leakage Watchlist";
-const REVIEW_PARENT = "15 Review Buckets";
+export const LEAKAGE_PARENT = "14 Cash Leakage Watchlist";
+export const REVIEW_PARENT = "15 Review Buckets";
+
+/**
+ * A category may never be auto-assigned (by a vendor rule or by AI) when it lives under
+ * "14 Cash Leakage Watchlist" or "15 Review Buckets" — those are human-only judgments.
+ * `parent` is the leaf's parent name, or the category's own name when it IS a parent.
+ */
+export function isForbiddenAutoParent(parent: string): boolean {
+  return parent === LEAKAGE_PARENT || parent === REVIEW_PARENT;
+}
 
 /** Load the Halan taxonomy CSV. Returns name → Category. Parents have parent === "". */
 export function loadTaxonomy(csv: string): Map<string, Category> {

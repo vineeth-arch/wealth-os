@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Upload, ListChecks, Landmark, Wallet, LogOut, Moon, Sun, Plug, PieChart, Calculator } from "lucide-react";
+import { LayoutDashboard, Upload, ListChecks, Landmark, Wallet, LogOut, Moon, Sun, Plug, PieChart, Calculator, Tags } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/review", label: "Review", icon: ListChecks },
+  { href: "/rules", label: "Rules", icon: Tags },
   { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/holdings", label: "Holdings", icon: PieChart },
   { href: "/calculators", label: "Calculators", icon: Calculator },

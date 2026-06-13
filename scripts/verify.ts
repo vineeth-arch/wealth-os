@@ -9,6 +9,7 @@ import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { breakdownByAccount, topNTransactions, bucketDrill, type DrillTxn } from "../src/lib/drilldown.js";
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
+import { formatAccountDetails } from "../src/lib/accounts/format.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
@@ -275,6 +276,31 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
       draft.match_text === "UPI/DR/512282836511/ZOMATO ZOMATO" && draft.category_id === "cat-123" && draft.active === true],
   ];
   for (const [label, ok] of recatChecks) { if (!ok) failures++; console.log(`RECAT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Account details: migration columns + copy-block formatter (Pass 1), pure & gate-checkable ----
+{
+  const mig = readFileSync("supabase/migrations/0002_account_details.sql", "utf8");
+  const cols = ["account_holder_name", "account_number", "ifsc", "branch", "account_type", "upi_id"];
+
+  const full = formatAccountDetails({
+    accountHolderName: "Vineeth Nair", institution: "SBI", accountType: "Savings",
+    accountNumber: "1234567890", ifsc: "SBIN0001234", branch: "MG Road", upiId: "vineeth@oksbi",
+  });
+  const fullExpected = ["Vineeth Nair", "State Bank of India · Savings", "A/c No: 1234567890", "IFSC: SBIN0001234", "Branch: MG Road", "UPI: vineeth@oksbi"].join("\n");
+
+  const partial = formatAccountDetails({ accountHolderName: "Vineeth Nair", accountNumber: "1234567890", ifsc: "SBIN0001234" });
+  const partialLines = partial.split("\n");
+  const partialOk = partial === "Vineeth Nair\nA/c No: 1234567890\nIFSC: SBIN0001234"
+    && partialLines.length === 3 && !partial.includes("·") && !partialLines.some((l) => l.trim() === "");
+
+  const acctChecks: Array<[string, boolean]> = [
+    [`migration 0002 declares all 6 columns`, cols.every((c) => mig.includes(c))],
+    [`fully-populated account → expected lines in order`, full === fullExpected],
+    [`{holder, number, ifsc} only → exactly 3 lines, no blanks, no "·"`, partialOk],
+    [`empty account → ""`, formatAccountDetails({}) === ""],
+  ];
+  for (const [label, ok] of acctChecks) { if (!ok) failures++; console.log(`ACCT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- Zerodha ----

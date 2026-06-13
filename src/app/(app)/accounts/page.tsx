@@ -1,24 +1,41 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { BootstrapButton } from "@/components/bootstrap-button";
-import { formatINR, formatDate } from "@/lib/format";
+import { AccountsPanel, type AccountRow } from "@/components/accounts-panel";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountsPage() {
   const supabase = await createSupabaseServer();
   const { data: accounts } = await supabase.from("accounts")
-    .select("id,name,institution,kind,anchor_balance_paise,anchor_date").order("name");
+    .select("id,name,institution,kind,anchor_balance_paise,anchor_date,account_holder_name,account_number,ifsc,branch,account_type,upi_id")
+    .order("name");
   const { count: catCount } = await supabase.from("categories").select("id", { count: "exact", head: true });
 
   const seeded = (catCount ?? 0) > 0 && (accounts?.length ?? 0) > 0;
+  const rows: AccountRow[] = (accounts ?? []).map((a) => ({
+    id: a.id as string,
+    name: a.name as string,
+    institution: a.institution as string,
+    kind: a.kind as string,
+    anchorBalancePaise: a.anchor_balance_paise as number | null,
+    anchorDate: a.anchor_date as string | null,
+    accountHolderName: (a.account_holder_name as string | null) ?? "",
+    accountNumber: (a.account_number as string | null) ?? "",
+    ifsc: (a.ifsc as string | null) ?? "",
+    branch: (a.branch as string | null) ?? "",
+    accountType: (a.account_type as string | null) ?? "",
+    upiId: (a.upi_id as string | null) ?? "",
+  }));
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
-        <p className="text-sm text-muted-foreground">Your taxonomy ({catCount ?? 0} categories) and the accounts the converter emits to.</p>
+        <p className="text-sm text-muted-foreground">
+          Your taxonomy ({catCount ?? 0} categories) and the accounts the converter emits to. Add each
+          account&apos;s details for a copy-pastable block to share when receiving money.
+        </p>
       </div>
 
       {!seeded && (
@@ -31,24 +48,7 @@ export default async function AccountsPage() {
         </Card>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(accounts ?? []).map((a) => (
-          <Card key={a.id}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{a.name}</CardTitle>
-                <Badge variant="secondary">{a.kind.replace("_", " ")}</Badge>
-              </div>
-              <CardDescription>{a.institution}</CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              {a.anchor_balance_paise !== null
-                ? <>Anchor {formatINR(a.anchor_balance_paise)} · {a.anchor_date ? formatDate(a.anchor_date) : "—"}</>
-                : <>No anchor yet — set on first statement import.</>}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <AccountsPanel accounts={rows} />
     </div>
   );
 }

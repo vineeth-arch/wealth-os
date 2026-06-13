@@ -27,3 +27,6 @@ next-env.d.ts
 
 # vercel
 .vercel
+
+# graphify: internal incremental-extraction cache (regenerated; not versioned)
+graphify-out/cache/

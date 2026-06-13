@@ -1,0 +1,26 @@
+# Keep private financial data and secrets out of the knowledge graph.
+#
+# fixtures/ holds real SBI/Federal/IDFC/Suryoday/Zerodha/BHIM statements.
+# Money data must never enter a graph that could later be fed to an LLM
+# (CLAUDE.md hard invariant). Exclude the whole directory.
+fixtures/
+
+# Local secrets — never index env files or keys.
+.env
+.env*.local
+*.pem
+
+# Doc/markdown/yaml files need an LLM for *semantic* extraction; we run fully
+# offline (no API key), so the corpus is code-only. To include docs later,
+# remove the lines below and supply a backend key — but note CLAUDE.md and
+# README.md describe this financial system, so weigh that before any LLM sees
+# them. (90 code files are unaffected; none use these extensions.)
+*.md
+*.mdx
+*.qmd
+*.txt
+*.rst
+*.html
+*.yaml
+*.yml
+*.pdf

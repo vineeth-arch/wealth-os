@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { parseBhimUpi, parseGooglePay } from "@/lib/ingest/parsers/market";
-import { matchEnrichment, type MatchableTxn, type MatchableAccount } from "@/lib/ingest/enrich";
+import { matchEnrichment, mergeMerchant, type MatchableTxn, type MatchableAccount } from "@/lib/ingest/enrich";
 import type { UpiEnrichmentRow } from "@/lib/ingest/types";
 
 export const runtime = "nodejs";
@@ -39,11 +39,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Load every committed transaction (paginate past Supabase's 1000-row cap) + accounts for resolution.
+  // Keep each txn's CURRENT merchant too, so enrichment LAYERS onto it instead of overwriting a prior source.
   const txns: MatchableTxn[] = [];
+  const currentMerchant = new Map<string, string | null>();
   const PAGE = 1000;
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase.from("transactions")
-      .select("id,account_id,txn_date,amount_paise")
+      .select("id,account_id,txn_date,amount_paise,merchant")
       .eq("user_id", user.id)
       .order("id")
       .range(from, from + PAGE - 1);
@@ -56,6 +58,7 @@ export async function POST(request: NextRequest) {
         txnDate: t.txn_date as string,
         amountPaise: t.amount_paise as number,
       });
+      currentMerchant.set(t.id as string, (t.merchant as string | null) ?? null);
     }
     if (page.length < PAGE) break;
   }
@@ -71,11 +74,16 @@ export async function POST(request: NextRequest) {
 
   const { updates, matched, ambiguous, unmatched } = matchEnrichment(rows, txns, accounts);
 
-  // Bulk-write: the merchant value differs per id, so group by value → one update per distinct name.
+  // ADDITIVE write: layer the matched name onto each txn's existing merchant so BHIM→GPay (or a re-run)
+  // never wipes prior context. The merged value differs per id, so group by resulting value → one update
+  // per distinct value; skip rows whose value is already current (no-op write).
   const byMerchant = new Map<string, string[]>();
   for (const u of updates) {
-    const arr = byMerchant.get(u.merchant);
-    if (arr) arr.push(u.id); else byMerchant.set(u.merchant, [u.id]);
+    const cur = currentMerchant.get(u.id) ?? null;
+    const merged = mergeMerchant(cur, u.merchant);
+    if (merged === (cur ?? "")) continue;
+    const arr = byMerchant.get(merged);
+    if (arr) arr.push(u.id); else byMerchant.set(merged, [u.id]);
   }
   for (const [merchant, ids] of byMerchant) {
     for (let i = 0; i < ids.length; i += 500) {

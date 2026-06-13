@@ -5,7 +5,7 @@ import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
 import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
-import { matchEnrichment } from "../src/lib/ingest/enrich.js";
+import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
@@ -130,6 +130,12 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
   if (!okUnique) failures++;
   console.log(`ENRICH ${okUnique ? "PASS" : "FAIL"}: unique match sets counterparty (A → ZOMATO)`);
 
+  // The write payload may carry ONLY {id, merchant} — never description_raw/clean (immutable narration).
+  const keysOk = uniq.updates.length === 1 &&
+    JSON.stringify(Object.keys(uniq.updates[0]).sort()) === JSON.stringify(["id", "merchant"]);
+  if (!keysOk) failures++;
+  console.log(`ENRICH ${keysOk ? "PASS" : "FAIL"}: update payload keys are exactly {id, merchant}`);
+
   const amb = matchEnrichment(
     [mkRow({ txnDate: "2026-03-06", amountPaise: -8000, counterpartyName: "SOMEVENDOR" })],
     [
@@ -141,6 +147,20 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
   const okAmb = amb.ambiguous === 1 && amb.matched === 0 && amb.updates.length === 0;
   if (!okAmb) failures++;
   console.log(`ENRICH ${okAmb ? "PASS" : "FAIL"}: same-date+amount pair reported ambiguous (not guessed)`);
+}
+
+// mergeMerchant: enrichment LAYERS context, never overwrites or blanks (BHIM then GPay must stack)
+{
+  const cases: Array<[string, string, string]> = [
+    [mergeMerchant(null, "ZOMATO"), "ZOMATO", "null existing → incoming"],
+    [mergeMerchant("ZOMATO", "Zomato"), "ZOMATO", "case-insensitive contains → unchanged"],
+    [mergeMerchant("ZOMATO", "SWIGGY"), "ZOMATO · SWIGGY", "distinct → appended"],
+    [mergeMerchant("ZOMATO", ""), "ZOMATO", "empty incoming → never blanked"],
+  ];
+  for (const [got, want, label] of cases) {
+    const ok = got === want; if (!ok) failures++;
+    console.log(`MERGE ${ok ? "PASS" : "FAIL"}: ${label} = "${got}" (expected "${want}")`);
+  }
 }
 
 // ---- Google Pay enrichment parser (Pass 3) ----

@@ -9,7 +9,7 @@ import { formatINR, formatDate } from "@/lib/format";
 import { Check } from "lucide-react";
 
 export interface ReviewCategory { id: string; name: string; parent: string | null }
-export interface ReviewTxn { id: string; date: string; amountPaise: number; description: string; tags: string[]; categoryId: string; accountName: string }
+export interface ReviewTxn { id: string; date: string; amountPaise: number; description: string; merchant: string; tags: string[]; categoryId: string; accountName: string }
 
 const LEAKAGE = "leakage";
 const REVIEW_NAME = "Uncategorized Review";
@@ -82,7 +82,10 @@ export function ReviewTable({ transactions, categories }: { transactions: Review
                 <TableRow key={r.id}>
                   <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(r.date)}</TableCell>
                   <TableCell className="truncate text-xs text-muted-foreground">{r.accountName}</TableCell>
-                  <TableCell className="max-w-[20rem] truncate text-xs" title={r.description}>{r.description}</TableCell>
+                  <TableCell className="max-w-[20rem] text-xs" title={r.description}>
+                    <div className="truncate">{r.description}</div>
+                    {r.merchant && <div className="truncate text-[11px] text-muted-foreground" title={r.merchant}>{r.merchant}</div>}
+                  </TableCell>
                   <TableCell className={cn("whitespace-nowrap text-right text-xs font-medium", r.amountPaise < 0 ? "text-destructive" : "text-income")}>
                     {formatINR(r.amountPaise, { sign: true })}
                   </TableCell>

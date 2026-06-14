@@ -808,6 +808,69 @@ assert("net STCG loss → ₹0 tax", computeCapitalGainsTax([{ segment: "equitie
 // Projection: 10% growth raises taxable gains, so the projected tax exceeds the current year's.
 assert("projection grows tax with positive growth", projectCapitalGainsTax(cgSegs, 10).totalTaxPaise > cg.totalTaxPaise ? 1 : 0, 1);
 
+// ---- Money Box Compass — proprietor lens engine (Pass 1): one pool, two lenses, category-driven ----
+console.log("\n" + "-".repeat(78));
+import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES } from "../src/lib/compass.js";
+{
+  const cmk = (over: Partial<CompassTxn>): CompassTxn => ({
+    txnDate: "2026-03-15", amountPaise: -10000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [], ...over,
+  });
+  // A proprietor month: design revenue, a work cost, a personal food-delivery spend that happens to sit
+  // on a credit card (lens must follow the CATEGORY, not the account), a dividend, a parent-10 transfer.
+  const ct: CompassTxn[] = [
+    cmk({ txnDate: "2026-03-02", amountPaise: 20000000, parent: "01 Income", categoryName: "Design Project Income" }), // ₹2,00,000 business revenue
+    cmk({ txnDate: "2026-03-03", amountPaise: 500000, parent: "01 Income", categoryName: "Dividend Income" }),         // ₹5,000 dividend (other income)
+    cmk({ txnDate: "2026-03-05", amountPaise: -1500000, parent: "11 Work & Business", categoryName: "Cloud Hosting" }),// ₹15,000 business cost
+    cmk({ txnDate: "2026-03-06", amountPaise: -2000000, parent: "12 Taxes & Compliance", categoryName: "Advance Tax" }),// ₹20,000 tax
+    cmk({ txnDate: "2026-03-08", amountPaise: -80000, parent: "03 Spend-it Wants", categoryName: "Food Delivery" }),   // ₹800 personal spend (on a CC — category-driven)
+    cmk({ txnDate: "2026-03-09", amountPaise: -450000, parent: "02 Spend-it Needs", categoryName: "Groceries" }),      // ₹4,500 personal spend
+    cmk({ txnDate: "2026-03-10", amountPaise: -1200000, parent: "05 Debt & Credit", categoryName: "Home Loan EMI" }),  // ₹12,000 EMI (personal spend + emi ratio)
+    cmk({ txnDate: "2026-03-12", amountPaise: -5000000, parent: "08 Invest-it", categoryName: "SIP Mutual Fund" }),    // ₹50,000 invest (savings)
+    cmk({ txnDate: "2026-03-13", amountPaise: -300000, parent: "04 Protect", categoryName: "Term Insurance Premium" }),// ₹3,000 protect (savings)
+    cmk({ txnDate: "2026-03-15", amountPaise: -8000000, parent: "10 Transfers & Adjustments", categoryName: "Credit Card Bill Payment Transfer" }), // drawing/transfer — neither lens
+  ];
+  const t = lensTotals(ct);
+  const rec = reconcile(t);
+  // businessRevenue 200000; businessCosts 15000; profit 185000; tax 20000; profitAfterTax 165000
+  // otherIncome = 205000 − 200000 = 5000; personalIncome = 205000 − 15000 − 20000 = 170000
+  // personalSpend = 800 + 4500 + 12000 = 17300 (rupees) → paise 1730000; savings = 50000 + 3000 = 53000 → 5300000
+  const compassChecks: Array<[string, boolean]> = [
+    [`business revenue = ${t.businessRevenue} (expected 20000000)`, t.businessRevenue === 20000000],
+    [`dividend is otherIncome, NOT businessRevenue (other ${t.otherIncome})`, t.otherIncome === 500000 && t.businessRevenue === 20000000],
+    [`business costs (parent 11) = ${t.businessCosts} (expected 1500000)`, t.businessCosts === 1500000],
+    [`tax (parent 12) = ${t.tax} (expected 2000000)`, t.tax === 2000000],
+    [`businessProfitAfterTax = ${t.businessProfitAfterTax} (expected 16500000)`, t.businessProfitAfterTax === 16500000],
+    [`personalIncome = ${t.personalIncome} (expected 17000000)`, t.personalIncome === 17000000],
+    [`personalSpend follows category not account = ${t.personalSpend} (expected 1730000)`, t.personalSpend === 1730000],
+    [`EMI (parent 05) tracked for the ratio = ${t.emiOutflow} (expected 1200000)`, t.emiOutflow === 1200000],
+    [`personalSavings = invest 08 + protect 04 = ${t.personalSavings} (expected 5300000)`, t.personalSavings === 5300000],
+    [`parent-10 transfer touches NEITHER lens (out ${t.transferOutflow}, not in income/spend/savings)`,
+      t.transferOutflow === 8000000 && t.personalIncome === 17000000 && t.personalSpend === 1730000 && t.personalSavings === 5300000],
+    [`identity personalIncome == businessProfitAfterTax + otherIncome`, rec.identityHolds],
+    [`reconciliation closes (no double-count): leftover ${rec.leftoverPaise} == recomputed ${rec.recomputedLeftoverPaise}`, rec.closes],
+    [`leftover = personalIncome − spend − savings = ${rec.leftoverPaise} (expected 9970000)`, rec.leftoverPaise === 17000000 - 1730000 - 5300000],
+    [`Protect counted ONCE (savings only, not in spend): spend excludes the ₹3,000 premium`, t.personalSpend === 1730000],
+    [`all 5 business-income leaves are recognized`, BUSINESS_INCOME_LEAVES.size === 5 && BUSINESS_INCOME_LEAVES.has("Retainer Income")],
+  ];
+  for (const [label, ok] of compassChecks) { if (!ok) failures++; console.log(`COMPASS ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // Trailing window: spread the same kind of data across 3 months → monthsCovered + averaging.
+  const multi: CompassTxn[] = [
+    cmk({ txnDate: "2026-01-10", amountPaise: 10000000, parent: "01 Income", categoryName: "Retainer Income" }),
+    cmk({ txnDate: "2026-02-10", amountPaise: 10000000, parent: "01 Income", categoryName: "Retainer Income" }),
+    cmk({ txnDate: "2026-03-10", amountPaise: 10000000, parent: "01 Income", categoryName: "Retainer Income" }),
+    cmk({ txnDate: "2026-03-11", amountPaise: -600000, parent: "02 Spend-it Needs", categoryName: "Groceries" }),
+  ];
+  const w = computeWindow(multi, 6);
+  const winChecks: Array<[string, boolean]> = [
+    [`window covers the 3 months present (<6 handled) = ${w.monthsCovered}`, w.monthsCovered === 3 && w.months.join(",") === "2026-01,2026-02,2026-03"],
+    [`window totals income = ${w.totals.allIncome} (expected 30000000)`, w.totals.allIncome === 30000000],
+    [`per-month average income = ${w.avg.allIncome} (expected 10000000)`, w.avg.allIncome === 10000000],
+    [`perMonth series length = months covered`, w.perMonth.length === 3 && w.perMonth[2].personalSpend === 600000],
+  ];
+  for (const [label, ok] of winChecks) { if (!ok) failures++; console.log(`COMPASS-WINDOW ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

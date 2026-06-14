@@ -9,13 +9,15 @@ import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { parseMoneyManager, stripEmojiPrefix } from "../src/lib/ingest/parsers/money-manager.js";
+import { matchMoneyManager, DEFAULT_WINDOW_DAYS } from "../src/lib/ingest/money-manager.js";
+import { resolveMmCategory, mmTargetCategoryNames, isSpouseTransfer, SPOUSE_TRANSFER_CATEGORY } from "../src/lib/ingest/money-manager-category-map.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
 import { breakdownByAccount, topNTransactions, bucketDrill, accountPeriodFlow, type DrillTxn } from "../src/lib/drilldown.js";
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { formatAccountDetails } from "../src/lib/accounts/format.js";
-import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
+import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY, isForbiddenAutoParent } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER, resolveLlmDispatch } from "../src/lib/integrations.js";
 import { suggestCategories as geminiSuggest } from "../src/lib/llm/gemini.js";
 import { suggestCategories as openaiSuggest } from "../src/lib/llm/openai.js";
@@ -34,7 +36,7 @@ import { pvAnnuity, hlvIncomeReplacement, hlvExpenseLiability } from "../src/lib
 import { sipFutureValue, goalCorpus, requiredMonthlySip } from "../src/lib/calc/sip.js";
 import { computeCapitalGainsTax, projectCapitalGainsTax } from "../src/lib/calc/capital-gains.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
-import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
+import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "../src/lib/ingest/types.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1071,6 +1073,69 @@ console.log("\n" + "-".repeat(78));
     [`rowRef is a stable 64-hex sha256`, !!salary && /^[0-9a-f]{64}$/.test(salary.rowRef)],
   ];
   for (const [label, ok] of mmChecks) { if (!ok) failures++; console.log(`MM ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager category map (Pass 2): targets resolved from the taxonomy, never 14/15 ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -10000, direction: "outflow", categoryRaw: "Personal",
+    note: null, description: null, merchantText: "", rowRef: "r", ...over,
+  });
+  // every map target must EXIST in the taxonomy and must NOT be a Leakage(14)/Review(15) leaf
+  const targets = mmTargetCategoryNames();
+  const allExist = targets.every((n) => taxonomy.has(n));
+  const noneForbidden = targets.every((n) => { const c = taxonomy.get(n); return c && !isForbiddenAutoParent(c.parent || c.name); });
+  const mapChecks: Array<[string, boolean]> = [
+    [`all ${targets.length} map targets exist in the taxonomy`, allExist],
+    [`no map target is a Leakage(14)/Review(15) leaf`, noneForbidden],
+    [`CC → "Credit Card Bill Payment Transfer" (Transfer, parent 10)`,
+      resolveMmCategory(mmk({ categoryRaw: "CC" })).categoryName === "Credit Card Bill Payment Transfer" && taxonomy.get("Credit Card Bill Payment Transfer")?.parent === "10 Transfers & Adjustments"],
+    [`SIP → "SIP Mutual Fund" (Invest, parent 08)`,
+      resolveMmCategory(mmk({ categoryRaw: "SIP" })).categoryName === "SIP Mutual Fund" && taxonomy.get("SIP Mutual Fund")?.parent === "08 Invest-it"],
+    [`Transport → "Taxi / Cab / Auto" (parent 02)`,
+      resolveMmCategory(mmk({ categoryRaw: "Transport" })).categoryName === "Taxi / Cab / Auto"],
+    [`Salary → "Salary" (parent 01), is an override`,
+      resolveMmCategory(mmk({ categoryRaw: "Salary", direction: "inflow", amountPaise: 100 })).categoryName === "Salary" && resolveMmCategory(mmk({ categoryRaw: "Salary" })).isOverride],
+    [`Personal / Other → null (not forced — left for rules + AI)`,
+      resolveMmCategory(mmk({ categoryRaw: "Personal" })).categoryName === null && resolveMmCategory(mmk({ categoryRaw: "Other" })).categoryName === null],
+    [`note "Vinnie" → family-account transfer override "${SPOUSE_TRANSFER_CATEGORY}" (parent 10), regardless of category`,
+      isSpouseTransfer(mmk({ note: "Vinnie", categoryRaw: "Other", direction: "inflow", amountPaise: 50000 })) &&
+      resolveMmCategory(mmk({ note: "Vinnie", categoryRaw: "Other" })).categoryName === SPOUSE_TRANSFER_CATEGORY &&
+      taxonomy.get(SPOUSE_TRANSFER_CATEGORY)?.parent === "10 Transfers & Adjustments"],
+  ];
+  for (const [label, ok] of mapChecks) { if (!ok) failures++; console.log(`MM-MAP ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager matcher (Pass 2): direction + exact amount within ±window, 1:1 unambiguous ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -5000, direction: "outflow", categoryRaw: "Personal",
+    note: "x", description: null, merchantText: "x", rowRef: Math.random().toString(36).slice(2), ...over,
+  });
+  const T = (id: string, txnDate: string, amountPaise: number) => ({ id, accountId: "A", txnDate, amountPaise });
+
+  const exact = matchMoneyManager([T("t1", "2026-03-05", -5000)], [mmk({ rowRef: "e1" })]);
+  const within = matchMoneyManager([T("t1", "2026-03-07", -5000)], [mmk({ loggedAt: "2026-03-05", rowRef: "e1" })]);
+  const offByOne = matchMoneyManager([T("t1", "2026-03-05", -5001)], [mmk({ rowRef: "e1" })]);
+  const wrongDir = matchMoneyManager([T("t1", "2026-03-05", -5000)], [mmk({ amountPaise: 5000, direction: "inflow", rowRef: "e1" })]);
+  const outside = matchMoneyManager([T("t1", "2026-03-09", -5000)], [mmk({ loggedAt: "2026-03-05", rowRef: "e1" })]);
+  const tie = matchMoneyManager([T("a", "2026-03-06", -8000), T("b", "2026-03-06", -8000)], [mmk({ loggedAt: "2026-03-06", amountPaise: -8000, rowRef: "e1" })]);
+  const greedy = matchMoneyManager(
+    [T("far", "2026-03-08", -8000), T("near", "2026-03-05", -8000)],
+    [mmk({ loggedAt: "2026-03-06", amountPaise: -8000, rowRef: "e1" })],
+  );
+
+  const matchChecks: Array<[string, boolean]> = [
+    [`exact same-day match enriches (t1, exact-day)`, exact.matched.length === 1 && exact.matched[0].txnId === "t1" && exact.matched[0].confidence === "exact-day" && exact.ambiguous.length === 0],
+    [`match within window (gap 2 ≤ ${DEFAULT_WINDOW_DAYS}) → within-window`, within.matched.length === 1 && within.matched[0].confidence === "within-window"],
+    [`amount off by 1 paise → no match (unmatched)`, offByOne.matched.length === 0 && offByOne.unmatchedMM.length === 1],
+    [`direction differs (same magnitude) → no match`, wrongDir.matched.length === 0 && wrongDir.unmatchedMM.length === 1],
+    [`outside window (gap 4 > ${DEFAULT_WINDOW_DAYS}) → no match`, outside.matched.length === 0 && outside.unmatchedMM.length === 1],
+    [`same-amount same-day pair → ambiguous, neither matched`, tie.matched.length === 0 && tie.ambiguous.length === 1],
+    [`greedy picks the closest date (→ "near", not "far")`, greedy.matched.length === 1 && greedy.matched[0].txnId === "near"],
+    [`match payload carries {txnId, mmRowRef} for provenance`, exact.matched[0].mmRowRef === "e1"],
+  ];
+  for (const [label, ok] of matchChecks) { if (!ok) failures++; console.log(`MM-MATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

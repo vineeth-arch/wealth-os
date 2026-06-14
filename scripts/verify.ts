@@ -5,7 +5,7 @@ import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
 import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
-import { parseUpstoxHoldings, parseUpstoxDividends, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
+import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
@@ -378,6 +378,32 @@ console.log(`RULES: ${rules.length} loaded — all categories validated, Leakage
     [`category "Dividend Income" exists in taxonomy with parent "01 Income"`, divCat?.parent === "01 Income"],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`UPSTOX-DIV ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Upstox tax report (realized capital gains) ----
+{
+  const t = parseUpstoxTaxReport(readFileSync("fixtures/tax_report_.xlsx"));
+  const eq = t.segments.find((s) => s.segment === "equities");
+  const empty = t.segments.filter((s) => s.segment !== "equities");
+  const allInt = t.segments.every((s) =>
+    [s.grossPlPaise, s.netPlPaise, s.chargesPaise, s.shortTermPaise, s.longTermPaise].every(Number.isInteger) &&
+    s.lots.every((l) => Number.isInteger(l.totalPlPaise) && Number.isInteger(l.buyAmtPaise) && Number.isInteger(l.sellAmtPaise)));
+  console.log(`\nUPSTOX TAX (FY ${t.financialYear}): equities ${eq?.lots.length} lots  gross ${eq ? formatPaise(eq.grossPlPaise) : "?"}  net ${eq ? formatPaise(eq.netPlPaise) : "?"}  charges ${eq ? formatPaise(eq.chargesPaise) : "?"}  reconcile: ${t.reconciliationOk ? "PASS" : "FAIL"}`);
+  const checks: Array<[string, boolean]> = [
+    [`reconciles (Σ lotPL = gross, net = gross−charges, = Summary)`, t.reconciliationOk],
+    [`financial year = ${t.financialYear} (expected 2526)`, t.financialYear === "2526"],
+    [`equities closed lots = ${eq?.lots.length} (expected 2)`, eq?.lots.length === 2],
+    [`equities gross = ${eq?.grossPlPaise} (expected 5565)`, eq?.grossPlPaise === 5565],
+    [`equities short-term = ${eq?.shortTermPaise} (expected 0)`, eq?.shortTermPaise === 0],
+    [`equities long-term = ${eq?.longTermPaise} (expected 5565)`, eq?.longTermPaise === 5565],
+    [`equities charges = ${eq?.chargesPaise} (expected 3391)`, eq?.chargesPaise === 3391],
+    [`equities net = ${eq?.netPlPaise} (expected 2174 = 5565−3391)`, eq?.netPlPaise === 2174],
+    [`Σ lot PL = ${eq?.lots.reduce((s, l) => s + l.totalPlPaise, 0)} (expected 5565)`, (eq?.lots.reduce((s, l) => s + l.totalPlPaise, 0) ?? -1) === 5565],
+    [`lot[0] buy/sell dates ISO`, !!eq && eq.lots[0].buyDate === excelSerialToISO(44631) && eq.lots[0].sellDate === excelSerialToISO(46007)],
+    [`F&O/Commodities/Currencies empty (0 lots each)`, empty.every((s) => s.lots.length === 0)],
+    [`all money integer paise`, allInt],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`UPSTOX-TAX ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 const everyTxn = all.flatMap((r) => r.transactions);

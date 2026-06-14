@@ -7,7 +7,7 @@
  */
 import * as XLSX from "xlsx";
 import { finalizeHashes } from "../util";
-import type { HoldingRow, HoldingsSnapshot, UpstoxDividends } from "../types";
+import type { HoldingRow, HoldingsSnapshot, UpstoxDividends, RealizedLot, RealizedSegment, UpstoxTaxReport } from "../types";
 
 /** Account name used for dividend content-hashing — matches the seeded Upstox broker account. */
 export const UPSTOX_ACCOUNT_NAME = "Upstox";
@@ -153,4 +153,128 @@ export function parseUpstoxDividends(buf: Buffer): UpstoxDividends {
   if (!reconciliationOk) warnings.push(`reconcile: Σ net ${sum} ≠ stated total ${totalDividendPaise}`);
 
   return { rows, totalDividendPaise, reconciliationOk, warnings };
+}
+
+const paiseOrZero = (v: unknown): number => {
+  const s = String(v ?? "").trim();
+  return s === "" ? 0 : toPaise(s);
+};
+
+const SEGMENT_SHEETS: Array<[string, string]> = [
+  ["Equities", "equities"],
+  ["Future & Options", "fo"],
+  ["Commodities", "commodities"],
+  ["Currencies", "currencies"],
+];
+
+/**
+ * Upstox tradewise tax report → realized capital-gains record. Per segment: stated Gross/Net P&L,
+ * the Charges TOTAL, and the closed (matched buy↔sell) lots with the ST/LT split. This is REALIZED,
+ * already-matched data — NOT a chronological tradebook. Reconciles each populated segment:
+ * Σ lot.totalPL == Gross, Net == Gross − Charges, lot ST/LT split sums to Gross, and the detail
+ * Gross matches the Summary sheet's stated Gross.
+ */
+export function parseUpstoxTaxReport(buf: Buffer): UpstoxTaxReport {
+  const wb = XLSX.read(buf, { type: "buffer" });
+  const warnings: string[] = [];
+
+  // Summary sheet: financial year + authoritative per-segment Gross/Net to reconcile against.
+  let financialYear = "";
+  const summaryGross = new Map<string, number>();
+  const sws = wb.Sheets["Summary"];
+  if (sws) {
+    const sg = grid(sws);
+    let current = "";
+    const nameByLabel = new Map(SEGMENT_SHEETS.map(([label, key]) => [label, key]));
+    for (const r0 of sg) {
+      const a = String((r0 ?? [])[0] ?? "").trim();
+      const b = (r0 ?? [])[1];
+      if (a === "Financial Year" && b != null) financialYear = String(b).trim();
+      if (nameByLabel.has(a) && (b == null || String(b).trim() === "")) current = nameByLabel.get(a)!;
+      if (a === "Gross P&L" && b != null && current) summaryGross.set(current, toPaise(b));
+    }
+  } else {
+    warnings.push("sheet missing: Summary");
+  }
+
+  const segments: RealizedSegment[] = [];
+  let reconciliationOk = true;
+
+  for (const [sheetName, segKey] of SEGMENT_SHEETS) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) { warnings.push(`sheet missing: ${sheetName}`); continue; }
+    const g = grid(ws);
+
+    let grossPaise: number | null = null, netPaise: number | null = null, chargesPaise = 0;
+    let chargesSeen = false;
+    for (const r0 of g) {
+      const a = String((r0 ?? [])[0] ?? "").trim();
+      const b = (r0 ?? [])[1];
+      if (a === "Gross P&L" && b != null) grossPaise = toPaise(b);
+      else if (a === "Net P&L" && b != null) netPaise = toPaise(b);
+      else if (a === "Charges") chargesSeen = true;
+      else if (a === "TOTAL" && chargesSeen && b != null) { chargesPaise = toPaise(b); chargesSeen = false; } // first TOTAL after the Charges heading
+    }
+
+    // tradewise closed-lot table
+    const headerIdx = findHeader(g, ["Buy Date", "Sell Date", "Total PL", "ISIN"]);
+    const lots: RealizedLot[] = [];
+    if (headerIdx >= 0) {
+      const header = (g[headerIdx] as unknown[]).map((c) => String(c ?? "").trim());
+      const col = (name: string) => header.findIndex((h) => h.startsWith(name));
+      const cScrip = col("Scrip Name"), cIsin = col("ISIN"), cQty = col("Qty"),
+        cBuyDate = col("Buy Date"), cBuyAmt = col("Buy Amt"), cSellDate = col("Sell Date"), cSellAmt = col("Sell Amt"),
+        cPl = col("Total PL"), cSt = col("Short Term"), cLt = col("Long Term");
+      for (let i = headerIdx + 1; i < g.length; i++) {
+        const r = g[i] as unknown[];
+        const a = String((r ?? [])[0] ?? "").trim();
+        if (a === "TOTAL") break;
+        if (!r || !r[cIsin] || !ISIN_RE.test(String(r[cIsin]).trim())) continue; // skip empty separator rows
+        lots.push({
+          segment: segKey,
+          scrip: String(r[cScrip] ?? "").trim(),
+          isin: String(r[cIsin]).trim(),
+          qty: Number(r[cQty]),
+          buyDate: excelSerialToISO(Number(r[cBuyDate])),
+          buyAmtPaise: paiseOrZero(r[cBuyAmt]),
+          sellDate: excelSerialToISO(Number(r[cSellDate])),
+          sellAmtPaise: paiseOrZero(r[cSellAmt]),
+          totalPlPaise: paiseOrZero(r[cPl]),
+          shortTermPaise: paiseOrZero(r[cSt]),
+          longTermPaise: paiseOrZero(r[cLt]),
+        });
+      }
+    }
+
+    const lotPl = lots.reduce((s, l) => s + l.totalPlPaise, 0);
+    const lotSt = lots.reduce((s, l) => s + l.shortTermPaise, 0);
+    const lotLt = lots.reduce((s, l) => s + l.longTermPaise, 0);
+    const gross = grossPaise ?? lotPl;
+    const net = netPaise ?? gross - chargesPaise;
+    const speculation = gross - lotSt - lotLt;
+
+    if (lots.length > 0) {
+      const checks =
+        lotPl === gross &&
+        net === gross - chargesPaise &&
+        (!summaryGross.has(segKey) || summaryGross.get(segKey) === gross);
+      if (!checks) {
+        reconciliationOk = false;
+        warnings.push(`${segKey}: Σ lotPL ${lotPl} vs gross ${gross}; net ${net} vs gross−charges ${gross - chargesPaise}; summary ${summaryGross.get(segKey) ?? "n/a"}`);
+      }
+    }
+
+    segments.push({
+      segment: segKey,
+      grossPlPaise: gross,
+      netPlPaise: net,
+      chargesPaise,
+      shortTermPaise: lotSt,
+      longTermPaise: lotLt,
+      speculationPaise: speculation,
+      lots,
+    });
+  }
+
+  return { financialYear, segments, reconciliationOk, warnings };
 }

@@ -102,24 +102,25 @@ export interface ReapplyTxn { id: string; text: string; categorySource: string; 
 export interface ReapplyDecision { txnId: string; ruleId: string; category: string }
 export interface ReapplyOutcome {
   decisions: ReapplyDecision[];               // effective category changes to write (source → 'rule')
-  hitsByRuleId: Record<string, number>;       // ruleId → rows this rule effectively changed this run
+  matchedByRuleId: Record<string, number>;    // ruleId → rows this rule fired on this run (persisted as the Hits count)
   scanned: number;                            // eligible txns examined (isReapplyTarget)
-  matched: number;                            // eligible txns that matched any rule (non-fallback)
-  changed: number;                            // = decisions.length = Σ hitsByRuleId (rows newly categorized)
+  matched: number;                            // eligible txns that matched any rule = Σ matchedByRuleId
+  changed: number;                            // = decisions.length (rows newly (re)categorized this run)
   remaining: number;                          // eligible txns still on the fallback = scanned − matched
 }
 
 /**
  * Pure core of "re-run rules across all transactions". `rules` must already be enabled-only and in
  * priority order (`selectActiveRules`); `text` is the same string the engine matches at import
- * (`description_raw + " " + merchant`). A decision is emitted only when it is an EFFECTIVE change —
- * the resulting category differs from the current one, or the row wasn't already rule-sourced — which
- * makes the run idempotent: re-running with no rule changes yields zero decisions.
+ * (`description_raw + " " + merchant`). Every matched row counts toward `matchedByRuleId` (the Hits
+ * report, stable across runs), but a `decision` (an actual write) is emitted only when it is an
+ * EFFECTIVE change — the category differs or the row wasn't already rule-sourced — so the run is
+ * idempotent: re-running with no rule changes yields zero decisions.
  */
 export function reapplyRules(txns: readonly ReapplyTxn[], rules: readonly ReapplyRule[]): ReapplyOutcome {
   const engineRules: VendorRule[] = rules.map((r) => ({ match: r.match, category: r.category }));
   const decisions: ReapplyDecision[] = [];
-  const hitsByRuleId: Record<string, number> = {};
+  const matchedByRuleId: Record<string, number> = {};
   let scanned = 0, matched = 0;
   for (const t of txns) {
     if (!isReapplyTarget(t.categorySource)) continue;
@@ -127,10 +128,10 @@ export function reapplyRules(txns: readonly ReapplyTxn[], rules: readonly Reappl
     const { category, ruleIndex } = categorize(t.text, engineRules);
     if (ruleIndex === null) continue; // no rule matched → stays Uncategorized Review
     matched++;
-    if (t.categoryName === category && t.categorySource === "rule") continue; // already settled by this rule
     const ruleId = rules[ruleIndex].id;
+    matchedByRuleId[ruleId] = (matchedByRuleId[ruleId] ?? 0) + 1;
+    if (t.categoryName === category && t.categorySource === "rule") continue; // already settled by this rule
     decisions.push({ txnId: t.id, ruleId, category });
-    hitsByRuleId[ruleId] = (hitsByRuleId[ruleId] ?? 0) + 1;
   }
-  return { decisions, hitsByRuleId, scanned, matched, changed: decisions.length, remaining: scanned - matched };
+  return { decisions, matchedByRuleId, scanned, matched, changed: decisions.length, remaining: scanned - matched };
 }

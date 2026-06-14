@@ -621,7 +621,7 @@ for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${
     { id: "t7", text: "UPI/ZOMATO ORDER", categorySource: "rule", categoryName: "Food Delivery" },        // already settled → no-op
   ];
   const out = reapplyRules(txns, active);
-  const tallyOk = Object.values(out.hitsByRuleId).reduce((s, n) => s + n, 0) === out.changed;
+  const matchedTallyOk = Object.values(out.matchedByRuleId).reduce((s, n) => s + n, 0) === out.matched;
   const userPreserved = !out.decisions.some((d) => d.txnId === "t5");
   const t1t2Same = out.decisions.filter((d) => d.txnId === "t1" || d.txnId === "t2").every((d) => d.category === "Food Delivery");
   const aiMmReeval = out.decisions.some((d) => d.txnId === "t3") && out.decisions.some((d) => d.txnId === "t4");
@@ -650,7 +650,8 @@ for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${
     [`re-run skips an already rule-settled no-op row`, noopSkipped],
     [`isReapplyTarget: default/rule/ai_suggested/money_manager=true, user=false`,
       isReapplyTarget("default") && isReapplyTarget("rule") && isReapplyTarget("ai_suggested") && isReapplyTarget("money_manager") && !isReapplyTarget("user")],
-    [`hits tally == rows changed (${out.changed})`, tallyOk],
+    [`per-rule matched tally == total matched (${out.matched})`, matchedTallyOk],
+    [`rows newly categorized this run (changed) = ${out.changed}`, out.changed === 4],
     [`re-run is idempotent (2nd pass changes 0; 1st changed ${out.changed})`, out.changed > 0 && out2.changed === 0],
     [`remaining = eligible still on fallback = ${out.remaining}`, out.remaining === 1], // only t6
     [`moveInOrder swaps adjacent up/down; boundary is a no-op`, reorderOk],

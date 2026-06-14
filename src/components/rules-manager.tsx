@@ -195,7 +195,9 @@ export function RulesManager({ rules, categories }: { rules: RuleRow[]; categori
     const op = begin("Re-run rules");
     try {
       const r = await api("POST", "/api/rules/apply");
-      setMsg(`Re-ran rules: ${r.recategorized} recategorized, ${r.remaining} still Uncategorized (of ${r.scanned} scanned).`);
+      const hits = (r.hits ?? {}) as Record<string, number>;
+      setRows((rs) => rs.map((row) => (row.active ? { ...row, hitCount: hits[row.id] ?? 0 } : row)));
+      setMsg(`Re-ran rules across all accounts: ${r.recategorized} newly categorized · ${r.matched} matched · ${r.remaining} still Uncategorized (of ${r.scanned} scanned).`);
     } catch (err) { setError((err as Error).message); }
     finally { end(op); setBusy(false); }
   }

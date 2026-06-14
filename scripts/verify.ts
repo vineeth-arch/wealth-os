@@ -23,6 +23,7 @@ import { amortizationSchedule, emiPaise, totalInterestPaise, prepaymentImpact } 
 import { emergencyFund } from "../src/lib/calc/emergency.js";
 import { fireCorpus, swpDrawdown } from "../src/lib/calc/retirement.js";
 import { pvAnnuity, hlvIncomeReplacement, hlvExpenseLiability } from "../src/lib/calc/hlv.js";
+import { sipFutureValue, goalCorpus, requiredMonthlySip } from "../src/lib/calc/sip.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
@@ -600,6 +601,25 @@ assert("HLV gap = need − existing cover", ir8.gapPaise, 687_270_319 - 200_000_
 const el = hlvExpenseLiability({ annualExpensePaise: 600_000 * P, yearsToCover: 25, discountRatePct: 0, outstandingLiabilitiesPaise: 5_000_000 * P, existingAssetsPaise: 3_000_000 * P, existingCoverPaise: 5_000_000 * P });
 assert("HLV expense+liabilities need", el.needPaise, 1_700_000_000);
 assert("HLV expense+liabilities gap", el.gapPaise, 1_700_000_000 - 500_000_000);
+
+// ---- SIP / step-up + goal corpus (Pass 5) ----
+console.log("\n" + "-".repeat(78));
+// ₹10,000/mo, 12% p.a., 120 months, annuity-due closed form → FV ₹23,23,390.76.
+assert("SIP plain FV (₹10k, 12%, 120mo)", sipFutureValue({ monthlyPaise: 10_000 * P, annualReturnPct: 12, months: 120, stepUpPct: 0 }), 232_339_076);
+// 10% annual step-up grows the same starting SIP to a larger FV.
+const stepFv = sipFutureValue({ monthlyPaise: 10_000 * P, annualReturnPct: 12, months: 120, stepUpPct: 10 });
+assert("SIP step-up FV (10%) exceeds plain", stepFv > 232_339_076 ? 1 : 0, 1);
+assert("SIP step-up FV value", stepFv, 337_432_626);
+// Zero-return SIP is just the sum of contributions.
+assert("SIP 0% return = months × monthly", sipFutureValue({ monthlyPaise: 5_000 * P, annualReturnPct: 0, months: 24, stepUpPct: 0 }), 5_000 * P * 24);
+// Goal corpus: ₹25L today, 8% inflation, 15 yrs → ₹79,30,422.79.
+assert("goal corpus (₹25L, 8%, 15yr)", goalCorpus({ targetTodayPaise: 2_500_000 * P, inflationPct: 8, years: 15 }), 793_042_279);
+// requiredMonthlySip inverts sipFutureValue: investing it reaches (and just covers) the target.
+const target = 793_042_279;
+const req = requiredMonthlySip({ targetPaise: target, annualReturnPct: 11, months: 180, stepUpPct: 10 });
+const reached = sipFutureValue({ monthlyPaise: req, annualReturnPct: 11, months: 180, stepUpPct: 10 });
+assert("required SIP reaches the target", reached >= target ? 1 : 0, 1);
+assert("required SIP not wildly over (within one month's SIP)", reached - target < req ? 1 : 0, 1);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

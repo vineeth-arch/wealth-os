@@ -1,6 +1,6 @@
 # HANDOFF.md — wealth-os onboarding ground truth
 
-> **Gate baseline:** green at the merge of `origin/main` into `claude/laughing-planck-00qsmh` (`GATE_BASELINE_HASH`) — `npm run verify` (ALL GATES PASSED), `npm run typecheck` (clean), `npm run build` all exit 0 on 2026-06-14.
+> **Gate baseline:** green at the merge of `origin/main` into `claude/laughing-planck-00qsmh` (`c57e3fa`) — `npm run verify` (ALL GATES PASSED), `npm run typecheck` (clean), `npm run build` all exit 0 on 2026-06-14.
 >
 > **Scope note:** this audit was first run on `claude/laughing-planck-00qsmh` *before* `origin/main` (which carries the Compass) was merged in. The tables below reflect the **post-merge** tree (Compass present). The earlier baseline `66ba476` was the pre-merge, docs-only state.
 >

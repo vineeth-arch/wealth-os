@@ -1,6 +1,6 @@
 # AUDIT.md — wealth-os findings
 
-> **Gate baseline:** green at the merge of `origin/main` into `claude/laughing-planck-00qsmh` (`GATE_BASELINE_HASH`) — `npm run verify` (ALL GATES PASSED), `npm run typecheck` (clean), `npm run build` all exit 0 on 2026-06-14. (First run pre-merge at `66ba476`, then re-run on the merged tree that carries the Compass.)
+> **Gate baseline:** green at the merge of `origin/main` into `claude/laughing-planck-00qsmh` (`c57e3fa`) — `npm run verify` (ALL GATES PASSED), `npm run typecheck` (clean), `npm run build` all exit 0 on 2026-06-14. (First run pre-merge at `66ba476`, then re-run on the merged tree that carries the Compass.)
 >
 > **This is a findings log only. The only code change in this branch was a merge-conflict resolution in `src/components/app-shell.tsx` (keeping both the Compass nav item and the Help link) — no behavioural code was authored by the audit.** Each item records what and why; recommended fixes are **not applied** (a separate prompt does that). Severity: **P0** = load-bearing contract broken/untested or active data risk; **P1** = real defect or privacy/onboarding hazard; **P2** = quality / minor drift.
 

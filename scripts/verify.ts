@@ -9,7 +9,8 @@ import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { parseMoneyManager, stripEmojiPrefix } from "../src/lib/ingest/parsers/money-manager.js";
-import { parseGooglePayStatement, matchGooglePayStatement } from "../src/lib/ingest/parsers/google-pay-statement.js";
+import { parseGooglePayStatement, matchGooglePayStatement, planGooglePayWrites, gpayNoteLine, GPAY_NOTE_PREFIX, type GpayMatch, type GpayTxnState } from "../src/lib/ingest/parsers/google-pay-statement.js";
+import { mergeSourceNote } from "../src/lib/ingest/money-manager.js";
 import { resolveGpayCategory, gpayTargetCategoryNames, isGpayTransfer } from "../src/lib/ingest/google-pay-category-map.js";
 import { matchMoneyManager, DEFAULT_WINDOW_DAYS, planMoneyManagerWrites, mergeMmNote, mmNoteLine, MM_NOTE_PREFIX, type MmMatch, type MmTxnState } from "../src/lib/ingest/money-manager.js";
 import { resolveMmCategory, mmTargetCategoryNames, isSpouseTransfer, SPOUSE_TRANSFER_CATEGORY } from "../src/lib/ingest/money-manager-category-map.js";
@@ -1300,6 +1301,60 @@ console.log("\n" + "-".repeat(78));
     [`byBank breakdown counts matched/total per funding last-4`, routed.byBank["0789"]?.matched === 1 && routed.byBank["0789"]?.total === 1],
   ];
   for (const [label, ok] of matchChecks) { if (!ok) failures++; console.log(`GPAY-MATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Google Pay statement apply plan (Pass 3): improve-not-overwrite, idempotent, provenance ----
+{
+  const gpe = (over: Partial<import("../src/lib/ingest/types.js").GooglePayStatementEntry>): import("../src/lib/ingest/types.js").GooglePayStatementEntry => ({
+    txnDate: "2025-12-02", time: "08:30PM", amountPaise: -125000, direction: "outflow", kind: "paid",
+    party: "RandomKirana", upiTxnId: "u1", fundingBankName: "HDFC Bank", fundingBankLast4: "0789",
+    merchantText: "RandomKirana", rowRef: "u1", ...over,
+  });
+  const st = (over: Partial<GpayTxnState>): GpayTxnState => ({ id: "t1", merchant: null, notes: null, categorySource: "default", enrichmentRef: null, ...over });
+  const gm = (txnId: string, upiTxnId: string): GpayMatch => ({ txnId, upiTxnId, confidence: "id", isTransfer: false });
+  const okCat = (_n: string) => ({ id: "cat-x" });
+  const refuseCat = (_n: string) => null;
+
+  // (a) merchant IMPROVES on a raw UPI string; description_raw never in the payload.
+  const eM = gpe({ upiTxnId: "u1", party: "ChaiPoint", merchantText: "ChaiPoint" });
+  const wM = planGooglePayWrites([gm("t1", "u1")], new Map([["u1", eM]]), new Map([["t1", st({ merchant: "UPI/DR/511/CHAI" })]]), okCat)[0];
+
+  // (b) self-transfer category applied over Uncategorized Review; only suggested over an already-categorized row.
+  const eS = gpe({ upiTxnId: "us", kind: "self_transfer", party: "StateBankofIndia4358" });
+  const ebr = new Map([["us", eS]]);
+  const wDef = planGooglePayWrites([gm("t1", "us")], ebr, new Map([["t1", st({ categorySource: "default" })]]), okCat)[0];
+  const wUser = planGooglePayWrites([gm("t1", "us")], ebr, new Map([["t1", st({ categorySource: "user" })]]), okCat)[0];
+
+  // (c) a refused (14/15) mapping is neither applied nor suggested.
+  const wRef = planGooglePayWrites([gm("t1", "us")], ebr, new Map([["t1", st({})]]), refuseCat)[0];
+
+  // (d) idempotent re-run.
+  const eT = gpe({ upiTxnId: "ut", party: "Blinkit", merchantText: "Blinkit" });
+  const first = planGooglePayWrites([gm("t1", "ut")], new Map([["ut", eT]]), new Map([["t1", st({})]]), okCat)[0];
+  const after = st({ merchant: first.merchant ?? null, notes: first.notes, categorySource: "default", enrichmentRef: "ut" });
+  const second = planGooglePayWrites([gm("t1", "ut")], new Map([["ut", eT]]), new Map([["t1", after]]), okCat)[0];
+
+  const planChecks: Array<[string, boolean]> = [
+    [`merchant improves, not overwrites ("UPI/DR/511/CHAI · ChaiPoint")`, wM.merchant === "UPI/DR/511/CHAI · ChaiPoint"],
+    [`payload never carries description_raw / description_clean`, !("description_raw" in wM) && !("description_clean" in wM)],
+    [`notes append one "GPay: …" line`, wM.notes.startsWith(GPAY_NOTE_PREFIX) && wM.notes.split("\n").filter((l) => l.startsWith(GPAY_NOTE_PREFIX)).length === 1],
+    [`self-transfer category APPLIED over Uncategorized Review (source google_pay_statement)`, wDef.categoryId === "cat-x" && wDef.categorySource === "google_pay_statement"],
+    [`NOT applied over an already-categorized row → suggestion only`, wUser.categoryId === undefined && wUser.suggestedCategoryName === "Own Account Transfer"],
+    [`refused (14/15) mapping neither applied nor suggested`, wRef.categoryId === undefined && wRef.suggestedCategoryName === undefined],
+    [`first run changes the row`, first.changed === true && first.merchant === "Blinkit"],
+    [`re-run is a no-op (changed=false)`, second.changed === false],
+    [`re-run keeps exactly one GPay note line`, second.notes.split("\n").filter((l) => l.startsWith(GPAY_NOTE_PREFIX)).length === 1],
+  ];
+  for (const [label, ok] of planChecks) { if (!ok) failures++; console.log(`GPAY-PLAN ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  const noteChecks: Array<[string, boolean]> = [
+    [`mergeSourceNote: null + "GPay: a" → "GPay: a"`, mergeSourceNote(null, "GPay: a", GPAY_NOTE_PREFIX) === "GPay: a"],
+    [`coexists with an MM line ("MM: x" + GPay → both kept)`, mergeSourceNote("MM: x", "GPay: a", GPAY_NOTE_PREFIX) === "MM: x\nGPay: a"],
+    [`replaces a prior GPay line ("GPay: a" + "GPay: b" → "GPay: b")`, mergeSourceNote("GPay: a", "GPay: b", GPAY_NOTE_PREFIX) === "GPay: b"],
+    [`gpayNoteLine builds "GPay: <party> (via <bank> <last4>)"`, gpayNoteLine(gpe({ party: "JioPrepaid" })) === "GPay: JioPrepaid (via HDFC Bank 0789)"],
+    [`gpayNoteLine handles a blank payee`, gpayNoteLine(gpe({ party: "" })) === "GPay: (unknown payee) (via HDFC Bank 0789)"],
+  ];
+  for (const [label, ok] of noteChecks) { if (!ok) failures++; console.log(`GPAY-NOTE ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

@@ -17,7 +17,9 @@
  */
 import type { GooglePayStatementEntry, GpayStatementReconciliation } from "../types.js";
 import { parseAmount, mdCells, isMdRow, isMdSeparator } from "../util.js";
-import { isGpayTransfer } from "../google-pay-category-map.js";
+import { isGpayTransfer, resolveGpayCategory } from "../google-pay-category-map.js";
+import { mergeMerchant } from "../enrich.js";
+import { mergeSourceNote } from "../money-manager.js";
 
 const MONTHS: Record<string, string> = {
   jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
@@ -255,4 +257,87 @@ export function matchGooglePayStatement(
   }
 
   return { matched, ambiguous, unmatched, byBank };
+}
+
+// ─────────────────────────── apply-plan (Pass 3) ───────────────────────────
+// Pure planning of the DB writes for matched pairs. Mirrors the Money Manager apply contract: merchant
+// only IMPROVES (mergeMerchant), `description_raw` is NEVER touched, a single replaceable `GPay: …`
+// notes line, a category applied ONLY over an Uncategorized-Review row (else a suggestion), provenance
+// (enrichment_source='google_pay_statement', enrichment_ref=upiTxnId), and an idempotent re-run.
+
+export const GPAY_NOTE_PREFIX = "GPay: ";
+
+/** Build the one GPay context line: `GPay: <party> (via <bank> <last4>)`. */
+export function gpayNoteLine(entry: GooglePayStatementEntry): string {
+  const who = entry.party.trim() || "(unknown payee)";
+  return `${GPAY_NOTE_PREFIX}${who} (via ${entry.fundingBankName} ${entry.fundingBankLast4})`;
+}
+
+/** Current persisted state of a matched transaction the planner needs to decide improve-vs-overwrite. */
+export interface GpayTxnState {
+  id: string;
+  merchant: string | null;
+  notes: string | null;
+  /** 'default' == still Uncategorized Review (the only row a category may be applied to). */
+  categorySource: string;
+  /** Previously-recorded enrichment ref (any source), for idempotency. */
+  enrichmentRef: string | null;
+}
+
+/** One intended write. `changed === false` means an idempotent re-run — the caller skips it. */
+export interface GpayWrite {
+  id: string;
+  upiTxnId: string;
+  notes: string;
+  merchant?: string;
+  categoryId?: string;
+  categorySource?: "google_pay_statement";
+  suggestedCategoryName?: string;
+  changed: boolean;
+}
+
+/**
+ * Plan the per-transaction writes for the matched pairs. `resolveCategory` maps a target leaf NAME to
+ * its id, returning null when it must NOT be applied (unknown, or a Leakage 14 / Review 15 guard hit).
+ */
+export function planGooglePayWrites(
+  matched: GpayMatch[],
+  entriesByRef: Map<string, GooglePayStatementEntry>,
+  txnStates: Map<string, GpayTxnState>,
+  resolveCategory: (name: string) => { id: string } | null,
+): GpayWrite[] {
+  const writes: GpayWrite[] = [];
+  for (const m of matched) {
+    const entry = entriesByRef.get(m.upiTxnId);
+    const state = txnStates.get(m.txnId);
+    if (!entry || !state) continue;
+
+    const mergedMerchant = mergeMerchant(state.merchant, entry.merchantText);
+    const merchantChanged = mergedMerchant !== (state.merchant ?? "");
+    const mergedNotes = mergeSourceNote(state.notes, gpayNoteLine(entry), GPAY_NOTE_PREFIX);
+    const notesChanged = mergedNotes !== (state.notes ?? "");
+
+    let categoryId: string | undefined;
+    let categorySource: "google_pay_statement" | undefined;
+    let suggestedCategoryName: string | undefined;
+    const res = resolveGpayCategory(entry);
+    if (res.categoryName) {
+      const resolved = resolveCategory(res.categoryName); // null ⇒ forbidden/unknown ⇒ skip
+      if (resolved) {
+        if (state.categorySource === "default") { categoryId = resolved.id; categorySource = "google_pay_statement"; }
+        else suggestedCategoryName = res.categoryName;
+      }
+    }
+
+    const categoryApplied = categoryId !== undefined;
+    const provenanceChanged = state.enrichmentRef !== m.upiTxnId;
+    const changed = merchantChanged || notesChanged || categoryApplied || provenanceChanged;
+
+    const w: GpayWrite = { id: m.txnId, upiTxnId: m.upiTxnId, notes: mergedNotes, changed };
+    if (merchantChanged) w.merchant = mergedMerchant;
+    if (categoryApplied) { w.categoryId = categoryId; w.categorySource = categorySource; }
+    if (suggestedCategoryName) w.suggestedCategoryName = suggestedCategoryName;
+    writes.push(w);
+  }
+  return writes;
 }

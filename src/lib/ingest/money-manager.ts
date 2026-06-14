@@ -122,13 +122,20 @@ export function mmNoteLine(entry: MoneyManagerEntry): string {
 }
 
 /**
- * Replace (not duplicate) the MM line in an existing notes blob: drop any prior `MM: …` line, append
- * the fresh one. Re-running with the same line is a no-op; an updated export updates in place.
+ * Replace (not duplicate) the single line owned by `prefix` in a free-text notes blob: drop any prior
+ * line starting with `prefix`, append the fresh one. Re-running with the same line is a no-op; an
+ * updated export updates in place. Shared by every enrichment source (each owns its own prefix, so
+ * `MM:` and `GPay:` lines coexist without clobbering each other).
  */
-export function mergeMmNote(existing: string | null, mmLine: string): string {
-  const kept = (existing ?? "").split("\n").filter((l) => l.trim() !== "" && !l.startsWith(MM_NOTE_PREFIX));
-  if (mmLine.trim()) kept.push(mmLine);
+export function mergeSourceNote(existing: string | null, line: string, prefix: string): string {
+  const kept = (existing ?? "").split("\n").filter((l) => l.trim() !== "" && !l.startsWith(prefix));
+  if (line.trim()) kept.push(line);
   return kept.join("\n");
+}
+
+/** MM-specific note merge (keeps the historical name + gate). */
+export function mergeMmNote(existing: string | null, mmLine: string): string {
+  return mergeSourceNote(existing, mmLine, MM_NOTE_PREFIX);
 }
 
 /** Current persisted state of a matched transaction the planner needs to decide improve-vs-overwrite. */

@@ -23,7 +23,7 @@ export function EnrichPanel() {
   useEffect(() => () => { mounted.current = false; }, []);
 
   const accept = source === "gpay" ? ".md,.markdown,.txt,text/markdown" : ".html,.htm,text/html";
-  const filePrompt = source === "gpay" ? "Choose a Google Pay .md export" : "Choose a BHIM .html export";
+  const filePrompt = source === "gpay" ? "Choose a Google Pay My Activity (.md) export" : "Choose a BHIM .html export";
 
   async function upload() {
     if (!file) { setError("Choose a UPI export file."); return; }
@@ -53,7 +53,8 @@ export function EnrichPanel() {
         <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" /> Enrich from UPI export</CardTitle>
         <CardDescription>
           Attach the real counterpart name from a UPI-app export to matching bank transactions, by date
-          and amount. Enrichment only — no transactions are added, no amounts change.
+          and amount. Enrichment only — no transactions are added, no amounts change. For the Google Pay
+          app&apos;s official Transaction statement, use the dedicated card below instead.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -63,7 +64,7 @@ export function EnrichPanel() {
             <select value={source} onChange={(e) => { setSource(e.target.value as Source); setFile(null); setFileName(""); setResult(null); }}
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
               <option value="bhim">BHIM UPI</option>
-              <option value="gpay">Google Pay</option>
+              <option value="gpay">Google Pay — My Activity (Takeout)</option>
             </select>
           </div>
           <div className="space-y-1.5">

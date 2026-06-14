@@ -1362,7 +1362,10 @@ console.log("\n" + "-".repeat(78));
   const panel = readFileSync("src/components/google-pay-statement-panel.tsx", "utf8");
   const route = readFileSync("src/app/api/enrich/google-pay-statement/route.ts", "utf8");
   const page = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+  const enrichPanel = readFileSync("src/components/enrich-panel.tsx", "utf8");
   const uiChecks: Array<[string, boolean]> = [
+    [`the two Google Pay entry points are format-disambiguated (My Activity vs official Transaction statement)`,
+      enrichPanel.includes("My Activity") && panel.includes("Transaction statement") && panel.includes("official")],
     [`panel previews before writing (Scan & preview → mode=preview)`, panel.includes('run("preview")') && panel.includes('mode === "preview"')],
     [`panel has a separate confirm step that applies (mode=apply)`, panel.includes('run("apply")') && panel.includes("Apply enrichment")],
     [`panel shows reconciliation deltas + per-funding-bank breakdown`, panel.includes("Reconciliation vs statement totals") && panel.includes("Match coverage by funding account")],

@@ -80,7 +80,7 @@ export function GooglePayStatementPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Smartphone className="h-5 w-5" /> Enrich from Google Pay statement</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Smartphone className="h-5 w-5" /> Enrich from Google Pay — Transaction statement (official)</CardTitle>
         <CardDescription>
           Match a Google Pay official <code>Transaction statement</code> (.md) to your imported
           transactions — routed by funding account (last-4) and the UPI Transaction ID where it appears
@@ -93,7 +93,7 @@ export function GooglePayStatementPanel() {
             <label className="text-sm font-medium">Statement file (.md)</label>
             <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-dashed border-input px-3 text-sm text-muted-foreground hover:bg-accent">
               <FileUp className="h-4 w-4" />
-              <span className="truncate">{fileName || "Choose a Google Pay statement .md export"}</span>
+              <span className="truncate">{fileName || "Choose the official Google Pay Transaction statement (.md)"}</span>
               <input type="file" accept=".md,.markdown,.txt,text/markdown" className="hidden"
                 onChange={(e) => pickFile(e.target.files?.[0] ?? null)} />
             </label>

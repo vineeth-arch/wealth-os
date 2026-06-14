@@ -808,6 +808,246 @@ assert("net STCG loss → ₹0 tax", computeCapitalGainsTax([{ segment: "equitie
 // Projection: 10% growth raises taxable gains, so the projected tax exceeds the current year's.
 assert("projection grows tax with positive growth", projectCapitalGainsTax(cgSegs, 10).totalTaxPaise > cg.totalTaxPaise ? 1 : 0, 1);
 
+// ---- Money Box Compass — proprietor lens engine (Pass 1): one pool, two lenses, category-driven ----
+console.log("\n" + "-".repeat(78));
+import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep, enjoymentFloor, REFLECTIONS, emptyProfile, worstBand, machineSummary, bandHigher, bandLower } from "../src/lib/compass.js";
+{
+  const cmk = (over: Partial<CompassTxn>): CompassTxn => ({
+    txnDate: "2026-03-15", amountPaise: -10000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [], ...over,
+  });
+  // A proprietor month: design revenue, a work cost, a personal food-delivery spend that happens to sit
+  // on a credit card (lens must follow the CATEGORY, not the account), a dividend, a parent-10 transfer.
+  const ct: CompassTxn[] = [
+    cmk({ txnDate: "2026-03-02", amountPaise: 20000000, parent: "01 Income", categoryName: "Design Project Income" }), // ₹2,00,000 business revenue
+    cmk({ txnDate: "2026-03-03", amountPaise: 500000, parent: "01 Income", categoryName: "Dividend Income" }),         // ₹5,000 dividend (other income)
+    cmk({ txnDate: "2026-03-05", amountPaise: -1500000, parent: "11 Work & Business", categoryName: "Cloud Hosting" }),// ₹15,000 business cost
+    cmk({ txnDate: "2026-03-06", amountPaise: -2000000, parent: "12 Taxes & Compliance", categoryName: "Advance Tax" }),// ₹20,000 tax
+    cmk({ txnDate: "2026-03-08", amountPaise: -80000, parent: "03 Spend-it Wants", categoryName: "Food Delivery" }),   // ₹800 personal spend (on a CC — category-driven)
+    cmk({ txnDate: "2026-03-09", amountPaise: -450000, parent: "02 Spend-it Needs", categoryName: "Groceries" }),      // ₹4,500 personal spend
+    cmk({ txnDate: "2026-03-10", amountPaise: -1200000, parent: "05 Debt & Credit", categoryName: "Home Loan EMI" }),  // ₹12,000 EMI (personal spend + emi ratio)
+    cmk({ txnDate: "2026-03-12", amountPaise: -5000000, parent: "08 Invest-it", categoryName: "SIP Mutual Fund" }),    // ₹50,000 invest (savings)
+    cmk({ txnDate: "2026-03-13", amountPaise: -300000, parent: "04 Protect", categoryName: "Term Insurance Premium" }),// ₹3,000 protect (savings)
+    cmk({ txnDate: "2026-03-15", amountPaise: -8000000, parent: "10 Transfers & Adjustments", categoryName: "Credit Card Bill Payment Transfer" }), // drawing/transfer — neither lens
+  ];
+  const t = lensTotals(ct);
+  const rec = reconcile(t);
+  // businessRevenue 200000; businessCosts 15000; profit 185000; tax 20000; profitAfterTax 165000
+  // otherIncome = 205000 − 200000 = 5000; personalIncome = 205000 − 15000 − 20000 = 170000
+  // personalSpend = 800 + 4500 + 12000 = 17300 (rupees) → paise 1730000; savings = 50000 + 3000 = 53000 → 5300000
+  const compassChecks: Array<[string, boolean]> = [
+    [`business revenue = ${t.businessRevenue} (expected 20000000)`, t.businessRevenue === 20000000],
+    [`dividend is otherIncome, NOT businessRevenue (other ${t.otherIncome})`, t.otherIncome === 500000 && t.businessRevenue === 20000000],
+    [`business costs (parent 11) = ${t.businessCosts} (expected 1500000)`, t.businessCosts === 1500000],
+    [`tax (parent 12) = ${t.tax} (expected 2000000)`, t.tax === 2000000],
+    [`businessProfitAfterTax = ${t.businessProfitAfterTax} (expected 16500000)`, t.businessProfitAfterTax === 16500000],
+    [`personalIncome = ${t.personalIncome} (expected 17000000)`, t.personalIncome === 17000000],
+    [`personalSpend follows category not account = ${t.personalSpend} (expected 1730000)`, t.personalSpend === 1730000],
+    [`EMI (parent 05) tracked for the ratio = ${t.emiOutflow} (expected 1200000)`, t.emiOutflow === 1200000],
+    [`personalSavings = invest 08 + protect 04 = ${t.personalSavings} (expected 5300000)`, t.personalSavings === 5300000],
+    [`parent-10 transfer touches NEITHER lens (out ${t.transferOutflow}, not in income/spend/savings)`,
+      t.transferOutflow === 8000000 && t.personalIncome === 17000000 && t.personalSpend === 1730000 && t.personalSavings === 5300000],
+    [`identity personalIncome == businessProfitAfterTax + otherIncome`, rec.identityHolds],
+    [`reconciliation closes (no double-count): leftover ${rec.leftoverPaise} == recomputed ${rec.recomputedLeftoverPaise}`, rec.closes],
+    [`leftover = personalIncome − spend − savings = ${rec.leftoverPaise} (expected 9970000)`, rec.leftoverPaise === 17000000 - 1730000 - 5300000],
+    [`Protect counted ONCE (savings only, not in spend): spend excludes the ₹3,000 premium`, t.personalSpend === 1730000],
+    [`all 5 business-income leaves are recognized`, BUSINESS_INCOME_LEAVES.size === 5 && BUSINESS_INCOME_LEAVES.has("Retainer Income")],
+  ];
+  for (const [label, ok] of compassChecks) { if (!ok) failures++; console.log(`COMPASS ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // Trailing window: spread the same kind of data across 3 months → monthsCovered + averaging.
+  const multi: CompassTxn[] = [
+    cmk({ txnDate: "2026-01-10", amountPaise: 10000000, parent: "01 Income", categoryName: "Retainer Income" }),
+    cmk({ txnDate: "2026-02-10", amountPaise: 10000000, parent: "01 Income", categoryName: "Retainer Income" }),
+    cmk({ txnDate: "2026-03-10", amountPaise: 10000000, parent: "01 Income", categoryName: "Retainer Income" }),
+    cmk({ txnDate: "2026-03-11", amountPaise: -600000, parent: "02 Spend-it Needs", categoryName: "Groceries" }),
+  ];
+  const w = computeWindow(multi, 6);
+  const winChecks: Array<[string, boolean]> = [
+    [`window covers the 3 months present (<6 handled) = ${w.monthsCovered}`, w.monthsCovered === 3 && w.months.join(",") === "2026-01,2026-02,2026-03"],
+    [`window totals income = ${w.totals.allIncome} (expected 30000000)`, w.totals.allIncome === 30000000],
+    [`per-month average income = ${w.avg.allIncome} (expected 10000000)`, w.avg.allIncome === 10000000],
+    [`perMonth series length = months covered`, w.perMonth.length === 3 && w.perMonth[2].personalSpend === 600000],
+  ];
+  for (const [label, ok] of winChecks) { if (!ok) failures++; console.log(`COMPASS-WINDOW ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Compass Machine H1–H3 (Pass 2): R/A/G bands on the proprietor ratios ----
+{
+  // band helper semantics
+  const bandChecks: Array<[string, boolean]> = [
+    ["bandHigher: ≥green→green, ≥amber→amber, else red", bandHigher(20, 20, 15) === "green" && bandHigher(15, 20, 15) === "amber" && bandHigher(14, 20, 15) === "red"],
+    ["bandLower: ≤green→green, ≤amber→amber, else red", bandLower(25, 25, 30) === "green" && bandLower(30, 25, 30) === "amber" && bandLower(31, 25, 30) === "red"],
+  ];
+  for (const [label, ok] of bandChecks) { if (!ok) failures++; console.log(`COMPASS-BAND ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // avg per-month proprietor figures: income 1,00,000; savings 25,000 (25%); EMI 20,000 (20%); spend 45,000 (45%)
+  const avg = { ...lensTotals([]),
+    personalIncome: 10000000, personalSavings: 2500000, investOutflow: 2000000, protectOutflow: 500000,
+    emiOutflow: 2000000, personalSpend: 4500000, wantsOutflow: 1000000 };
+  const h1 = machineH1(avg);
+  // H2: ₹3,00,000 liquid ÷ ₹45,000/mo = 6.67 months → green; target gap to 6mo already met (0)
+  const h2 = machineH2(avg, 30000000);
+  // H2 red case: only ₹90,000 liquid → 2 months
+  const h2red = machineH2(avg, 9000000);
+  const machineChecks: Array<[string, boolean]> = [
+    [`H1 save rate 25% → green (pct ${h1.saveRate.pct?.toFixed(1)})`, h1.saveRate.band === "green" && Math.round(h1.saveRate.pct ?? 0) === 25],
+    [`H1 EMI 20% → green`, h1.emiLoad.band === "green" && Math.round(h1.emiLoad.pct ?? 0) === 20],
+    [`H1 living cost 45% → green`, h1.livingCost.band === "green" && Math.round(h1.livingCost.pct ?? 0) === 45],
+    [`H1 zero income → null band (categorize first)`, machineH1(lensTotals([])).saveRate.band === null],
+    [`H2 6.67 months → green, gap 0`, h2.band === "green" && Math.round((h2.months ?? 0) * 100) === 667 && h2.gapToTargetPaise === 0],
+    [`H2 2 months → red, gap = 6×spend − liquid = ${h2red.gapToTargetPaise}`, h2red.band === "red" && h2red.gapToTargetPaise === 6 * 4500000 - 9000000],
+    [`H2 no spend → null band`, machineH2(lensTotals([]), 1000000).band === null],
+  ];
+  for (const [label, ok] of machineChecks) { if (!ok) failures++; console.log(`COMPASS-MACHINE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // H3 protection presence (parent 04 term/health leaves) → green; none → red
+  const pmk = (cat: string): CompassTxn => ({ txnDate: "2026-03-01", amountPaise: -300000, parent: "04 Protect", categoryName: cat, tags: [] });
+  const withTerm = machineH3([pmk("Term Insurance Premium")]);
+  const withHealth = machineH3([pmk("Health Insurance Premium")]);
+  const none = machineH3([{ txnDate: "2026-03-01", amountPaise: -450000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [] }]);
+  const h3Checks: Array<[string, boolean]> = [
+    [`H3 term premium → present + green`, withTerm.termPresent && withTerm.anyPresent && withTerm.band === "green"],
+    [`H3 health premium → present + green`, withHealth.healthPresent && withHealth.band === "green"],
+    [`H3 no protection outflow → red`, !none.anyPresent && none.band === "red"],
+  ];
+  for (const [label, ok] of h3Checks) { if (!ok) failures++; console.log(`COMPASS-H3 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Compass Machine H4–H6 (Pass 3): consistency, concentration, leakage + net-worth trend ----
+{
+  const imk = (month: string, invest: number): CompassTxn[] => ([
+    { txnDate: `${month}-05`, amountPaise: 10000000, parent: "01 Income", categoryName: "Retainer Income", tags: [] },
+    ...(invest > 0 ? [{ txnDate: `${month}-10`, amountPaise: -invest, parent: "08 Invest-it", categoryName: "SIP Mutual Fund", tags: [] as string[] }] : []),
+    { txnDate: `${month}-12`, amountPaise: -100000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [] },
+  ]);
+  // 3 months, invested every month → with green save-rate → green; skipped a month → amber
+  const everyMonth = computeWindow([...imk("2026-01", 5000000), ...imk("2026-02", 5000000), ...imk("2026-03", 5000000)], 6);
+  const skipped = computeWindow([...imk("2026-01", 5000000), ...imk("2026-02", 0), ...imk("2026-03", 5000000)], 6);
+  const never = computeWindow([...imk("2026-01", 0), ...imk("2026-02", 0)], 6);
+  const h4green = machineH4(everyMonth, "green");
+  const h4amberRegular = machineH4(everyMonth, "amber"); // every month but save-rate not green → amber
+  const h4amberSkip = machineH4(skipped, "green");
+  const h4red = machineH4(never, "red");
+  const h4Checks: Array<[string, boolean]> = [
+    [`H4 every month + green save-rate → green (invested ${h4green.monthsInvested}/${h4green.monthsCovered})`, h4green.band === "green" && h4green.skipped === 0],
+    [`H4 every month but save-rate amber → amber`, h4amberRegular.band === "amber"],
+    [`H4 skipped a month → amber, skipped=1`, h4amberSkip.band === "amber" && h4amberSkip.skipped === 1],
+    [`H4 never invested → red`, h4red.band === "red" && h4red.monthsInvested === 0],
+  ];
+  for (const [label, ok] of h4Checks) { if (!ok) failures++; console.log(`COMPASS-H4 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // H5 concentration: one holding 60% → red; balanced → green; asset-class split is honest
+  const conc = machineH5([
+    { name: "BigCo", assetClass: "equity", valuePaise: 6000000 },
+    { name: "FundA", assetClass: "mutual_fund", valuePaise: 2000000 },
+    { name: "GoldB", assetClass: "gold", valuePaise: 2000000 },
+  ]);
+  const spread = machineH5([
+    { name: "A", assetClass: "equity", valuePaise: 1500000 },
+    { name: "B", assetClass: "mutual_fund", valuePaise: 1500000 },
+    { name: "C", assetClass: "mutual_fund", valuePaise: 1500000 },
+    { name: "D", assetClass: "bond", valuePaise: 1500000 },
+    { name: "E", assetClass: "gold", valuePaise: 1500000 },
+    { name: "F", assetClass: "cash", valuePaise: 1500000 },
+  ]);
+  const h5Checks: Array<[string, boolean]> = [
+    [`H5 largest 60% → red (top ${conc.top?.name} ${conc.top?.pct.toFixed(0)}%)`, conc.band === "red" && Math.round(conc.top?.pct ?? 0) === 60],
+    [`H5 byClass split is honest & sums to 100%`, Math.round(conc.byClass.reduce((s, c) => s + c.pct, 0)) === 100 && conc.byClass.length === 3],
+    [`H5 evenly spread (16.7% each) → green`, spread.band === "green" && Math.round(spread.top?.pct ?? 0) === 17],
+    [`H5 no holdings → null band`, machineH5([]).band === null],
+  ];
+  for (const [label, ok] of h5Checks) { if (!ok) failures++; console.log(`COMPASS-H5 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // H6 leakage: ₹2,000 leaked of ₹40,000 spend = 5% → amber; net-worth trend up → green
+  const lk: CompassTxn[] = [
+    { txnDate: "2026-03-02", amountPaise: -200000, parent: "03 Spend-it Wants", categoryName: "Food Delivery", tags: ["leakage"] },
+    { txnDate: "2026-03-03", amountPaise: -3800000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [] },
+  ];
+  const leak = machineH6Leakage(lk, lensTotals(lk));
+  const trendUp = netWorthSeries(
+    [{ id: "a", name: "SBI", kind: "bank", anchorBalancePaise: 1000000, anchorDate: "2026-01-01" }],
+    [
+      { accountId: "a", txnDate: "2026-01-15", amountPaise: 500000 },
+      { accountId: "a", txnDate: "2026-02-15", amountPaise: 500000 },
+      { accountId: "a", txnDate: "2026-03-15", amountPaise: 500000 },
+    ],
+    ["2026-01", "2026-02", "2026-03"],
+  );
+  const trendOne = netWorthSeries([{ id: "a", name: "SBI", kind: "bank", anchorBalancePaise: 1000000, anchorDate: "2026-01-01" }], [], ["2026-03"]);
+  const h6Checks: Array<[string, boolean]> = [
+    [`H6 leakage 5% → amber (pct ${leak.pct?.toFixed(1)}, total ${leak.totalLeakagePaise})`, leak.band === "amber" && leak.totalLeakagePaise === 200000],
+    [`H6 leakage byParent surfaces the wants leak`, leak.byParent.length === 1 && leak.byParent[0].parent === "03 Spend-it Wants"],
+    [`H6 net-worth rising across 3 months → green, +₹10,000 (Jan-end ₹15k → Mar-end ₹25k)`, trendUp.band === "green" && trendUp.direction === "up" && trendUp.changePaise === 1000000],
+    [`H6 month-end accumulates (Jan 15,000 → Mar 25,000)`, trendUp.series[0].netWorthPaise === 1500000 && trendUp.series[2].netWorthPaise === 2500000],
+    [`H6 <2 months → null band (needs more history)`, trendOne.band === null],
+  ];
+  for (const [label, ok] of h6Checks) { if (!ok) failures++; console.log(`COMPASS-H6 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Compass Mirror (Pass 4): freedom ratio, lifestyle creep, enjoyment floor ----
+{
+  // avg per-month spend ₹40,000; cash net worth ₹6,00,000 + investments ₹18,00,000 = ₹24,00,000 → 60 months
+  const avg = { ...lensTotals([]), personalIncome: 10000000, personalSavings: 5000000, investOutflow: 5000000, personalSpend: 4000000, wantsOutflow: 200000 };
+  const fr = freedomRatio(avg, 60000000, 180000000);
+  // window where spend grows faster than income → creep red
+  const cmk = (month: string, inc: number, spend: number): CompassTxn[] => ([
+    { txnDate: `${month}-05`, amountPaise: inc, parent: "01 Income", categoryName: "Retainer Income", tags: [] },
+    { txnDate: `${month}-12`, amountPaise: -spend, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [] },
+  ]);
+  const creepWin = computeWindow([
+    ...cmk("2026-01", 10000000, 3000000), ...cmk("2026-02", 10000000, 3000000),
+    ...cmk("2026-03", 10000000, 6000000), ...cmk("2026-04", 10000000, 6000000),
+  ], 6);
+  const creep = lifestyleCreep(creepWin); // spend +100%, income 0% → creep +100 → red
+  const calmWin = computeWindow([...cmk("2026-01", 10000000, 4000000), ...cmk("2026-02", 12000000, 4000000)], 6);
+  const calm = lifestyleCreep(calmWin); // income up, spend flat → creep negative → green
+  // enjoyment floor: save 50%, wants 2% of income → triggered
+  const enjoy = enjoymentFloor({ ...lensTotals([]), personalIncome: 10000000, personalSavings: 5000000, wantsOutflow: 200000 });
+  const enjoyBalanced = enjoymentFloor({ ...lensTotals([]), personalIncome: 10000000, personalSavings: 2500000, wantsOutflow: 1500000 });
+  const mirrorChecks: Array<[string, boolean]> = [
+    [`Freedom ratio includes investments = ${fr.months?.toFixed(0)} months (expected 60)`, Math.round(fr.months ?? 0) === 60 && fr.liquidNetWorthPaise === 240000000],
+    [`Freedom ratio null when no spend`, freedomRatio(lensTotals([]), 100, 100).months === null],
+    [`Lifestyle creep: spend +100% vs income 0% → red (creep ${creep.creepPct?.toFixed(0)}%)`, creep.band === "red" && Math.round(creep.creepPct ?? 0) === 100],
+    [`Lifestyle creep: income up, spend flat → green`, calm.band === "green" && (calm.creepPct ?? 1) <= 0],
+    [`Lifestyle creep null with <2 months`, lifestyleCreep(computeWindow(cmk("2026-01", 100, 100), 6)).band === null],
+    [`Enjoyment floor: save 50% + wants 2% → triggered`, enjoy.triggered && Math.round(enjoy.saveRatePct ?? 0) === 50],
+    [`Enjoyment floor: balanced saver → not triggered`, !enjoyBalanced.triggered],
+  ];
+  for (const [label, ok] of mirrorChecks) { if (!ok) failures++; console.log(`COMPASS-MIRROR ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // Profile / reflection checklist (Pass 5) — pure shape + migration presence
+  const profileMig = readFileSync("supabase/migrations/0006_profile.sql", "utf8");
+  const ep = emptyProfile();
+  const profChecks: Array<[string, boolean]> = [
+    ["exactly 7 reflections with stable unique keys", REFLECTIONS.length === 7 && new Set(REFLECTIONS.map((r) => r.key)).size === 7],
+    ["emptyProfile has empty checklist + default goal-return", Object.keys(ep.checklist).length === 0 && ep.goalReturnAssumption === 8],
+    ["migration 0006 creates profile with RLS owner policy + jsonb data + unique user_id",
+      profileMig.includes("create table public.profile") && profileMig.includes("data jsonb") &&
+      profileMig.includes("enable row level security") && profileMig.includes("profile_owner") && profileMig.includes("unique (user_id)")],
+  ];
+  for (const [label, ok] of profChecks) { if (!ok) failures++; console.log(`COMPASS-PROFILE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Compass summary header (Pass 6): R/A/G count + highest-priority action (Red before Amber) ----
+{
+  const sum = machineSummary([
+    { id: "H1", band: "amber", action: "trim spend" },
+    { id: "H2", band: "red", action: "build the buffer" },
+    { id: "H3", band: "green", action: "ok" },
+    { id: "H4", band: "green", action: "ok" },
+    { id: "H5", band: null, action: "import holdings" },
+    { id: "H6", band: "amber", action: "watch leakage" },
+  ]);
+  const allGreen = machineSummary([{ id: "H1", band: "green", action: "ok" }, { id: "H2", band: "green", action: "ok" }]);
+  const sumChecks: Array<[string, boolean]> = [
+    [`counts: 1 red, 2 amber, 2 green, 1 na`, sum.counts.red === 1 && sum.counts.amber === 2 && sum.counts.green === 2 && sum.counts.na === 1],
+    [`top action is the RED check (before amber)`, sum.topAction?.band === "red" && sum.topAction?.action === "build the buffer"],
+    [`worstBand prefers red > amber > green, ignores null`, worstBand(["green", "amber", null, "red"]) === "red" && worstBand([null, "green"]) === "green" && worstBand([null]) === null],
+    [`all green → no top action (steady)`, allGreen.topAction === null && allGreen.counts.green === 2],
+  ];
+  for (const [label, ok] of sumChecks) { if (!ok) failures++; console.log(`COMPASS-SUMMARY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

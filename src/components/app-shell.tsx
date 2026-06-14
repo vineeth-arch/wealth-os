@@ -5,11 +5,12 @@ import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GuardedLink } from "@/components/guarded-link";
-import { LayoutDashboard, ArrowLeftRight, Landmark, Wallet, LogOut, Moon, Sun, PieChart, Calculator, HandCoins, Settings, HelpCircle } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, Landmark, Wallet, LogOut, Moon, Sun, PieChart, Calculator, HandCoins, Settings, Compass, HelpCircle } from "lucide-react";
 import Link from "next/link";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/compass", label: "Compass", icon: Compass },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/holdings", label: "Holdings", icon: PieChart },

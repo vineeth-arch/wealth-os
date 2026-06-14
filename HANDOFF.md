@@ -1,6 +1,8 @@
 # HANDOFF.md — wealth-os onboarding ground truth
 
-> **Gate baseline:** green at commit `66ba476` — `npm run verify` (ALL GATES PASSED), `npm run typecheck` (clean), `npm run build` (compiled, 25 routes) all exit 0 on 2026-06-14.
+> **Gate baseline:** green at the merge of `origin/main` into `claude/laughing-planck-00qsmh` (`GATE_BASELINE_HASH`) — `npm run verify` (ALL GATES PASSED), `npm run typecheck` (clean), `npm run build` all exit 0 on 2026-06-14.
+>
+> **Scope note:** this audit was first run on `claude/laughing-planck-00qsmh` *before* `origin/main` (which carries the Compass) was merged in. The tables below reflect the **post-merge** tree (Compass present). The earlier baseline `66ba476` was the pre-merge, docs-only state.
 >
 > **Method:** every claim below is grounded in a file actually read in this repo and cited by `path` (line where useful). Where a doc (`CLAUDE.md`, `README.md`, `USER_GUIDE.md`, prompts) disagrees with the code, **the code wins here** and the disagreement is logged as drift in `AUDIT.md`. Read this with `CLAUDE.md`; the two together are enough to work safely.
 
@@ -16,8 +18,8 @@
 - **Dedup:** `content_hash = sha256(account | ISO-date | amountPaise | normalizeDesc(descriptionRaw) | occurrence)`, **merchant excluded** (`src/lib/ingest/util.ts:72-74`). Re-importing an overlapping period inserts nothing.
 - **Trust boundary (the hard wall):** only description text reaches an LLM — the AI-suggest route selects `id, description_raw, merchant` and nothing else (`src/app/api/ai/suggest/route.ts:38`). No amount/date/balance/account ever leaves the server.
 - **The gate is ground truth:** `npm run verify && npm run typecheck && npm run build`. `verify` (`scripts/verify.ts`) parses every fixture, asserts each statement reconciles, proves idempotency, and unit-tests the math — **without touching the DB**.
-- **Where to start reading:** `CLAUDE.md` (operating contract) → `src/lib/ingest/` (parsers + util) → `scripts/verify.ts` (what's actually guaranteed) → `src/lib/halan.ts` + `src/lib/drilldown.ts` (aggregation) → `src/app/` (framework).
-- **Drift to know on day one:** the docs describe a **Compass** (Machine/Mirror) page — **it does not exist on this branch** (no `/compass` route, no `compass.ts`); it lives on the unmerged `claude/compass-full-build-wyvtuo`. See `AUDIT.md` D-1.
+- **Compass (the proprietor lens):** present post-merge — `src/lib/compass.ts` computes the personal-vs-business lens with the identity `personalIncome = allIncome − businessCosts − tax` (parent 11 costs, parent 12 tax) over a 6-month trailing window (`compass.ts:47,15`); surfaced at `/compass`. Gate-tested in `scripts/verify.ts` (Machine H1–H6 + Mirror).
+- **Where to start reading:** `CLAUDE.md` (operating contract) → `src/lib/ingest/` (parsers + util) → `scripts/verify.ts` (what's actually guaranteed) → `src/lib/halan.ts` + `src/lib/drilldown.ts` + `src/lib/compass.ts` (aggregation) → `src/app/` (framework).
 
 ---
 
@@ -60,7 +62,7 @@ npm run build      # next build
 | 5 | accounts.kind ∈ {bank, credit_card, broker, asset_snapshot}; no personal/business flag; lens is category-driven | PASS | `supabase/migrations/0001_init.sql` (CHECK); no business flag anywhere |
 | 6 | Only description text reaches the LLM | PASS (highest value) | `src/app/api/ai/suggest/route.ts:38,46` (selects `id,description_raw,merchant`; payload `description_raw · merchant`), `src/lib/llm/prompt.ts`, `gemini.ts`, `openai.ts` |
 | 7 | LLM keys = server env only | PASS | `src/lib/llm/gemini.ts:36`, `openai.ts:83` (server-only headers); client reads only `NEXT_PUBLIC_*`; `integrations.ts` stores choice only |
-| 8 | RLS on every user-owned table | PASS | owner policies (`auth.uid() = user_id`) in `0001`–`0005`; reference tables (`instruments`, `prices`, `price_sources`) read-only to authenticated |
+| 8 | RLS on every user-owned table | PASS | owner policies (`auth.uid() = user_id`) in `0001`–`0006` (incl. `profile`); reference tables (`instruments`, `prices`, `price_sources`) read-only to authenticated |
 | 9 | Reconcile-or-show | PASS | parsers + per-statement opening→closing assertions in `scripts/verify.ts` |
 | 10 | Gate never touches the DB (green ≠ migration applied) | PASS | `scripts/verify.ts` runs parsers/math only; no Supabase client imported |
 
@@ -90,6 +92,7 @@ Pure logic (`src/lib/ingest/`, `halan.ts`, `drilldown.ts`, `format.ts`, `calc/*`
 | `/` | Root redirect to dashboard/login | `src/app/page.tsx` |
 | `/login` | Supabase auth | `src/app/login/page.tsx`, `src/app/auth/callback/route.ts` |
 | `/dashboard` | Net worth, cash flow, buckets, leakage, balances | `src/app/(app)/dashboard/page.tsx`, `src/lib/halan.ts` |
+| `/compass` | Machine (H1–H6) + Mirror; proprietor personal/business lens | `src/app/(app)/compass/page.tsx`, `src/lib/compass.ts`, `src/components/compass/*` |
 | `/transactions` | Hub — Import / Review / Rules tabs (`?tab=`) | `src/app/(app)/transactions/page.tsx` |
 | `/accounts` | Accounts, anchors, workspace bootstrap | `src/app/(app)/accounts/page.tsx`, `src/lib/accounts/format.ts` |
 | `/holdings` | Zerodha + Upstox holdings → present value | `src/app/(app)/holdings/page.tsx`, `src/lib/holdings.ts` |
@@ -102,7 +105,7 @@ Pure logic (`src/lib/ingest/`, `halan.ts`, `drilldown.ts`, `format.ts`, `calc/*`
 
 **Redirects preserving old deep links** (`next.config.mjs`): `/import`→`/transactions?tab=import`, `/review`→`?tab=review`, `/rules`→`?tab=rules`, `/upstox`→`/holdings`, `/integrations`→`/settings`. (So `/upstox` is **not** a standalone page on this branch.)
 
-**Nav** (`src/components/app-shell.tsx:12-18`): exactly 7 items — Dashboard, Transactions, Accounts, Holdings, Loans, Calculators, Settings. **No Compass item** (the `/help` link is a `?` icon in the sidebar footer). The docs' "Compass" nav entry does not exist here (AUDIT D-1).
+**Nav** (`src/components/app-shell.tsx` `NAV`): 8 items — Dashboard, **Compass**, Transactions, Accounts, Holdings, Loans, Calculators, Settings. The `/help` link is a separate `?` icon in the sidebar footer (not a nav item).
 
 **API routes (`src/app/api/`):** `accounts`, `bootstrap`, `import`, `commit`, `enrich`, `integrations`, `cron/daily`, `ai/{suggest,apply}`, `rules/{,apply,create}`, `holdings/{import,map,commit}`, `loans/{,[id],import-schedule}`, `upstox/{tax/import,tax/commit,dividends/import}`. Only `ai/suggest` calls an LLM.
 
@@ -125,6 +128,7 @@ All money columns are **integer paise** (`*_paise`). All user-owned tables carry
 | `0003_upstox.sql` | `holdings_snapshots.avg_price_paise` DROP NOT NULL (Upstox has no cost basis); new `realized_gain_segments`, `realized_gain_lots` (FY + segment, paise) |
 | `0004_loans.sql` | `loans` (kind, principal_paise, annual_rate_pct, tenure_months, start_date, emi_category) |
 | `0005_loan_schedule.sql` | `loans.source` CHECK ∈ {computed, imported}; new `loan_schedule_rows` (per-installment principal/interest/os, stored lender schedule) |
+| `0006_profile.sql` | `profile` (one row per user, `data` jsonb = Compass reflection checklist + goal-return assumption; **no money**; RLS owner policy) |
 
 ---
 
@@ -136,7 +140,7 @@ All money columns are **integer paise** (`*_paise`). All user-owned tables carry
 
 **(c) Holdings / prices / cron.** `holdings.ts` auto-maps ISIN→AMFI scheme / symbol→Yahoo `.NS` before asking the human. `prices/*` adapters all return integer paise; `prices/index.ts` selects the most recent price per ISIN. `src/app/api/cron/daily/route.ts` is the single daily Vercel cron (keepalive + weekly refresh), gated by `CRON_SECRET`.
 
-**(d) Compass — NOT on this branch.** The docs describe a Compass (Machine H1–H6 + Mirror, and a proprietor identity `personalIncome = Σ01 − parent11 − parent12`). No `/compass` route or `compass.ts` exists here; the only "compass" string in `src/` is incidental in `src/components/calculators/retirement.tsx`. The feature lives on the unmerged remote branch `claude/compass-full-build-wyvtuo`. **Do not describe Compass as shipped when working on this branch.** (AUDIT D-1.)
+**(d) Compass — present (`src/lib/compass.ts`, 512 lines).** Pure proprietor-lens engine: `lensTotals()` splits one pool into personal/business **by category** with the identity `personalIncome = allIncome − businessCosts − tax` (`compass.ts:47`; businessCosts = Σ outflows parent 11, tax = Σ outflows parent 12; business-income leaves under parent 01 resolved from the seed taxonomy, `compass.ts:21`). All ratios use a 6-month trailing window (`TRAILING_WINDOW_MONTHS`, `compass.ts:15`). **The Machine** — `machineH1` cash-flow ratios (save ≥20%, EMI, living cost), `machineH2` emergency fund (bank-kind liquid only, target 6 mo), `machineH3` protection presence, `machineH4` investing consistency, `machineH5` allocation/concentration, `machineH6Leakage` net-worth trend + leakage. **The Mirror** — `freedomRatio`, `lifestyleCreep`, `enjoymentFloor`, `REFLECTIONS` checklist (persisted in the `profile` table, migration `0006_profile.sql` — no money). R/A/G bands via `bandHigher`/`bandLower`; a `reconcile()` proves the lens sums are internally consistent. Surfaced at `/compass` (`src/app/(app)/compass/page.tsx` + `src/components/compass/*`). Gate-tested in `scripts/verify.ts` (`lensTotals`, `computeWindow`, `reconcile`, `machineH1–H6`, Mirror signals).
 
 **(e) Calculators (`src/lib/calc/`).** Pure, gate-tested: `tax.ts` (old/new regime, §87A rebate), `loan.ts` (amortization, EMI, prepayment reduce-tenure vs reduce-EMI), `sip.ts` (SIP/step-up/goal corpus), `retirement.ts` (FIRE corpus + SWP drawdown), `hlv.ts` (Human Life Value), `capital-gains.ts` (STCG/LTCG), `emergency.ts` (emergency-fund sizing). Surfaced at `/calculators`.
 
@@ -172,7 +176,7 @@ All money columns are **integer paise** (`*_paise`). All user-owned tables carry
 
 ## 10. Current state & roadmap pointer
 
-- **Shipped on this branch:** ingestion core (all listed parsers reconcile), app spine (auth, import wizard, review, dashboard), integrations/price/holdings/calculators, loans (with imported schedule), AI category-suggest (description-only), IA v2 routes + drill-downs, in-app `/help`.
-- **NOT on this branch (despite docs):** the **Compass** (Machine/Mirror) — on `claude/compass-full-build-wyvtuo`. Also deferred per `README.md`: statement-password browser encryption (`bank_profiles`), physical gold ingestion, §87A marginal relief, per-trade ledger.
+- **Shipped (post-merge):** ingestion core (all listed parsers reconcile), app spine (auth, import wizard, review, dashboard), integrations/price/holdings/calculators, loans (with imported schedule), AI category-suggest (description-only), IA v2 routes + drill-downs, the **Compass** (Machine H1–H6 + Mirror, `src/lib/compass.ts` + `/compass`), in-app `/help`.
+- **Deferred per `README.md`:** statement-password browser encryption (`bank_profiles`), physical gold ingestion, §87A marginal relief, per-trade Upstox ledger.
 - **Live categorization watch-outs:** parent-10 transfers must be tagged as transfers (own-account moves, CC bill payments, money sent to invest) or every ratio breaks; CC bill-payment double-count; Upstox dividend double-count (if a bank credit and an Upstox dividend both book the same payout).
 - **Roadmap / plan-of-record:** `README.md` (Deferred + narrative). Treat `README.md` as the plan and `CLAUDE.md` as the operating contract; this file is the verified map.

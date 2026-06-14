@@ -1,17 +1,16 @@
 # AUDIT.md — wealth-os findings
 
-> **Gate baseline:** green at commit `66ba476` — `npm run verify` (ALL GATES PASSED), `npm run typecheck` (clean), `npm run build` (25 routes) all exit 0 on 2026-06-14.
+> **Gate baseline:** green at the merge of `origin/main` into `claude/laughing-planck-00qsmh` (`GATE_BASELINE_HASH`) — `npm run verify` (ALL GATES PASSED), `npm run typecheck` (clean), `npm run build` all exit 0 on 2026-06-14. (First run pre-merge at `66ba476`, then re-run on the merged tree that carries the Compass.)
 >
-> **This is a findings log only. No code was changed.** Each item records what and why; recommended fixes are **not applied** (a separate prompt does that). Severity: **P0** = load-bearing contract broken/untested or active data risk; **P1** = real defect or privacy/onboarding hazard; **P2** = quality / minor drift.
+> **This is a findings log only. The only code change in this branch was a merge-conflict resolution in `src/components/app-shell.tsx` (keeping both the Compass nav item and the Help link) — no behavioural code was authored by the audit.** Each item records what and why; recommended fixes are **not applied** (a separate prompt does that). Severity: **P0** = load-bearing contract broken/untested or active data risk; **P1** = real defect or privacy/onboarding hazard; **P2** = quality / minor drift.
 
 ---
 
 ## Findings
 
-### D-1 · P1 · Drift · `src/components/app-shell.tsx:12-18`, `src/app/(app)/` (no `compass/`)
-**What:** `README.md` / `USER_GUIDE.md` / `src/app/(app)/help/page.tsx` describe a **Compass** (Machine H1–H6 + Mirror) as a shipped nav page, with a proprietor identity `personalIncome = Σ01 − parent11 − parent12`. On this branch there is **no `/compass` route, no `compass.ts` module, and no Compass nav item** (the nav has exactly 7 items, none of them Compass). The feature exists only on the unmerged remote branch `claude/compass-full-build-wyvtuo`.
-**Why it matters:** the single highest-impact onboarding hazard — an agent or user trusting the docs will look for a page and math that don't exist, or assume the identity is implemented. Note `USER_GUIDE.md` + `/help` (added in this same branch) are themselves partly aspirational here.
-**Recommended fix (do NOT apply):** either merge `claude/compass-full-build-wyvtuo`, or scope the Compass sections of `README.md`/`USER_GUIDE.md`/`/help` to "planned / on branch X" until merged. Keep `HANDOFF.md` §6(d) as the code-truth pointer.
+### D-1 · RESOLVED (was P1) · Drift · Compass
+**What (original):** the docs (`README.md` / `USER_GUIDE.md` / `/help`) described a **Compass** (Machine H1–H6 + Mirror, proprietor identity `personalIncome = Σ01 − parent11 − parent12`) as shipped, but the audit's starting branch had no `/compass` route, no `compass.ts`, and no Compass nav item — the feature lived only on the unmerged `origin/main` / `claude/compass-full-build-wyvtuo`.
+**Resolution:** `origin/main` (which carries the full Compass: `src/lib/compass.ts`, `/compass` page + components, migration `0006_profile.sql`, +compass gate tests) was merged into this branch. Compass is now **present and gate-tested**, the identity (`compass.ts:47`) matches the docs, and the nav includes the Compass item. The merged tree's gate is green. The docs and code now agree; **no further action.** (`HANDOFF.md` §6(d) describes the implemented engine.)
 
 ### D-2 · P1 · Drift / UX trap · `src/lib/integrations.ts:30` (+ `:24`, `:65`)
 **What:** `DEFAULT_LLM_PROVIDER = "anthropic"` and Anthropic is listed first in `LLM_PROVIDERS`, but **no Anthropic adapter is wired** (only Gemini + OpenAI exist in the `ADAPTERS` map used by `src/app/api/ai/suggest/route.ts`). `resolveLlmDispatch` separately falls back to `gemini` when no provider is active (`integrations.ts:65`), and `CLAUDE.md`/`USER_GUIDE.md` say "Gemini by default." Three sources disagree.
@@ -64,14 +63,15 @@
 
 - **Dead-code / unused-export sweep is not exhaustive.** No orphan was conclusively identified; the IA-v2 redirects in `next.config.mjs` are intentional (not dead). Treat a full tree-shake/orphan analysis as **undetermined — needs a dedicated pass**.
 - **Lifecycle-risk surface** (setState-after-unmount, lost local state in the IA-v2 / nav-guard components) is not detectable by the gate (pure-logic only). The `busy.ts` reducer + `GuardedLink` are gate-tested, but the React lifecycle around them is not — do a manual click-through after UI changes (`HANDOFF.md` §9).
+- **Compass code (`src/lib/compass.ts`, 512 lines + `src/app/(app)/compass/page.tsx` + components) was merged in from `origin/main` and is gate-tested, but a line-by-line audit of it was outside this pass's original scope.** Its pure lens math is covered by `verify.ts`; a dedicated review of the page/component lifecycle and the band thresholds is **recommended — undetermined here**.
 
 ---
 
 ## Health summary
 
-The core is in good shape: the highest-value guarantees — integer paise, the +inflow/−outflow convention, content-hash idempotency, RLS isolation, and the no-money-to-LLM trust boundary — all hold in code, the gate is green, and there are zero `any`/`TODO`/`FIXME` and no unbounded queries. The problems are **drift between the docs and this branch** (most importantly the Compass, which the docs present as shipped but which lives on another branch) and **two contracts that are true but not gate-asserted** (taxonomy shape; the enforcement point of the LLM boundary). One real privacy issue stands out: the owner's actual account/IFSC/email are committed in `fixtures/`, contradicting the docs' own claim.
+The core is in good shape: the highest-value guarantees — integer paise, the +inflow/−outflow convention, content-hash idempotency, RLS isolation, and the no-money-to-LLM trust boundary — all hold in code, the gate is green (incl. the merged Compass), and there are zero `any`/`TODO`/`FIXME` and no unbounded queries. The biggest drift (Compass documented but absent, D-1) was **resolved by merging `origin/main`**; what remains is the **LLM default-provider trap** (D-2), one real **privacy issue** — the owner's actual account/IFSC/email committed in `fixtures/` contradicting the docs' own "not committed to git" claim (S-1) — and **two true-but-unasserted contracts** (taxonomy shape C-1; the LLM-boundary enforcement point C-2).
 
 **Top 3 risks:**
-1. **Docs↔code drift (D-1, D-2, D-3)** — onboarding hazard; the Compass and the Anthropic default are the sharp edges. `HANDOFF.md` now carries the code truth.
-2. **Real PII committed in `fixtures/` (S-1)** — sensitive identifiers in git history; replace with synthetic fixtures and scrub.
+1. **Real PII committed in `fixtures/` (S-1)** — sensitive identifiers in git history; replace with synthetic fixtures and scrub. Highest remaining risk.
+2. **LLM default-provider trap (D-2)** — `DEFAULT_LLM_PROVIDER = "anthropic"` has no adapter; the default selection dead-ends AI-suggest. One-line fix to `gemini`.
 3. **Load-bearing contracts not fully gate-asserted (C-1, C-2)** — the taxonomy count and the LLM-boundary enforcement point can drift without failing the gate; add the two assertions.

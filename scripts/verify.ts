@@ -810,7 +810,7 @@ assert("projection grows tax with positive growth", projectCapitalGainsTax(cgSeg
 
 // ---- Money Box Compass — proprietor lens engine (Pass 1): one pool, two lenses, category-driven ----
 console.log("\n" + "-".repeat(78));
-import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, bandHigher, bandLower } from "../src/lib/compass.js";
+import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries, bandHigher, bandLower } from "../src/lib/compass.js";
 {
   const cmk = (over: Partial<CompassTxn>): CompassTxn => ({
     txnDate: "2026-03-15", amountPaise: -10000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [], ...over,
@@ -911,6 +911,77 @@ import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_
     [`H3 no protection outflow → red`, !none.anyPresent && none.band === "red"],
   ];
   for (const [label, ok] of h3Checks) { if (!ok) failures++; console.log(`COMPASS-H3 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Compass Machine H4–H6 (Pass 3): consistency, concentration, leakage + net-worth trend ----
+{
+  const imk = (month: string, invest: number): CompassTxn[] => ([
+    { txnDate: `${month}-05`, amountPaise: 10000000, parent: "01 Income", categoryName: "Retainer Income", tags: [] },
+    ...(invest > 0 ? [{ txnDate: `${month}-10`, amountPaise: -invest, parent: "08 Invest-it", categoryName: "SIP Mutual Fund", tags: [] as string[] }] : []),
+    { txnDate: `${month}-12`, amountPaise: -100000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [] },
+  ]);
+  // 3 months, invested every month → with green save-rate → green; skipped a month → amber
+  const everyMonth = computeWindow([...imk("2026-01", 5000000), ...imk("2026-02", 5000000), ...imk("2026-03", 5000000)], 6);
+  const skipped = computeWindow([...imk("2026-01", 5000000), ...imk("2026-02", 0), ...imk("2026-03", 5000000)], 6);
+  const never = computeWindow([...imk("2026-01", 0), ...imk("2026-02", 0)], 6);
+  const h4green = machineH4(everyMonth, "green");
+  const h4amberRegular = machineH4(everyMonth, "amber"); // every month but save-rate not green → amber
+  const h4amberSkip = machineH4(skipped, "green");
+  const h4red = machineH4(never, "red");
+  const h4Checks: Array<[string, boolean]> = [
+    [`H4 every month + green save-rate → green (invested ${h4green.monthsInvested}/${h4green.monthsCovered})`, h4green.band === "green" && h4green.skipped === 0],
+    [`H4 every month but save-rate amber → amber`, h4amberRegular.band === "amber"],
+    [`H4 skipped a month → amber, skipped=1`, h4amberSkip.band === "amber" && h4amberSkip.skipped === 1],
+    [`H4 never invested → red`, h4red.band === "red" && h4red.monthsInvested === 0],
+  ];
+  for (const [label, ok] of h4Checks) { if (!ok) failures++; console.log(`COMPASS-H4 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // H5 concentration: one holding 60% → red; balanced → green; asset-class split is honest
+  const conc = machineH5([
+    { name: "BigCo", assetClass: "equity", valuePaise: 6000000 },
+    { name: "FundA", assetClass: "mutual_fund", valuePaise: 2000000 },
+    { name: "GoldB", assetClass: "gold", valuePaise: 2000000 },
+  ]);
+  const spread = machineH5([
+    { name: "A", assetClass: "equity", valuePaise: 1500000 },
+    { name: "B", assetClass: "mutual_fund", valuePaise: 1500000 },
+    { name: "C", assetClass: "mutual_fund", valuePaise: 1500000 },
+    { name: "D", assetClass: "bond", valuePaise: 1500000 },
+    { name: "E", assetClass: "gold", valuePaise: 1500000 },
+    { name: "F", assetClass: "cash", valuePaise: 1500000 },
+  ]);
+  const h5Checks: Array<[string, boolean]> = [
+    [`H5 largest 60% → red (top ${conc.top?.name} ${conc.top?.pct.toFixed(0)}%)`, conc.band === "red" && Math.round(conc.top?.pct ?? 0) === 60],
+    [`H5 byClass split is honest & sums to 100%`, Math.round(conc.byClass.reduce((s, c) => s + c.pct, 0)) === 100 && conc.byClass.length === 3],
+    [`H5 evenly spread (16.7% each) → green`, spread.band === "green" && Math.round(spread.top?.pct ?? 0) === 17],
+    [`H5 no holdings → null band`, machineH5([]).band === null],
+  ];
+  for (const [label, ok] of h5Checks) { if (!ok) failures++; console.log(`COMPASS-H5 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // H6 leakage: ₹2,000 leaked of ₹40,000 spend = 5% → amber; net-worth trend up → green
+  const lk: CompassTxn[] = [
+    { txnDate: "2026-03-02", amountPaise: -200000, parent: "03 Spend-it Wants", categoryName: "Food Delivery", tags: ["leakage"] },
+    { txnDate: "2026-03-03", amountPaise: -3800000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [] },
+  ];
+  const leak = machineH6Leakage(lk, lensTotals(lk));
+  const trendUp = netWorthSeries(
+    [{ id: "a", name: "SBI", kind: "bank", anchorBalancePaise: 1000000, anchorDate: "2026-01-01" }],
+    [
+      { accountId: "a", txnDate: "2026-01-15", amountPaise: 500000 },
+      { accountId: "a", txnDate: "2026-02-15", amountPaise: 500000 },
+      { accountId: "a", txnDate: "2026-03-15", amountPaise: 500000 },
+    ],
+    ["2026-01", "2026-02", "2026-03"],
+  );
+  const trendOne = netWorthSeries([{ id: "a", name: "SBI", kind: "bank", anchorBalancePaise: 1000000, anchorDate: "2026-01-01" }], [], ["2026-03"]);
+  const h6Checks: Array<[string, boolean]> = [
+    [`H6 leakage 5% → amber (pct ${leak.pct?.toFixed(1)}, total ${leak.totalLeakagePaise})`, leak.band === "amber" && leak.totalLeakagePaise === 200000],
+    [`H6 leakage byParent surfaces the wants leak`, leak.byParent.length === 1 && leak.byParent[0].parent === "03 Spend-it Wants"],
+    [`H6 net-worth rising across 3 months → green, +₹10,000 (Jan-end ₹15k → Mar-end ₹25k)`, trendUp.band === "green" && trendUp.direction === "up" && trendUp.changePaise === 1000000],
+    [`H6 month-end accumulates (Jan 15,000 → Mar 25,000)`, trendUp.series[0].netWorthPaise === 1500000 && trendUp.series[2].netWorthPaise === 2500000],
+    [`H6 <2 months → null band (needs more history)`, trendOne.band === null],
+  ];
+  for (const [label, ok] of h6Checks) { if (!ok) failures++; console.log(`COMPASS-H6 ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

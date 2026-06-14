@@ -1,20 +1,29 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCard } from "@/components/compass/check-card";
+import { CheckCard, BandPill } from "@/components/compass/check-card";
+import { Sparkbars, SparkTrend } from "@/components/compass/sparks";
 import { loadDrillData } from "@/lib/server/load-drill";
+import { createSupabaseServer } from "@/lib/supabase/server";
 import { accountBalances } from "@/lib/halan";
 import {
-  type CompassTxn, computeWindow, machineH1, machineH2, machineH3, sanityFlags,
-  TRAILING_WINDOW_MONTHS,
+  type CompassTxn, type HoldingValue, computeWindow, machineH1, machineH2, machineH3,
+  machineH4, machineH5, machineH6Leakage, netWorthSeries, sanityFlags, TRAILING_WINDOW_MONTHS,
 } from "@/lib/compass";
-import { formatINR, formatPct } from "@/lib/format";
-import { Gauge, Sparkles } from "lucide-react";
+import { formatINR, formatPct, formatMonth } from "@/lib/format";
+import { Gauge, Sparkles, ArrowUpRight, ArrowDownRight, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
+type InstrumentJoin = { name: string; asset_class: string } | null;
+
 export default async function CompassPage() {
   const { drillTxns, accounts } = await loadDrillData();
+  const supabase = await createSupabaseServer();
+  const [{ data: snapsRaw }, { data: pricesRaw }] = await Promise.all([
+    supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise,instruments(name,asset_class)").order("as_of", { ascending: false }),
+    supabase.from("prices").select("isin,price_paise,price_date"),
+  ]);
 
   if (drillTxns.length === 0) {
     return (
@@ -48,6 +57,43 @@ export default async function CompassPage() {
   const h1 = machineH1(window.avg);
   const h2 = machineH2(window.avg, liquidCashPaise);
   const h3 = machineH3(windowTxns);
+
+  // H4 — investing consistency over the window
+  const h4 = machineH4(window, h1.saveRate.band);
+
+  // H5 — allocation: per-holding present value (latest price, last-known fallback) from current snapshots
+  const latestAsOf = new Map<string, string>();
+  for (const s of snapsRaw ?? []) {
+    const a = s.account_id as string, d = s.as_of as string;
+    if (!latestAsOf.has(a) || d > latestAsOf.get(a)!) latestAsOf.set(a, d);
+  }
+  // most-recent price per ISIN
+  const priceByIsin = new Map<string, { paise: number; date: string }>();
+  for (const p of pricesRaw ?? []) {
+    const isin = p.isin as string, d = p.price_date as string;
+    const cur = priceByIsin.get(isin);
+    if (!cur || d > cur.date) priceByIsin.set(isin, { paise: p.price_paise as number, date: d });
+  }
+  const holdingValues: HoldingValue[] = (snapsRaw ?? [])
+    .filter((s) => latestAsOf.get(s.account_id as string) === (s.as_of as string))
+    .map((s) => {
+      const raw = s.instruments as unknown;
+      const inst = (Array.isArray(raw) ? raw[0] : raw) as InstrumentJoin;
+      const unit = priceByIsin.get(s.isin as string)?.paise ?? (s.last_price_paise as number);
+      return {
+        name: inst?.name ?? (s.isin as string),
+        assetClass: inst?.asset_class ?? "equity",
+        valuePaise: Math.round(Number(s.qty) * unit),
+      };
+    });
+  const h5 = machineH5(holdingValues);
+
+  // H6 — leakage (the tag) + cash net-worth trajectory across the window
+  const h6leak = machineH6Leakage(windowTxns, window.totals);
+  const allAccounts = accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, anchorBalancePaise: a.anchorBalancePaise, anchorDate: a.anchorDate }));
+  const allFlows = drillTxns.map((t) => ({ accountId: t.accountId, txnDate: t.txnDate, amountPaise: t.amountPaise }));
+  const h6trend = netWorthSeries(allAccounts, allFlows, window.months);
+
   const flags = sanityFlags(window.totals);
   const hasIncome = window.avg.personalIncome > 0;
 
@@ -119,9 +165,74 @@ export default async function CompassPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">The Machine — continued</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <CheckCard tag="H4 · Engine" title="Investing consistency" value="—" band={null} caption="Computed in the next pass." />
-          <CheckCard tag="H5 · Spread" title="Allocation / concentration" value="—" band={null} caption="Computed in the next pass." />
-          <CheckCard tag="H6 · Scoreboard" title="Leakage + net-worth trend" value="—" band={null} caption="Computed in the next pass." />
+          <CheckCard
+            tag="H4 · Engine" title="Investing consistency"
+            value={h4.band === null ? "—" : `${h4.monthsInvested}/${h4.monthsCovered} mo`} band={h4.band}
+            caption="Parent-08 invested per month. Automate it — consistency beats timing."
+            action={h4.band === null ? "Categorize investments to compute this." : h4.skipped === 0 ? "Invested every month — keep the SIP running." : `You skipped ${h4.skipped} month${h4.skipped === 1 ? "" : "s"} — set a standing SIP.`}
+          >
+            {h4.series.length > 0 && <Sparkbars values={h4.series.map((s) => s.investPaise)} labels={h4.series.map((s) => `${formatMonth(s.month)}: ${formatINR(s.investPaise)}`)} />}
+          </CheckCard>
+
+          <CheckCard
+            tag="H5 · Spread" title="Allocation / concentration"
+            value={h5.top ? formatPct(h5.top.pct) : "—"} band={h5.band}
+            caption={h5.top ? <>Largest holding: <span className="font-medium text-foreground">{h5.top.name}</span>. A diversified fund at high % is fine; a single stock at high % is concentration risk.</> : "No holdings imported yet."}
+            action={h5.band === null ? "Import broker holdings to compute this." : h5.band === "green" ? "Well spread — no single holding dominates." : `Largest holding is ${formatPct(h5.top!.pct)} of the portfolio — trim toward <20%.`}
+          >
+            {h5.topHoldings.length > 0 && (
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  {h5.topHoldings.slice(0, 3).map((h) => (
+                    <div key={h.name} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate text-muted-foreground">{h.name}</span>
+                      <span className="shrink-0 tabular-nums">{formatPct(h.pct)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1 border-t pt-2 text-[11px] text-muted-foreground">
+                  {h5.byClass.map((c) => <span key={c.assetClass} className="rounded bg-secondary px-1.5 py-0.5">{c.assetClass.replace("_", " ")} {Math.round(c.pct)}%</span>)}
+                </div>
+              </div>
+            )}
+          </CheckCard>
+
+          <CheckCard
+            tag="H6 · Scoreboard" title="Leakage"
+            value={h6leak.pct === null ? "—" : formatPct(h6leak.pct)} band={h6leak.band}
+            caption="Tagged leakage ÷ personal spend. Target <5%."
+            action={h6leak.pct === null ? "Categorize spend to compute this." : h6leak.totalLeakagePaise === 0 ? "No leakage tagged — clean." : `${formatINR(h6leak.totalLeakagePaise)} leaked over the window.`}
+          >
+            {h6leak.byParent.length > 0 && (
+              <div className="space-y-1">
+                {h6leak.byParent.slice(0, 3).map((p) => (
+                  <div key={p.parent} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate text-muted-foreground">{p.parent}</span>
+                    <span className="shrink-0 tabular-nums text-leakage">{formatINR(p.paise)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 space-y-1 border-t pt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">Net-worth trend</span>
+                <BandPill band={h6trend.band} />
+              </div>
+              {h6trend.band === null ? (
+                <p className="text-xs text-muted-foreground">Needs ≥2 months of history.</p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1 text-xs">
+                    {h6trend.direction === "up" ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" /> : h6trend.direction === "down" ? <ArrowDownRight className="h-3.5 w-3.5 text-red-500" /> : <ArrowRight className="h-3.5 w-3.5 text-amber-500" />}
+                    <span className={h6trend.changePaise >= 0 ? "text-emerald-500" : "text-red-500"}>{formatINR(h6trend.changePaise, { sign: true })}</span>
+                    <span className="text-muted-foreground">cash, over the window</span>
+                  </div>
+                  <SparkTrend values={h6trend.series.map((s) => s.netWorthPaise)} labels={h6trend.series.map((s) => `${formatMonth(s.month)}: ${formatINR(s.netWorthPaise)}`)} />
+                  <p className="text-[11px] text-muted-foreground">Cash/account trajectory; historical holdings value isn&apos;t stored.</p>
+                </>
+              )}
+            </div>
+          </CheckCard>
         </div>
       </section>
     </div>

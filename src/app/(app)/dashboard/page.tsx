@@ -6,8 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { CashFlowChart, type FlowPoint } from "@/components/charts";
 import { FlowKpis } from "@/components/dashboard/flow-kpis";
 import { SpendBuckets } from "@/components/dashboard/spend-buckets";
-import { type DrillTxn } from "@/lib/drilldown";
-import { type CategoryOption } from "@/components/category-select";
 import { formatINR, formatMonth, formatDate } from "@/lib/format";
 import {
   type TxnLike, type HoldingLike, type PriceLike, monthlyCashFlow, bucketTotals, leakageByParent,
@@ -92,32 +90,10 @@ export default async function DashboardPage() {
     // a leaf's bucket is its parent; a parent maps to itself
     parentByCatId.set(c.id as string, parentName ?? (c.name as string));
   }
-  // Taxonomy options for the inline category dropdown in the drill-downs (same shape the review screen uses).
-  const categoryOptions: CategoryOption[] = cats.map((c) => ({
-    id: c.id as string, name: c.name as string,
-    parent: c.parent_id ? nameById.get(c.parent_id as string) ?? null : null,
-  }));
-
   const halanTxns: TxnLike[] = txns.map((t) => ({
     txnDate: t.txn_date as string,
     amountPaise: t.amount_paise as number,
     parent: t.category_id ? parentByCatId.get(t.category_id as string) ?? null : null,
-    tags: (t.tags as string[]) ?? [],
-  }));
-
-  // Full per-transaction rows for the drill-down modals (pure aggregation runs client-side on these).
-  const drillTxns: DrillTxn[] = txns.map((t) => ({
-    id: t.id as string,
-    txnDate: t.txn_date as string,
-    amountPaise: t.amount_paise as number,
-    accountId: (t.account_id as string) ?? "",
-    accountName: t.account_id ? accNameById.get(t.account_id as string) ?? "" : "",
-    descriptionRaw: (t.description_raw as string) ?? "",
-    merchant: (t.merchant as string | null) ?? "",
-    categoryId: (t.category_id as string) ?? "",
-    categoryName: t.category_id ? nameById.get(t.category_id as string) ?? "" : "",
-    parent: t.category_id ? parentByCatId.get(t.category_id as string) ?? null : null,
-    categorySource: (t.category_source as string) ?? "default",
     tags: (t.tags as string[]) ?? [],
   }));
 
@@ -183,7 +159,7 @@ export default async function DashboardPage() {
         <CardContent><CashFlowChart data={flowData} /></CardContent>
       </Card>
 
-      <SpendBuckets txns={drillTxns} buckets={buckets} leak={leak} categories={categoryOptions} />
+      <SpendBuckets buckets={buckets} leak={leak} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

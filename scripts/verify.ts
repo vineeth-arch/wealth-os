@@ -289,11 +289,15 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
   const bd = bucketDrill(bt, "03 Spend-it Wants");
   const ids = bd.leaves.flatMap((lf) => lf.txns.map((t) => t.id)).sort().join(",");
   const leafSum = bd.leaves.reduce((s, lf) => s + lf.outflowPaise, 0);
+  const leafNetSum = bd.leaves.reduce((s, lf) => s + lf.netPaise, 0);
   const fd = bd.leaves.find((lf) => lf.categoryName === "Food Delivery");
   const bucketChecks: Array<[string, boolean]> = [
     [`returns exactly the parent's txns (a,b,c,e — not d) = ${ids}`, ids === "a,b,c,e"],
     [`leaf subtotals sum to the bucket total = ${leafSum}`, leafSum === bd.totalPaise && bd.totalPaise === 500000],
     [`leaf groups by category; inflow excluded from outflow (Food Delivery = ₹2,000 over 3 rows)`, !!fd && fd.outflowPaise === 200000 && fd.count === 3],
+    [`inflow tracked + net = inflow − outflow (in ${bd.inflowPaise}, out ${bd.outflowPaise}, net ${bd.netPaise})`,
+      bd.inflowPaise === 50000 && bd.netPaise === -450000 && leafNetSum === bd.netPaise],
+    [`Food Delivery net folds the refund (in 50000 − out 200000 = ${fd?.netPaise})`, !!fd && fd.inflowPaise === 50000 && fd.netPaise === -150000],
   ];
   for (const [label, ok] of bucketChecks) { if (!ok) failures++; console.log(`BUCKET ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }

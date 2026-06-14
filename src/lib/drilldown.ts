@@ -78,24 +78,32 @@ export function topNTransactions(txns: DrillTxn[], metric: DrillMetric, month: s
     .slice(0, n);
 }
 
-export interface BucketLeaf { categoryName: string; outflowPaise: number; count: number; txns: DrillTxn[] }
-export interface BucketDrill { totalPaise: number; leaves: BucketLeaf[] }
+export interface BucketLeaf { categoryName: string; inflowPaise: number; outflowPaise: number; netPaise: number; count: number; txns: DrillTxn[] }
+export interface BucketDrill { inflowPaise: number; outflowPaise: number; netPaise: number; totalPaise: number; leaves: BucketLeaf[] }
 
 /**
- * Every txn in a parent bucket (all-time, matching how the dashboard's "Where money went" total is
- * computed), grouped by leaf category. Σ leaf.outflowPaise === that bucket's outflowPaise.
+ * Every txn in a parent bucket, grouped by leaf category. Tracks inflow, outflow and signed net per
+ * leaf so the function serves every parent (income/transfers, not just spend) — the bucket pages use
+ * net; the dashboard's "Where money went"/leakage cards still read outflow (`totalPaise` === outflow).
+ * Σ leaf.outflowPaise === bucket outflow; Σ leaf.netPaise === bucket net. Pre-filter `txns` by month to
+ * scope it to a period; pass all txns for all-time.
  */
 export function bucketDrill(txns: DrillTxn[], parent: string): BucketDrill {
   const leaves = new Map<string, BucketLeaf>();
-  let totalPaise = 0;
+  let inflowPaise = 0, outflowPaise = 0;
   for (const t of txns) {
     if ((t.parent ?? "(uncategorized)") !== parent) continue;
     const name = t.categoryName || "(uncategorized)";
-    const leaf = leaves.get(name) ?? { categoryName: name, outflowPaise: 0, count: 0, txns: [] };
-    if (t.amountPaise < 0) { leaf.outflowPaise += -t.amountPaise; totalPaise += -t.amountPaise; }
+    const leaf = leaves.get(name) ?? { categoryName: name, inflowPaise: 0, outflowPaise: 0, netPaise: 0, count: 0, txns: [] };
+    if (t.amountPaise < 0) { leaf.outflowPaise += -t.amountPaise; outflowPaise += -t.amountPaise; }
+    else { leaf.inflowPaise += t.amountPaise; inflowPaise += t.amountPaise; }
+    leaf.netPaise += t.amountPaise;
     leaf.count += 1;
     leaf.txns.push(t);
     leaves.set(name, leaf);
   }
-  return { totalPaise, leaves: [...leaves.values()].sort((a, b) => b.outflowPaise - a.outflowPaise) };
+  return {
+    inflowPaise, outflowPaise, netPaise: inflowPaise - outflowPaise, totalPaise: outflowPaise,
+    leaves: [...leaves.values()].sort((a, b) => Math.abs(b.netPaise) - Math.abs(a.netPaise)),
+  };
 }

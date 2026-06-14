@@ -8,13 +8,16 @@ import { parseHdfcBank } from "../src/lib/ingest/parsers/hdfc.js";
 import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
+import { parseMoneyManager, stripEmojiPrefix } from "../src/lib/ingest/parsers/money-manager.js";
+import { matchMoneyManager, DEFAULT_WINDOW_DAYS, planMoneyManagerWrites, mergeMmNote, mmNoteLine, MM_NOTE_PREFIX, type MmMatch, type MmTxnState } from "../src/lib/ingest/money-manager.js";
+import { resolveMmCategory, mmTargetCategoryNames, isSpouseTransfer, SPOUSE_TRANSFER_CATEGORY } from "../src/lib/ingest/money-manager-category-map.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
 import { breakdownByAccount, topNTransactions, bucketDrill, accountPeriodFlow, type DrillTxn } from "../src/lib/drilldown.js";
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { formatAccountDetails } from "../src/lib/accounts/format.js";
-import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
+import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY, isForbiddenAutoParent } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER, resolveLlmDispatch } from "../src/lib/integrations.js";
 import { suggestCategories as geminiSuggest } from "../src/lib/llm/gemini.js";
 import { suggestCategories as openaiSuggest } from "../src/lib/llm/openai.js";
@@ -33,7 +36,7 @@ import { pvAnnuity, hlvIncomeReplacement, hlvExpenseLiability } from "../src/lib
 import { sipFutureValue, goalCorpus, requiredMonthlySip } from "../src/lib/calc/sip.js";
 import { computeCapitalGainsTax, projectCapitalGainsTax } from "../src/lib/calc/capital-gains.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
-import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
+import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "../src/lib/ingest/types.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1046,6 +1049,170 @@ import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_
     [`all green → no top action (steady)`, allGreen.topAction === null && allGreen.counts.green === 2],
   ];
   for (const [label, ok] of sumChecks) { if (!ok) failures++; console.log(`COMPASS-SUMMARY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager enrichment parser (Pass 1): redacted synthetic fixture, structure not content ----
+console.log("\n" + "-".repeat(78));
+{
+  const { entries: mm, warnings: mmw } = parseMoneyManager(readFileSync("fixtures/money_manager_sample.xlsx"));
+  const salary = mm.find((e) => e.categoryRaw === "Salary");
+  const transport = mm.find((e) => e.categoryRaw === "Transport");
+  const personal = mm.find((e) => e.categoryRaw === "Personal");
+  const health = mm.find((e) => e.categoryRaw === "Health");
+  console.log(`\nMONEY MANAGER: ${mm.length} entries parsed from the redacted fixture (${mmw.length} warnings)`);
+  const mmChecks: Array<[string, boolean]> = [
+    [`rows = ${mm.length} (expected 8)`, mm.length === 8],
+    [`Income row → positive paise (Salary ${salary?.amountPaise}, expected +5000000)`, salary?.amountPaise === 5000000 && salary?.direction === "inflow"],
+    [`Exp. row → negative paise (Transport ${transport?.amountPaise}, expected -12000)`, transport?.amountPaise === -12000 && transport?.direction === "outflow"],
+    [`emoji stripped from category ("🚖 Transport" → "Transport", "🧘🏼 Health" → "Health")`,
+      transport?.categoryRaw === "Transport" && health?.categoryRaw === "Health"],
+    [`stripEmojiPrefix leaves a plain category untouched ("Other")`, stripEmojiPrefix("Other") === "Other"],
+    [`merchantText falls back to note when description empty (Transport → "To office")`, transport?.merchantText === "To office"],
+    [`merchantText prefers description when present (Personal → "Cafe Coffee Day")`, personal?.merchantText === "Cafe Coffee Day"],
+    [`redundant Amount col (99999) ignored — uses INR (Personal = -25000)`, personal?.amountPaise === -25000],
+    [`rowRef is a stable 64-hex sha256`, !!salary && /^[0-9a-f]{64}$/.test(salary.rowRef)],
+  ];
+  for (const [label, ok] of mmChecks) { if (!ok) failures++; console.log(`MM ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager category map (Pass 2): targets resolved from the taxonomy, never 14/15 ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -10000, direction: "outflow", categoryRaw: "Personal",
+    note: null, description: null, merchantText: "", rowRef: "r", ...over,
+  });
+  // every map target must EXIST in the taxonomy and must NOT be a Leakage(14)/Review(15) leaf
+  const targets = mmTargetCategoryNames();
+  const allExist = targets.every((n) => taxonomy.has(n));
+  const noneForbidden = targets.every((n) => { const c = taxonomy.get(n); return c && !isForbiddenAutoParent(c.parent || c.name); });
+  const mapChecks: Array<[string, boolean]> = [
+    [`all ${targets.length} map targets exist in the taxonomy`, allExist],
+    [`no map target is a Leakage(14)/Review(15) leaf`, noneForbidden],
+    [`CC → "Credit Card Bill Payment Transfer" (Transfer, parent 10)`,
+      resolveMmCategory(mmk({ categoryRaw: "CC" })).categoryName === "Credit Card Bill Payment Transfer" && taxonomy.get("Credit Card Bill Payment Transfer")?.parent === "10 Transfers & Adjustments"],
+    [`SIP → "SIP Mutual Fund" (Invest, parent 08)`,
+      resolveMmCategory(mmk({ categoryRaw: "SIP" })).categoryName === "SIP Mutual Fund" && taxonomy.get("SIP Mutual Fund")?.parent === "08 Invest-it"],
+    [`Transport → "Taxi / Cab / Auto" (parent 02)`,
+      resolveMmCategory(mmk({ categoryRaw: "Transport" })).categoryName === "Taxi / Cab / Auto"],
+    [`Salary → "Salary" (parent 01), is an override`,
+      resolveMmCategory(mmk({ categoryRaw: "Salary", direction: "inflow", amountPaise: 100 })).categoryName === "Salary" && resolveMmCategory(mmk({ categoryRaw: "Salary" })).isOverride],
+    [`Personal / Other → null (not forced — left for rules + AI)`,
+      resolveMmCategory(mmk({ categoryRaw: "Personal" })).categoryName === null && resolveMmCategory(mmk({ categoryRaw: "Other" })).categoryName === null],
+    [`note "Vinnie" → family-account transfer override "${SPOUSE_TRANSFER_CATEGORY}" (parent 10), regardless of category`,
+      isSpouseTransfer(mmk({ note: "Vinnie", categoryRaw: "Other", direction: "inflow", amountPaise: 50000 })) &&
+      resolveMmCategory(mmk({ note: "Vinnie", categoryRaw: "Other" })).categoryName === SPOUSE_TRANSFER_CATEGORY &&
+      taxonomy.get(SPOUSE_TRANSFER_CATEGORY)?.parent === "10 Transfers & Adjustments"],
+  ];
+  for (const [label, ok] of mapChecks) { if (!ok) failures++; console.log(`MM-MAP ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager matcher (Pass 2): direction + exact amount within ±window, 1:1 unambiguous ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -5000, direction: "outflow", categoryRaw: "Personal",
+    note: "x", description: null, merchantText: "x", rowRef: Math.random().toString(36).slice(2), ...over,
+  });
+  const T = (id: string, txnDate: string, amountPaise: number) => ({ id, accountId: "A", txnDate, amountPaise });
+
+  const exact = matchMoneyManager([T("t1", "2026-03-05", -5000)], [mmk({ rowRef: "e1" })]);
+  const within = matchMoneyManager([T("t1", "2026-03-07", -5000)], [mmk({ loggedAt: "2026-03-05", rowRef: "e1" })]);
+  const offByOne = matchMoneyManager([T("t1", "2026-03-05", -5001)], [mmk({ rowRef: "e1" })]);
+  const wrongDir = matchMoneyManager([T("t1", "2026-03-05", -5000)], [mmk({ amountPaise: 5000, direction: "inflow", rowRef: "e1" })]);
+  const outside = matchMoneyManager([T("t1", "2026-03-09", -5000)], [mmk({ loggedAt: "2026-03-05", rowRef: "e1" })]);
+  const tie = matchMoneyManager([T("a", "2026-03-06", -8000), T("b", "2026-03-06", -8000)], [mmk({ loggedAt: "2026-03-06", amountPaise: -8000, rowRef: "e1" })]);
+  const greedy = matchMoneyManager(
+    [T("far", "2026-03-08", -8000), T("near", "2026-03-05", -8000)],
+    [mmk({ loggedAt: "2026-03-06", amountPaise: -8000, rowRef: "e1" })],
+  );
+
+  const matchChecks: Array<[string, boolean]> = [
+    [`exact same-day match enriches (t1, exact-day)`, exact.matched.length === 1 && exact.matched[0].txnId === "t1" && exact.matched[0].confidence === "exact-day" && exact.ambiguous.length === 0],
+    [`match within window (gap 2 ≤ ${DEFAULT_WINDOW_DAYS}) → within-window`, within.matched.length === 1 && within.matched[0].confidence === "within-window"],
+    [`amount off by 1 paise → no match (unmatched)`, offByOne.matched.length === 0 && offByOne.unmatchedMM.length === 1],
+    [`direction differs (same magnitude) → no match`, wrongDir.matched.length === 0 && wrongDir.unmatchedMM.length === 1],
+    [`outside window (gap 4 > ${DEFAULT_WINDOW_DAYS}) → no match`, outside.matched.length === 0 && outside.unmatchedMM.length === 1],
+    [`same-amount same-day pair → ambiguous, neither matched`, tie.matched.length === 0 && tie.ambiguous.length === 1],
+    [`greedy picks the closest date (→ "near", not "far")`, greedy.matched.length === 1 && greedy.matched[0].txnId === "near"],
+    [`match payload carries {txnId, mmRowRef} for provenance`, exact.matched[0].mmRowRef === "e1"],
+  ];
+  for (const [label, ok] of matchChecks) { if (!ok) failures++; console.log(`MM-MATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager apply plan (Pass 3): improve-not-overwrite, never raw, idempotent, provenance ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -12000, direction: "outflow", categoryRaw: "Personal",
+    note: "x", description: null, merchantText: "x", rowRef: "e1", ...over,
+  });
+  const st = (over: Partial<MmTxnState>): MmTxnState => ({ id: "t1", merchant: null, notes: null, categorySource: "default", mmRowRef: null, ...over });
+  const match = (txnId: string, mmRowRef: string): MmMatch => ({ txnId, mmRowRef, dayGap: 0, confidence: "exact-day" });
+  const okCat = (_name: string) => ({ id: "cat-x" });   // resolves any name (guard passes)
+  const refuseCat = (_name: string) => null;            // simulates the Leakage 14 / Review 15 guard rejection
+
+  // (a) merchant IMPROVES on a raw UPI string; description_raw never appears in the payload.
+  const eMerch = mmk({ rowRef: "e1", categoryRaw: "Personal", merchantText: "Zomato Booking" });
+  const wMerch = planMoneyManagerWrites([match("t1", "e1")], new Map([["e1", eMerch]]),
+    new Map([["t1", st({ merchant: "UPI/DR/512282836511/ZOMATO" })]]), okCat)[0];
+
+  // (b) category applied to an Uncategorized-Review row, only suggested for an already-categorized one.
+  const eSal = mmk({ rowRef: "es", categoryRaw: "Salary", direction: "inflow", amountPaise: 100, merchantText: "Salary" });
+  const ebr = new Map([["es", eSal]]);
+  const wDefault = planMoneyManagerWrites([match("t1", "es")], ebr, new Map([["t1", st({ categorySource: "default" })]]), okCat)[0];
+  const wUser = planMoneyManagerWrites([match("t1", "es")], ebr, new Map([["t1", st({ categorySource: "user" })]]), okCat)[0];
+
+  // (c) a refused (14/15) mapping is neither applied nor suggested.
+  const eCC = mmk({ rowRef: "ec", categoryRaw: "CC", merchantText: "CC" });
+  const wRefused = planMoneyManagerWrites([match("t1", "ec")], new Map([["ec", eCC]]), new Map([["t1", st({})]]), refuseCat)[0];
+
+  // (d) idempotent re-run: applying onto the already-enriched state produces a no-op.
+  const eTr = mmk({ rowRef: "et", categoryRaw: "Transport", note: "To office", merchantText: "To office" });
+  const first = planMoneyManagerWrites([match("t1", "et")], new Map([["et", eTr]]), new Map([["t1", st({})]]),
+    () => ({ id: "cat-taxi" }))[0];
+  const afterState = st({ merchant: first.merchant ?? null, notes: first.notes, categorySource: "money_manager", mmRowRef: "et" });
+  const second = planMoneyManagerWrites([match("t1", "et")], new Map([["et", eTr]]), new Map([["t1", afterState]]),
+    () => ({ id: "cat-taxi" }))[0];
+
+  const planChecks: Array<[string, boolean]> = [
+    [`merchant improves, not overwrites ("UPI/DR/…/ZOMATO · Zomato Booking")`, wMerch.merchant === "UPI/DR/512282836511/ZOMATO · Zomato Booking"],
+    [`payload never carries description_raw / description_clean`, !("description_raw" in wMerch) && !("description_clean" in wMerch)],
+    [`notes append one "MM: …" line`, wMerch.notes.startsWith(MM_NOTE_PREFIX) && wMerch.notes.split("\n").filter((l) => l.startsWith(MM_NOTE_PREFIX)).length === 1],
+    [`category APPLIED over Uncategorized Review (categoryId set, source money_manager)`, wDefault.categoryId === "cat-x" && wDefault.categorySource === "money_manager"],
+    [`category NOT applied over an already-categorized row → suggestion only`, wUser.categoryId === undefined && wUser.suggestedCategoryName === "Salary"],
+    [`refused (14/15) mapping is neither applied nor suggested`, wRefused.categoryId === undefined && wRefused.suggestedCategoryName === undefined],
+    [`first run changes the row`, first.changed === true && first.merchant === "To office"],
+    [`re-run is a no-op (changed=false) — no duplicate write`, second.changed === false],
+    [`re-run keeps exactly one MM note line (no duplication)`, second.notes.split("\n").filter((l) => l.startsWith(MM_NOTE_PREFIX)).length === 1],
+  ];
+  for (const [label, ok] of planChecks) { if (!ok) failures++; console.log(`MM-PLAN ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // mergeMmNote: append, replace-in-place, preserve foreign lines, idempotent.
+  const noteChecks: Array<[string, boolean]> = [
+    [`null + "MM: a" → "MM: a"`, mergeMmNote(null, "MM: a") === "MM: a"],
+    [`replaces a prior MM line ("MM: a" + "MM: b" → "MM: b")`, mergeMmNote("MM: a", "MM: b") === "MM: b"],
+    [`preserves a foreign note ("hi" + "MM: a" → "hi\\nMM: a")`, mergeMmNote("hi", "MM: a") === "hi\nMM: a"],
+    [`idempotent ("hi\\nMM: a" + "MM: a" → unchanged)`, mergeMmNote("hi\nMM: a", "MM: a") === "hi\nMM: a"],
+    [`mmNoteLine builds "MM: <cat> / <note> · <desc>"`,
+      mmNoteLine({ ...mmk({}), categoryRaw: "Transport", note: "To office", description: "Auto" }) === "MM: Transport / To office · Auto"],
+  ];
+  for (const [label, ok] of noteChecks) { if (!ok) failures++; console.log(`MM-NOTE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager UI (Pass 4): confirm-before-write, busy guard, unmatched read-only (no insert) ----
+{
+  const panel = readFileSync("src/components/money-manager-panel.tsx", "utf8");
+  const route = readFileSync("src/app/api/enrich/money-manager/route.ts", "utf8");
+  const page = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+  const uiChecks: Array<[string, boolean]> = [
+    [`panel previews before writing (Scan & preview → mode=preview)`, panel.includes('run("preview")') && panel.includes('mode === "preview"')],
+    [`panel has a separate confirm step that applies (mode=apply)`, panel.includes('run("apply")') && panel.includes("Apply enrichment")],
+    [`panel honors the busy/nav-guard pattern (useBusy + begin/end)`, panel.includes("useBusy()") && panel.includes("begin(") && panel.includes("end(id)")],
+    [`unmatched shown read-only with the deferred-cash note, NO insert offered`,
+      panel.includes("Importing these as cash is not supported yet") && !/insert/i.test(panel)],
+    [`route is enrichment-only: never inserts into transactions`, !route.includes(".insert(") && route.includes(".update(")],
+    [`route guards categories via guardCategory (no 14/15 auto-assign)`, route.includes("guardCategory")],
+    [`panel is mounted in the transactions Review section`, page.includes("<MoneyManagerPanel />")],
+  ];
+  for (const [label, ok] of uiChecks) { if (!ok) failures++; console.log(`MM-UI ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

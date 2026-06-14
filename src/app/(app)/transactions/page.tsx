@@ -4,6 +4,7 @@ import { ReviewTable, type ReviewTxn, type ReviewCategory } from "@/components/r
 import { AiSuggestPanel, type AiCategory } from "@/components/ai-suggest-panel";
 import { llmProvider } from "@/lib/integrations";
 import { EnrichPanel } from "@/components/enrich-panel";
+import { MoneyManagerPanel } from "@/components/money-manager-panel";
 import { RulesManager, type RuleRow, type RuleCategory } from "@/components/rules-manager";
 import { TransactionsTabs, type TxTab } from "@/components/transactions-tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +111,7 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
         </div>
       )}
       <EnrichPanel />
+      <MoneyManagerPanel />
       <AiSuggestPanel categories={aiCategories} providerLabel={providerLabel} />
       <ReviewTable transactions={transactions} categories={categories} />
     </div>

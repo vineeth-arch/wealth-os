@@ -21,6 +21,7 @@ import { autoMapHolding, deriveYahooSymbol, needsConfirmation } from "../src/lib
 import { computeRegime, compareRegimes } from "../src/lib/calc/tax.js";
 import { amortizationSchedule, emiPaise, totalInterestPaise, prepaymentImpact } from "../src/lib/calc/loan.js";
 import { emergencyFund } from "../src/lib/calc/emergency.js";
+import { fireCorpus, swpDrawdown } from "../src/lib/calc/retirement.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
@@ -568,6 +569,21 @@ assert("EF 12-month target", ef.targets[2].targetPaise, 720_000 * P);
 // Over-funded clamps the gap at 0.
 const efFull = emergencyFund({ monthlyNeedsPaise: 50_000 * P, currentLiquidPaise: 900_000 * P });
 assert("EF gap clamps at 0 when over-funded", efFull.targets[0].gapPaise, 0);
+
+// ---- Retirement / FIRE corpus + SWP drawdown (Pass 3) ----
+console.log("\n" + "-".repeat(78));
+// ₹6,00,000/yr today, 6% inflation, 20 yrs, 4% SWR → future expense ₹19,24,281.28 → corpus ₹4,81,07,032.
+const fire = fireCorpus({ annualExpensePaise: 600_000 * P, inflationPct: 6, yearsToRetire: 20, swrPct: 4, currentCorpusPaise: 4_810_703_200 });
+assert("FIRE future annual expense", fire.futureAnnualExpensePaise, 192_428_128);
+assert("FIRE target corpus (expense / SWR)", fire.targetCorpusPaise, 4_810_703_200);
+assert("FIRE freedom ratio = 1 when current = target", Math.round(fire.freedomRatio * 1000), 1000);
+// Flat SWP: ₹10L corpus, ₹1L/yr, 0% return, 0% inflation → lasts exactly 10 years, depletes in year 10.
+const swpFlat = swpDrawdown({ corpusPaise: 1_000_000 * P, annualWithdrawalPaise: 100_000 * P, nominalReturnPct: 0, inflationPct: 0, years: 30 });
+assert("SWP flat depletes in year 10", swpFlat.depletedYear ?? 0, 10);
+assert("SWP flat years lasted = 10", swpFlat.yearsLasted, 10);
+// Return above withdrawal rate → corpus survives the horizon (no depletion).
+const swpLasts = swpDrawdown({ corpusPaise: 5_000_000 * P, annualWithdrawalPaise: 100_000 * P, nominalReturnPct: 8, inflationPct: 5, years: 30 });
+assert("SWP with growth survives 30 yrs", swpLasts.depletedYear === null ? 1 : 0, 1);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

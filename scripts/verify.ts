@@ -622,12 +622,13 @@ for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${
     { id: "t5", text: "AMAZON PAY", categorySource: "user", categoryName: "Online Shopping" },             // PRESERVED (hand-set)
     { id: "t6", text: "NO RULE MATCHES THIS", categorySource: "default", categoryName: FALLBACK_CATEGORY },// stays uncategorized
     { id: "t7", text: "UPI/ZOMATO ORDER", categorySource: "rule", categoryName: "Food Delivery" },        // already settled → no-op
+    { id: "t8", text: "AMAZON PAY", categorySource: "google_pay_statement", categoryName: "Online Shopping" }, // re-evaluated (GPay)
   ];
   const out = reapplyRules(txns, active);
   const matchedTallyOk = Object.values(out.matchedByRuleId).reduce((s, n) => s + n, 0) === out.matched;
   const userPreserved = !out.decisions.some((d) => d.txnId === "t5");
   const t1t2Same = out.decisions.filter((d) => d.txnId === "t1" || d.txnId === "t2").every((d) => d.category === "Food Delivery");
-  const aiMmReeval = out.decisions.some((d) => d.txnId === "t3") && out.decisions.some((d) => d.txnId === "t4");
+  const aiMmGpayReeval = ["t3", "t4", "t8"].every((id) => out.decisions.some((d) => d.txnId === id));
   const noopSkipped = !out.decisions.some((d) => d.txnId === "t7");
 
   // Idempotent: apply this run's decisions (category set, source → 'rule'), then re-run → nothing changes.
@@ -641,7 +642,7 @@ for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${
     && moveInOrder(["a", "b", "c"], "a", "down").join(",") === "b,a,c"                // a later
     && moveInOrder(["a", "b", "c"], "a", "up").join(",") === "a,b,c";                 // boundary no-op
 
-  const mig08 = readFileSync("supabase/migrations/0008_rule_hits.sql", "utf8");
+  const mig08 = readFileSync("supabase/migrations/0009_rule_hits.sql", "utf8");
 
   const checks: Array<[string, boolean]> = [
     [`loadRules refuses a rule targeting a parent-14 (Leakage) category`, rejected14],
@@ -649,16 +650,16 @@ for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${
     [`first-match-wins by priority → ZOMATO = Food Delivery; disabled rule skipped`, disabledSkipped && zomatoCat === "Food Delivery"],
     [`account-agnostic: identical text on different accounts → same category`, t1t2Same],
     [`re-run preserves user-set ('user') row`, userPreserved],
-    [`re-run re-evaluates ai_suggested + money_manager rows`, aiMmReeval],
+    [`re-run re-evaluates ai_suggested + money_manager + google_pay_statement rows`, aiMmGpayReeval],
     [`re-run skips an already rule-settled no-op row`, noopSkipped],
-    [`isReapplyTarget: default/rule/ai_suggested/money_manager=true, user=false`,
-      isReapplyTarget("default") && isReapplyTarget("rule") && isReapplyTarget("ai_suggested") && isReapplyTarget("money_manager") && !isReapplyTarget("user")],
+    [`isReapplyTarget: default/rule/ai_suggested/money_manager/google_pay_statement=true, user=false`,
+      isReapplyTarget("default") && isReapplyTarget("rule") && isReapplyTarget("ai_suggested") && isReapplyTarget("money_manager") && isReapplyTarget("google_pay_statement") && !isReapplyTarget("user")],
     [`per-rule matched tally == total matched (${out.matched})`, matchedTallyOk],
-    [`rows newly categorized this run (changed) = ${out.changed}`, out.changed === 4],
+    [`rows newly categorized this run (changed) = ${out.changed}`, out.changed === 5],
     [`re-run is idempotent (2nd pass changes 0; 1st changed ${out.changed})`, out.changed > 0 && out2.changed === 0],
     [`remaining = eligible still on fallback = ${out.remaining}`, out.remaining === 1], // only t6
     [`moveInOrder swaps adjacent up/down; boundary is a no-op`, reorderOk],
-    [`migration 0008 declares last_hit_count + last_run_at`, mig08.includes("last_hit_count") && mig08.includes("last_run_at")],
+    [`migration 0009 declares last_hit_count + last_run_at`, mig08.includes("last_hit_count") && mig08.includes("last_run_at")],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`RULESREPO ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }

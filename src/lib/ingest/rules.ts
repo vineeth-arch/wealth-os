@@ -89,10 +89,11 @@ export function moveInOrder(orderedIds: readonly string[], id: string, direction
 
 /**
  * Which `category_source` values a re-run may overwrite. A hand-set category ('user') is NEVER
- * touched; everything else is re-evaluated so deterministic rules win (decision for Prompt 16:
- * re-run reclaims default, rule, ai_suggested AND money_manager). Rows it sets become 'rule'.
+ * touched; every other source is re-evaluated so deterministic rules win (decision for Prompt 16:
+ * re-run reclaims default, rule, and the enrichment sources ai_suggested / money_manager /
+ * google_pay_statement). Rows it sets become 'rule'.
  */
-export const REAPPLY_SOURCES: ReadonlySet<string> = new Set(["default", "rule", "ai_suggested", "money_manager"]);
+export const REAPPLY_SOURCES: ReadonlySet<string> = new Set(["default", "rule", "ai_suggested", "money_manager", "google_pay_statement"]);
 export function isReapplyTarget(source: string): boolean {
   return REAPPLY_SOURCES.has(source);
 }

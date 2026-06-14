@@ -29,14 +29,25 @@ export function guardCategory(categoryName: string, byName: Map<string, CatInfo>
   return { id: info.id };
 }
 
-/** Insert a vendor rule with priority = max(priority)+10. `normalizedMatch` must already be normalized & non-empty; `categoryId` already guarded. */
+/**
+ * Insert a vendor rule with priority = max(priority)+10. The read-max → insert is not atomic, so two
+ * concurrent creates (e.g. confirming several AI suggestions at once) can both pick the same priority
+ * and collide on unique(user_id, priority); we retry on that conflict (Postgres 23505) with a freshly
+ * read max. `normalizedMatch` must already be normalized & non-empty; `categoryId` already guarded.
+ */
 export async function insertRule(supabase: Supa, userId: string, normalizedMatch: string, categoryId: string) {
-  const { data: top } = await supabase.from("vendor_rules")
-    .select("priority").eq("user_id", userId).order("priority", { ascending: false }).limit(1).maybeSingle();
-  const priority = ((top?.priority as number | undefined) ?? 0) + 10;
-  const { data, error } = await supabase.from("vendor_rules")
-    .insert({ user_id: userId, priority, match_text: normalizedMatch, category_id: categoryId, active: true })
-    .select("id,priority,match_text,active").single();
-  if (error) throw new Error(error.message);
-  return { id: data!.id as string, priority: data!.priority as number, matchText: data!.match_text as string, active: data!.active as boolean };
+  let lastError = "";
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: top } = await supabase.from("vendor_rules")
+      .select("priority").eq("user_id", userId).order("priority", { ascending: false }).limit(1).maybeSingle();
+    const priority = ((top?.priority as number | undefined) ?? 0) + 10;
+    const { data, error } = await supabase.from("vendor_rules")
+      .insert({ user_id: userId, priority, match_text: normalizedMatch, category_id: categoryId, active: true })
+      .select("id,priority,match_text,active").single();
+    if (!error) return { id: data!.id as string, priority: data!.priority as number, matchText: data!.match_text as string, active: data!.active as boolean };
+    // 23505 = unique_violation: another create grabbed this priority first. Re-read max and retry.
+    if (error.code !== "23505") throw new Error(error.message);
+    lastError = error.message;
+  }
+  throw new Error(`could not assign a unique rule priority after retries: ${lastError}`);
 }

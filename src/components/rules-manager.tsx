@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Play, Trash2 } from "lucide-react";
 
@@ -39,9 +40,10 @@ function CategorySelect({ value, options, onChange, includeBlank }: {
 /** Rough client-side mirror of normalizeDesc (util.ts can't be imported client-side — it pulls node:crypto). Used only to skip no-op saves; the server normalizes authoritatively. */
 const roughNorm = (s: string) => s.replace(/\s+/g, " ").trim().toUpperCase();
 
-function RuleLine({ rule, categories, onPatch, onDelete }: {
+function RuleLine({ rule, categories, isDuplicate, onPatch, onDelete }: {
   rule: RuleRow;
   categories: RuleCategory[];
+  isDuplicate: boolean;
   onPatch: (id: string, patch: Partial<RuleRow>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
@@ -60,10 +62,13 @@ function RuleLine({ rule, categories, onPatch, onDelete }: {
     <TableRow className={rule.active ? "" : "opacity-50"}>
       <TableCell className="text-xs text-muted-foreground">{rule.priority}</TableCell>
       <TableCell>
-        <Input value={match} disabled={busy}
-          onChange={(e) => setMatch(e.target.value)} onBlur={saveMatch}
-          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-          className="h-8 max-w-[16rem] text-xs uppercase" />
+        <div className="flex items-center gap-2">
+          <Input value={match} disabled={busy}
+            onChange={(e) => setMatch(e.target.value)} onBlur={saveMatch}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+            className="h-8 max-w-[16rem] text-xs uppercase" />
+          {isDuplicate && <Badge className="border-transparent bg-amber-500/15 text-amber-600">duplicate</Badge>}
+        </div>
       </TableCell>
       <TableCell>
         <CategorySelect value={rule.categoryName} options={categories} onChange={(v) => onPatch(rule.id, { categoryName: v })} />
@@ -91,6 +96,15 @@ export function RulesManager({ rules, categories }: { rules: RuleRow[]; categori
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // match_text is server-normalized (uppercased, whitespace-collapsed), so duplicates are identical
+  // strings. Two rules can share a match (the constraint is on priority, not match_text); the lowest
+  // priority wins and the rest are clutter to review. Recomputed from rows, so it updates live.
+  const dupTexts = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const r of rows) count.set(r.matchText, (count.get(r.matchText) ?? 0) + 1);
+    return new Set([...count.entries()].filter(([, n]) => n > 1).map(([t]) => t));
+  }, [rows]);
 
   async function api(method: string, path: string, body?: unknown) {
     const res = await fetch(path, {
@@ -161,7 +175,10 @@ export function RulesManager({ rules, categories }: { rules: RuleRow[]; categori
             <CategorySelect value={categoryName} options={categories} onChange={setCategoryName} includeBlank />
             <Button type="submit" size="sm" disabled={busy}>Add rule</Button>
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{rows.filter((r) => r.active).length}/{rows.length} active</span>
+              <span className="text-xs text-muted-foreground">
+                {rows.filter((r) => r.active).length}/{rows.length} active
+                {dupTexts.size > 0 && ` · ${dupTexts.size} duplicate match text${dupTexts.size > 1 ? "s" : ""}`}
+              </span>
               <Button type="button" variant="outline" size="sm" onClick={rerun} disabled={busy}>
                 <Play className="h-4 w-4" /> Re-run rules
               </Button>
@@ -184,7 +201,7 @@ export function RulesManager({ rules, categories }: { rules: RuleRow[]; categori
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <RuleLine key={r.id} rule={r} categories={categories} onPatch={patchRule} onDelete={deleteRule} />
+                <RuleLine key={r.id} rule={r} categories={categories} isDuplicate={dupTexts.has(r.matchText)} onPatch={patchRule} onDelete={deleteRule} />
               ))}
             </TableBody>
           </Table>

@@ -6,7 +6,11 @@
  * column is visible.
  */
 import * as XLSX from "xlsx";
-import type { HoldingRow, HoldingsSnapshot } from "../types";
+import { finalizeHashes } from "../util";
+import type { HoldingRow, HoldingsSnapshot, UpstoxDividends } from "../types";
+
+/** Account name used for dividend content-hashing — matches the seeded Upstox broker account. */
+export const UPSTOX_ACCOUNT_NAME = "Upstox";
 
 const ISIN_RE = /^IN[A-Z0-9]{10}$/;
 const toPaise = (v: unknown): number => Math.round(Number(v) * 100);
@@ -101,4 +105,52 @@ export function parseUpstoxHoldings(buf: Buffer): HoldingsSnapshot {
     presentPaise: rows.length ? presentPaise : null,
     reconciliationOk: reconcileOk, warnings,
   };
+}
+
+/**
+ * Upstox dividend report (sheet DIVIDEND) → income transactions (+inflow). Reconciles the
+ * sum of Net Dividend Amount against the stated `Total Dividend`. content_hash dedup is
+ * applied via finalizeHashes, identical to the bank-statement path. No money touches an LLM.
+ */
+export function parseUpstoxDividends(buf: Buffer): UpstoxDividends {
+  const wb = XLSX.read(buf, { type: "buffer" });
+  const warnings: string[] = [];
+  const ws = wb.Sheets["DIVIDEND"];
+  if (!ws) return { rows: [], totalDividendPaise: 0, reconciliationOk: false, warnings: ["sheet missing: DIVIDEND"] };
+  const g = grid(ws);
+
+  // Stated total: a "Total Dividend | <amount>" summary row above the table.
+  let totalDividendPaise = 0;
+  for (const r0 of g) {
+    const cells = (r0 ?? []).map((c) => String(c ?? "").trim());
+    const ti = cells.findIndex((c) => c === "Total Dividend");
+    if (ti >= 0 && cells[ti + 1]) { totalDividendPaise = toPaise(cells[ti + 1]); break; }
+  }
+
+  const headerIdx = findHeader(g, ["Scrip Name", "Symbol", "ISIN", "Record Date", "Net Dividend Amount"]);
+  if (headerIdx === -1) return { rows: [], totalDividendPaise, reconciliationOk: false, warnings: ["no DIVIDEND header row"] };
+  const header = (g[headerIdx] as unknown[]).map((c) => String(c ?? "").trim());
+  const col = (name: string) => header.findIndex((h) => h.startsWith(name));
+  const cSym = col("Symbol"), cIsin = col("ISIN"), cNature = col("Nature"), cDate = col("Record Date"), cNet = col("Net Dividend Amount");
+
+  const pre = [];
+  for (let i = headerIdx + 1; i < g.length; i++) {
+    const r = g[i] as unknown[];
+    if (!r || !r[cIsin] || !ISIN_RE.test(String(r[cIsin]).trim())) continue; // skips notes/footer/TOTAL
+    const symbol = String(r[cSym] ?? "").trim();
+    const nature = String(r[cNature] ?? "").trim();
+    pre.push({
+      txnDate: excelSerialToISO(Number(r[cDate])),
+      descriptionRaw: `Dividend · ${symbol} · ${nature}`,
+      amountPaise: toPaise(r[cNet]), // + inflow
+      refNo: String(r[cIsin]).trim(),
+    });
+  }
+  const rows = finalizeHashes(UPSTOX_ACCOUNT_NAME, pre);
+
+  const sum = rows.reduce((s, t) => s + t.amountPaise, 0);
+  const reconciliationOk = rows.length > 0 && sum === totalDividendPaise;
+  if (!reconciliationOk) warnings.push(`reconcile: Σ net ${sum} ≠ stated total ${totalDividendPaise}`);
+
+  return { rows, totalDividendPaise, reconciliationOk, warnings };
 }

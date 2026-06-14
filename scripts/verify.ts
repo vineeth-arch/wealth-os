@@ -5,7 +5,7 @@ import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
 import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
-import { parseUpstoxHoldings } from "../src/lib/ingest/parsers/upstox.js";
+import { parseUpstoxHoldings, parseUpstoxDividends, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
@@ -359,6 +359,26 @@ const parents = [...taxonomy.values()].filter((c) => !c.parent).length;
 console.log(`\nTAXONOMY: ${taxonomy.size} names (${parents} parents, ${taxonomy.size - parents} leaves)`);
 const rules = loadRules(readFileSync("supabase/seed/vendor_to_category_starter.yaml", "utf8"), taxonomy);
 console.log(`RULES: ${rules.length} loaded — all categories validated, Leakage/Review guards enforced at load`);
+
+// ---- Upstox dividends (category resolved from taxonomy, not hardcoded) ----
+{
+  const d = parseUpstoxDividends(readFileSync("fixtures/Dividend_20250401_To_20260331_GE6088.xlsx"));
+  const sum = d.rows.reduce((s, t) => s + t.amountPaise, 0);
+  const r0 = d.rows[0];
+  const divCat = taxonomy.get("Dividend Income");
+  const allInflow = d.rows.every((t) => t.amountPaise > 0 && Number.isInteger(t.amountPaise));
+  console.log(`\nUPSTOX DIVIDENDS: ${d.rows.length} events  Σ ${formatPaise(sum)}  stated ${formatPaise(d.totalDividendPaise)}  reconcile: ${d.reconciliationOk ? "PASS" : "FAIL"}  → ${divCat?.name} (parent ${divCat?.parent})`);
+  const checks: Array<[string, boolean]> = [
+    [`rows = ${d.rows.length} (expected 17)`, d.rows.length === 17],
+    [`Σ = ${sum} = stated total ${d.totalDividendPaise} (expected 22295)`, d.reconciliationOk && sum === 22295],
+    [`all rows +inflow integer paise`, allInflow],
+    [`row[0] date = ${r0?.txnDate} (expected ${excelSerialToISO(45793)})`, r0?.txnDate === excelSerialToISO(45793)],
+    [`row[0] amount = ${r0?.amountPaise} (expected 600)`, r0?.amountPaise === 600],
+    [`row[0] desc = ${r0?.descriptionRaw}`, r0?.descriptionRaw === "Dividend · IEX · Final"],
+    [`category "Dividend Income" exists in taxonomy with parent "01 Income"`, divCat?.parent === "01 Income"],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`UPSTOX-DIV ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
 
 const everyTxn = all.flatMap((r) => r.transactions);
 let hit = 0; const catCount = new Map<string, number>(); const ruleHits = new Map<number, number>();

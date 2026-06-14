@@ -169,6 +169,17 @@ if (reimportInserts > 0 || dupWithin > 0) failures++;
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`AI-SUGGEST ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
+// ---- Federal: regression guard — registry + wiring intact, every statement reconciles (Prompt 09 Pass 3) ----
+{
+  const totalFedTxns = fedAll.reduce((s, r) => s + r.transactions.length, 0);
+  const checks: Array<[string, boolean]> = [
+    ["12 monthly statements parsed", fedAll.length === 12],
+    ["every Federal statement reconciles", fedAll.every((r) => r.reconciliation.ok)],
+    [`aggregate parsed txns = ${totalFedTxns} (expected 230)`, totalFedTxns === 230],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`FEDERAL ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 // ---- LLM dispatch: active provider drives the adapter; missing key → clear error, never a silent fallback (Prompt 09 Pass 2) ----
 {
   const ADAPTERS = new Set(["gemini", "openai"]);

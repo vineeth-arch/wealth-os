@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button";
 import { CheckCard, BandPill } from "@/components/compass/check-card";
 import { Sparkbars, SparkTrend } from "@/components/compass/sparks";
 import { ReflectionChecklist } from "@/components/compass/reflection-checklist";
+import { LensToggle } from "@/components/compass/lens-toggle";
 import { loadDrillData } from "@/lib/server/load-drill";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { accountBalances } from "@/lib/halan";
 import {
-  type CompassTxn, type HoldingValue, type CompassProfile, computeWindow, machineH1, machineH2, machineH3,
-  machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep,
-  enjoymentFloor, sanityFlags, TRAILING_WINDOW_MONTHS,
+  type CompassTxn, type HoldingValue, type CompassProfile, type Band, computeWindow,
+  machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries,
+  freedomRatio, lifestyleCreep, enjoymentFloor, worstBand, machineSummary, sanityFlags,
+  TRAILING_WINDOW_MONTHS,
 } from "@/lib/compass";
 import { formatINR, formatPct, formatMonth } from "@/lib/format";
 import { Gauge, Sparkles, ArrowUpRight, ArrowDownRight, ArrowRight } from "lucide-react";
@@ -19,7 +21,8 @@ export const dynamic = "force-dynamic";
 
 type InstrumentJoin = { name: string; asset_class: string } | null;
 
-export default async function CompassPage() {
+export default async function CompassPage({ searchParams }: { searchParams: Promise<{ lens?: string }> }) {
+  const lens = (await searchParams).lens === "business" ? "business" : "personal";
   const { drillTxns, accounts } = await loadDrillData();
   const supabase = await createSupabaseServer();
   const [{ data: snapsRaw }, { data: pricesRaw }, { data: userData }, { data: profileRow }] = await Promise.all([
@@ -111,24 +114,116 @@ export default async function CompassPage() {
   const windowLabel = `trailing ${window.monthsCovered} month${window.monthsCovered === 1 ? "" : "s"}${window.monthsCovered < TRAILING_WINDOW_MONTHS ? ` (target ${TRAILING_WINDOW_MONTHS})` : ""}`;
   const pctText = (r: { pct: number | null }) => (r.pct === null ? "—" : formatPct(r.pct));
 
+  // One plain-string next-action per check — reused by the cards and the summary header (no drift).
+  const saveAction = !hasIncome ? "Categorize income & spend to compute this." : h1.saveRate.band === "green" ? "Above the 20% band — keep it automated." : `Free up ${formatINR(h1.saveRate.gapToGreenPaise)}/mo to reach the 20% save-rate band.`;
+  const emiAction = !hasIncome ? "Categorize income & debt to compute this." : h1.emiLoad.band === "green" ? "Comfortable — under the 25% line." : `Trim ${formatINR(h1.emiLoad.gapToGreenPaise)}/mo of EMI to get under 25%.`;
+  const livingAction = !hasIncome ? "Categorize income & spend to compute this." : h1.livingCost.band === "green" ? "Lean — living on under half your income." : `Cut ${formatINR(h1.livingCost.gapToGreenPaise)}/mo of spend to get under 50%.`;
+  const efAction = h2.months === null ? "Categorize spend to compute this." : h2.band === "green" ? "Above the 6-month buffer — solid." : `Add ${formatINR(h2.gapToTargetPaise)} to reach a 6-month buffer.`;
+  const protectionAction = h3.anyPresent ? "Protection detected — confirm your cover amount vs HLV in Calculators." : "No term/health premiums detected — term + health come before investing.";
+  const investAction = h4.band === null ? "Categorize investments to compute this." : h4.skipped === 0 ? "Investing every month — keep it automated." : `You skipped ${h4.skipped} month${h4.skipped === 1 ? "" : "s"} — set a standing SIP.`;
+  const allocAction = h5.band === null ? "Import broker holdings to compute this." : h5.band === "green" ? "Well spread — no single holding dominates." : `Largest holding is ${formatPct(h5.top!.pct)} of the portfolio — trim toward <20%.`;
+  const leakAction = h6leak.pct === null ? "Categorize spend to compute this." : h6leak.totalLeakagePaise === 0 ? "No leakage tagged — clean." : `${formatINR(h6leak.totalLeakagePaise)} leaked over the window — review the top categories.`;
+  const trendAction = h6trend.band === null ? "Needs ≥2 months for a trend." : h6trend.direction === "up" ? "Net worth rising — keep it up." : h6trend.direction === "flat" ? "Net worth flat — lift the save rate." : "Net worth falling — cut spend or lift income.";
+
+  // Collapse H1 (3 ratios) and H6 (leakage + trend) to their worst band; build the H1–H6 summary.
+  const worstOf = (subs: Array<{ band: Band | null; action: string }>) => {
+    const wb = worstBand(subs.map((s) => s.band));
+    return { band: wb, action: subs.find((s) => s.band === wb)?.action ?? "" };
+  };
+  const h1Worst = worstOf([{ band: h1.saveRate.band, action: saveAction }, { band: h1.emiLoad.band, action: emiAction }, { band: h1.livingCost.band, action: livingAction }]);
+  const h6Worst = worstOf([{ band: h6leak.band, action: leakAction }, { band: h6trend.band, action: trendAction }]);
+  const summary = machineSummary([
+    { id: "H1 · Cash flow", band: h1Worst.band, action: h1Worst.action },
+    { id: "H2 · Emergency fund", band: h2.band, action: efAction },
+    { id: "H3 · Protection", band: h3.band, action: protectionAction },
+    { id: "H4 · Investing", band: h4.band, action: investAction },
+    { id: "H5 · Allocation", band: h5.band, action: allocAction },
+    { id: "H6 · Scoreboard", band: h6Worst.band, action: h6Worst.action },
+  ]);
+
+  if (lens === "business") {
+    const t = window.totals, a = window.avg;
+    const PnlRow = ({ label, paise, strong, sub }: { label: string; paise: number; strong?: boolean; sub?: boolean }) => (
+      <div className={`flex items-center justify-between py-2 ${sub ? "border-b last:border-0" : "border-t-2"} ${strong ? "font-semibold" : ""}`}>
+        <span className={sub ? "text-muted-foreground" : ""}>{label}</span>
+        <span className={`tabular-nums ${paise < 0 ? "text-leakage" : ""}`}>{formatINR(paise)}</span>
+      </div>
+    );
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Compass</h1>
+            <p className="text-sm text-muted-foreground">Business lens · {windowLabel} · simple proprietor P&amp;L</p>
+          </div>
+          <LensToggle current={lens} />
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Proprietor P&amp;L</CardTitle>
+            <CardDescription>From your categories: business-income leaves of 01, costs in parent 11, taxes in parent 12. Drawings (parent-10 transfers) are excluded — they&apos;re neither income nor cost.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm">
+              <PnlRow label="Business revenue" paise={t.businessRevenue} sub />
+              <PnlRow label="Business costs (11 Work & Business)" paise={-t.businessCosts} sub />
+              <PnlRow label="Business profit" paise={t.businessProfit} strong />
+              <PnlRow label="Taxes (12 Taxes & Compliance)" paise={-t.tax} sub />
+              <PnlRow label="Profit after tax" paise={t.businessProfitAfterTax} strong />
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Per-month average over the window: revenue {formatINR(a.businessRevenue)} · costs {formatINR(a.businessCosts)} · tax {formatINR(a.tax)} · profit after tax {formatINR(a.businessProfitAfterTax)}.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Compass</h1>
-        <p className="text-sm text-muted-foreground">Personal lens · {windowLabel} · {drillTxns.length} transactions</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Compass</h1>
+          <p className="text-sm text-muted-foreground">Personal lens · {windowLabel} · {drillTxns.length} transactions</p>
+        </div>
+        <LensToggle current={lens} />
       </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-500" />{summary.counts.red}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-500" />{summary.counts.amber}</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" />{summary.counts.green}</span>
+              {summary.counts.na > 0 && <span className="inline-flex items-center gap-1.5 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-muted-foreground/40" />{summary.counts.na}</span>}
+            </div>
+            <span className="text-xs text-muted-foreground">across H1–H6</span>
+          </div>
+          <div className="text-sm">
+            {summary.topAction ? (
+              <span><span className={summary.topAction.band === "red" ? "font-medium text-red-500" : "font-medium text-amber-500"}>Start here:</span> {summary.topAction.action}</span>
+            ) : summary.counts.green > 0 ? (
+              <span className="text-emerald-500">All computed checks are green — steady as she goes.</span>
+            ) : (
+              <span className="text-muted-foreground">Categorize a couple of months to light up the checks.</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base"><Gauge className="h-4 w-4" /> The Machine</CardTitle>
-            <CardDescription>Is your money healthy? Six checks (H1–H6) on the numbers — each with a band and one next action.</CardDescription>
+            <CardDescription>Is your money healthy? Six checks (H1–H6) on the numbers — each with a band and one next action. This is the diagnostic half.</CardDescription>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base"><Sparkles className="h-4 w-4" /> The Mirror</CardTitle>
-            <CardDescription>Is your spending buying a better life? Behavioural signals and a calm reflection checklist — for reflection, not scoring.</CardDescription>
+            <CardDescription>Is your spending buying a better life? Behavioural signals and a calm checklist — for reflection, not scoring. There are no right answers; just notice.</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -148,27 +243,27 @@ export default async function CompassPage() {
           <CheckCard
             tag="H1 · Cash flow" title="Save rate" value={pctText(h1.saveRate)} band={h1.saveRate.band}
             caption="Savings (invest + protect) ÷ personal income. Target ≥20%."
-            action={!hasIncome ? "Categorize income & spend to compute this." : h1.saveRate.band === "green" ? "Above the 20% band — keep it automated." : `Free up ${formatINR(h1.saveRate.gapToGreenPaise)}/mo to reach the 20% band.`}
+            action={saveAction}
           />
           <CheckCard
             tag="H1 · Cash flow" title="EMI / debt load" value={pctText(h1.emiLoad)} band={h1.emiLoad.band}
             caption="Parent-05 EMI ÷ personal income. Target ≤25%."
-            action={!hasIncome ? "Categorize income & debt to compute this." : h1.emiLoad.band === "green" ? "Comfortable — under the 25% line." : `Trim ${formatINR(h1.emiLoad.gapToGreenPaise)}/mo of EMI to get under 25%.`}
+            action={emiAction}
           />
           <CheckCard
             tag="H1 · Cash flow" title="Living cost" value={pctText(h1.livingCost)} band={h1.livingCost.band}
             caption="Personal spend ÷ personal income. Target ≤50%."
-            action={!hasIncome ? "Categorize income & spend to compute this." : h1.livingCost.band === "green" ? "Lean — living on under half your income." : `Cut ${formatINR(h1.livingCost.gapToGreenPaise)}/mo of spend to get under 50%.`}
+            action={livingAction}
           />
           <CheckCard
             tag="H2 · Foundation" title="Emergency fund" value={h2.months === null ? "—" : `${h2.months.toFixed(1)} mo`} band={h2.band}
             caption="Liquid bank cash ÷ avg monthly spend. Self-employed target 6 months (lumpy income), not 3."
-            action={h2.months === null ? "Categorize spend to compute this." : h2.band === "green" ? "Above the 6-month buffer — solid." : `Add ${formatINR(h2.gapToTargetPaise)} to reach a 6-month buffer.`}
+            action={efAction}
           />
           <CheckCard
             tag="H3 · Shield" title="Protection funded" value={h3.anyPresent ? "Detected" : "None"} band={h3.band}
             caption={<>Term {h3.termPresent ? "✓" : "✗"} · Health {h3.healthPresent ? "✓" : "✗"}. Presence only — confirm the cover amount vs HLV yourself.</>}
-            action={h3.anyPresent ? <Link href="/calculators" className="underline">Compare cover vs HLV →</Link> : "No term/health premiums detected — term + health come before investing."}
+            action={h3.anyPresent ? <Link href="/calculators" className="underline">Compare cover vs HLV →</Link> : protectionAction}
           />
         </div>
       </section>
@@ -180,7 +275,7 @@ export default async function CompassPage() {
             tag="H4 · Engine" title="Investing consistency"
             value={h4.band === null ? "—" : `${h4.monthsInvested}/${h4.monthsCovered} mo`} band={h4.band}
             caption="Parent-08 invested per month. Automate it — consistency beats timing."
-            action={h4.band === null ? "Categorize investments to compute this." : h4.skipped === 0 ? "Invested every month — keep the SIP running." : `You skipped ${h4.skipped} month${h4.skipped === 1 ? "" : "s"} — set a standing SIP.`}
+            action={investAction}
           >
             {h4.series.length > 0 && <Sparkbars values={h4.series.map((s) => s.investPaise)} labels={h4.series.map((s) => `${formatMonth(s.month)}: ${formatINR(s.investPaise)}`)} />}
           </CheckCard>
@@ -189,7 +284,7 @@ export default async function CompassPage() {
             tag="H5 · Spread" title="Allocation / concentration"
             value={h5.top ? formatPct(h5.top.pct) : "—"} band={h5.band}
             caption={h5.top ? <>Largest holding: <span className="font-medium text-foreground">{h5.top.name}</span>. A diversified fund at high % is fine; a single stock at high % is concentration risk.</> : "No holdings imported yet."}
-            action={h5.band === null ? "Import broker holdings to compute this." : h5.band === "green" ? "Well spread — no single holding dominates." : `Largest holding is ${formatPct(h5.top!.pct)} of the portfolio — trim toward <20%.`}
+            action={allocAction}
           >
             {h5.topHoldings.length > 0 && (
               <div className="space-y-2">
@@ -212,7 +307,7 @@ export default async function CompassPage() {
             tag="H6 · Scoreboard" title="Leakage"
             value={h6leak.pct === null ? "—" : formatPct(h6leak.pct)} band={h6leak.band}
             caption="Tagged leakage ÷ personal spend. Target <5%."
-            action={h6leak.pct === null ? "Categorize spend to compute this." : h6leak.totalLeakagePaise === 0 ? "No leakage tagged — clean." : `${formatINR(h6leak.totalLeakagePaise)} leaked over the window.`}
+            action={leakAction}
           >
             {h6leak.byParent.length > 0 && (
               <div className="space-y-1">
@@ -300,6 +395,11 @@ export default async function CompassPage() {
         </div>
 
         <ReflectionChecklist userId={userId} initial={savedProfile} />
+
+        <p className="text-xs text-muted-foreground">
+          The Machine measures whether the numbers are healthy; the Mirror asks whether your spending is buying a better life.
+          The Machine has bands and actions; the Mirror does not keep score — it&apos;s a prompt to reflect, nothing more.
+        </p>
       </section>
     </div>
   );

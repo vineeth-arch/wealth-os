@@ -810,7 +810,7 @@ assert("projection grows tax with positive growth", projectCapitalGainsTax(cgSeg
 
 // ---- Money Box Compass — proprietor lens engine (Pass 1): one pool, two lenses, category-driven ----
 console.log("\n" + "-".repeat(78));
-import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep, enjoymentFloor, REFLECTIONS, emptyProfile, bandHigher, bandLower } from "../src/lib/compass.js";
+import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep, enjoymentFloor, REFLECTIONS, emptyProfile, worstBand, machineSummary, bandHigher, bandLower } from "../src/lib/compass.js";
 {
   const cmk = (over: Partial<CompassTxn>): CompassTxn => ({
     txnDate: "2026-03-15", amountPaise: -10000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [], ...over,
@@ -1026,6 +1026,26 @@ import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_
       profileMig.includes("enable row level security") && profileMig.includes("profile_owner") && profileMig.includes("unique (user_id)")],
   ];
   for (const [label, ok] of profChecks) { if (!ok) failures++; console.log(`COMPASS-PROFILE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Compass summary header (Pass 6): R/A/G count + highest-priority action (Red before Amber) ----
+{
+  const sum = machineSummary([
+    { id: "H1", band: "amber", action: "trim spend" },
+    { id: "H2", band: "red", action: "build the buffer" },
+    { id: "H3", band: "green", action: "ok" },
+    { id: "H4", band: "green", action: "ok" },
+    { id: "H5", band: null, action: "import holdings" },
+    { id: "H6", band: "amber", action: "watch leakage" },
+  ]);
+  const allGreen = machineSummary([{ id: "H1", band: "green", action: "ok" }, { id: "H2", band: "green", action: "ok" }]);
+  const sumChecks: Array<[string, boolean]> = [
+    [`counts: 1 red, 2 amber, 2 green, 1 na`, sum.counts.red === 1 && sum.counts.amber === 2 && sum.counts.green === 2 && sum.counts.na === 1],
+    [`top action is the RED check (before amber)`, sum.topAction?.band === "red" && sum.topAction?.action === "build the buffer"],
+    [`worstBand prefers red > amber > green, ignores null`, worstBand(["green", "amber", null, "red"]) === "red" && worstBand([null, "green"]) === "green" && worstBand([null]) === null],
+    [`all green → no top action (steady)`, allGreen.topAction === null && allGreen.counts.green === 2],
+  ];
+  for (const [label, ok] of sumChecks) { if (!ok) failures++; console.log(`COMPASS-SUMMARY ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

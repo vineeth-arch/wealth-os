@@ -461,6 +461,44 @@ export function enjoymentFloor(avg: LensTotals): EnjoymentFloor {
   return { triggered: saveRatePct > 40 && wantsSharePct < 5, saveRatePct, wantsSharePct };
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Summary (Pass 6) — roll the Machine's H1–H6 into a R/A/G count + the single
+// highest-priority next action (worst band first; Red before Amber).
+// ───────────────────────────────────────────────────────────────────────────
+
+const BAND_RANK: Record<Band, number> = { red: 0, amber: 1, green: 2 };
+
+/** Worst (most urgent) band of a set, ignoring null (insufficient-data) checks. */
+export function worstBand(bands: Array<Band | null>): Band | null {
+  const present = bands.filter((b): b is Band => b !== null);
+  if (present.length === 0) return null;
+  return present.sort((a, b) => BAND_RANK[a] - BAND_RANK[b])[0];
+}
+
+export interface MachineCheckSummary { id: string; band: Band | null; action: string; }
+export interface MachineSummary {
+  counts: { red: number; amber: number; green: number; na: number };
+  checks: MachineCheckSummary[];   // one per H1–H6 (H1/H6 collapse their sub-checks to the worst band)
+  topAction: { id: string; band: Band; action: string } | null;
+}
+
+/**
+ * Build the header summary. Each of H1–H6 contributes exactly one band (H1 = worst of its three
+ * ratios; H6 = worst of leakage + net-worth trend). topAction is the action of the worst-banded
+ * check across the Machine, Red before Amber.
+ */
+export function machineSummary(checks: MachineCheckSummary[]): MachineSummary {
+  const counts = { red: 0, amber: 0, green: 0, na: 0 };
+  for (const c of checks) {
+    if (c.band === null) counts.na++;
+    else counts[c.band]++;
+  }
+  const ranked = checks
+    .filter((c): c is { id: string; band: Band; action: string } => c.band !== null && c.band !== "green")
+    .sort((a, b) => BAND_RANK[a.band] - BAND_RANK[b.band]);
+  return { counts, checks, topAction: ranked[0] ?? null };
+}
+
 export function sanityFlags(t: LensTotals): SanityFlags {
   const income = t.personalIncome;
   const spendExceedsIncome = income > 0 && t.personalSpend > income * 1.5;

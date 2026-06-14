@@ -3,34 +3,40 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import { normalizeDesc } from "@/lib/ingest/util";
 import { FALLBACK_CATEGORY } from "@/lib/ingest/rules";
 import { llmProvider } from "@/lib/integrations";
-import { suggestCategories, GeminiKeyMissingError } from "@/lib/llm/gemini";
+import { LlmKeyMissingError, type SuggestCategories } from "@/lib/llm/provider";
+import { suggestCategories as geminiSuggest } from "@/lib/llm/gemini";
+import { suggestCategories as openaiSuggest } from "@/lib/llm/openai";
 
 export const runtime = "nodejs";
 
+// Adapters that implement AI-suggest. Other catalog providers (anthropic/openrouter) have no adapter yet.
+const ADAPTERS: Record<string, SuggestCategories> = { gemini: geminiSuggest, openai: openaiSuggest };
+
 /**
- * Ask the configured LLM (Gemini) for a category per still-uncategorized vendor. Sends ONLY the
- * description text + the allowed category names — never amount/date/balance/account. Nothing is
- * persisted here; the client confirms each suggestion. If GEMINI_API_KEY is missing, this no-ops
- * gracefully (disabled:true) instead of erroring.
+ * Ask the configured LLM for a category per still-uncategorized vendor. Sends ONLY the description
+ * text + the allowed category names — never amount/date/balance/account. Nothing is persisted here;
+ * the client confirms each suggestion. Dispatches to the active provider's adapter; if that provider's
+ * key is missing it returns a clear reason (disabled:true) and never silently falls back to another.
  */
 export async function POST() {
   const supabase = await createSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  if (!process.env.GEMINI_API_KEY) {
-    return NextResponse.json({ disabled: true, reason: "GEMINI_API_KEY is not set on the server. Add it to enable AI suggestions.", suggestions: [] });
-  }
-
-  // Honor the configured provider; only Gemini is implemented.
+  // Determine the active provider (default Gemini when none is set), then dispatch to its adapter.
   const { data: llmRows } = await supabase.from("integrations").select("provider,meta").eq("kind", "llm").eq("user_id", user.id);
   const active = (llmRows ?? []).find((r) => (r.meta as { active?: boolean } | null)?.active);
-  if (active && active.provider !== "gemini") {
-    return NextResponse.json({ disabled: true, reason: `Active LLM provider is "${active.provider}". AI-suggest supports Google Gemini — switch it on the Integrations page.`, suggestions: [] });
+  const providerId = active?.provider ?? "gemini";
+  const suggest = ADAPTERS[providerId];
+  if (!suggest) {
+    return NextResponse.json({ disabled: true, reason: `Active LLM provider is "${providerId}". AI-suggest supports Google Gemini and OpenAI — switch it on the Integrations page.`, suggestions: [] });
   }
-  const geminiModels = llmProvider("gemini")?.models ?? [];
-  const chosen = active?.provider === "gemini" ? (active?.meta as { model?: string } | null)?.model : undefined;
-  const model = chosen && geminiModels.includes(chosen) ? chosen : undefined; // else adapter uses env/default
+  const prov = llmProvider(providerId)!;
+  if (!process.env[prov.envVar]) {
+    return NextResponse.json({ disabled: true, reason: `${prov.label} key (${prov.envVar}) is not set on the server. Add it to enable AI suggestions.`, suggestions: [] });
+  }
+  const chosen = (active?.meta as { model?: string } | null)?.model;
+  const model = chosen && prov.models.includes(chosen) ? chosen : undefined; // else adapter uses env/default
 
   // Committed transactions still on the default fallback.
   const { data: txnRows } = await supabase.from("transactions")
@@ -64,12 +70,12 @@ export async function POST() {
 
   let result;
   try {
-    result = await suggestCategories(groupList.map((g) => g.sample), allowedCats, model ? { model } : undefined);
+    result = await suggest(groupList.map((g) => g.sample), allowedCats, model ? { model } : undefined);
   } catch (e) {
-    if (e instanceof GeminiKeyMissingError) {
-      return NextResponse.json({ disabled: true, reason: "GEMINI_API_KEY is not set on the server.", suggestions: [] });
+    if (e instanceof LlmKeyMissingError) {
+      return NextResponse.json({ disabled: true, reason: `${prov.label} key (${prov.envVar}) is not set on the server.`, suggestions: [] });
     }
-    return NextResponse.json({ error: `gemini: ${(e as Error).message}` }, { status: 502 });
+    return NextResponse.json({ error: `${providerId}: ${(e as Error).message}` }, { status: 502 });
   }
 
   // Map back to groups; drop unknown / forbidden / fallback. (allowed already excludes 14/15.)

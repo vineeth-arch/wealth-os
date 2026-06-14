@@ -93,3 +93,6 @@ fixtures/                real statements (git-ignored)
 - Physical/digital gold ingestion (`manual_ibja`) + an `asset_snapshot` account. Demat-held SGBs are already covered via the Zerodha + Yahoo path.
 - §87A marginal relief (and the new-regime special marginal-relief band); more calculators.
 - BHIM UPI merchant enrichment surfacing.
+- Loan module follow-ups: multi-loan optimisation (avalanche vs snowball ordering) and pulling live loan balances from statements — manual entry only for now.
+- IPS / rebalancing engine and a full net-worth forward-projection module; EPF/PPF/NPS maturity projection (needs those balances ingested first, via future EPFO/NPS/CAS parsers).
+- Capital-gains tax: loss set-off / carry-forward, cess & surcharge, and slab treatment of F&O/commodities/currencies (currently surfaced as slab income, not taxed in the calculator).

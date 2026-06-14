@@ -22,6 +22,7 @@ import { computeRegime, compareRegimes } from "../src/lib/calc/tax.js";
 import { amortizationSchedule, emiPaise, totalInterestPaise, prepaymentImpact } from "../src/lib/calc/loan.js";
 import { emergencyFund } from "../src/lib/calc/emergency.js";
 import { fireCorpus, swpDrawdown } from "../src/lib/calc/retirement.js";
+import { pvAnnuity, hlvIncomeReplacement, hlvExpenseLiability } from "../src/lib/calc/hlv.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
@@ -584,6 +585,21 @@ assert("SWP flat years lasted = 10", swpFlat.yearsLasted, 10);
 // Return above withdrawal rate → corpus survives the horizon (no depletion).
 const swpLasts = swpDrawdown({ corpusPaise: 5_000_000 * P, annualWithdrawalPaise: 100_000 * P, nominalReturnPct: 8, inflationPct: 5, years: 30 });
 assert("SWP with growth survives 30 yrs", swpLasts.depletedYear === null ? 1 : 0, 1);
+
+// ---- Human Life Value (Pass 4): income-replacement + expense/liabilities ----
+console.log("\n" + "-".repeat(78));
+// Zero-discount annuity is just amount × years.
+assert("pvAnnuity 0% = amount × years", pvAnnuity(700_000 * P, 0, 20), 1_400_000_000);
+// Income-replacement: ₹10L income, 30% own consumption (net ₹7L), 20 yrs.
+const irFlat = hlvIncomeReplacement({ annualIncomePaise: 1_000_000 * P, ownConsumptionPct: 30, workingYears: 20, discountRatePct: 0 });
+assert("HLV income-replacement (0% discount) = ₹14Cr", irFlat.needPaise, 1_400_000_000);
+const ir8 = hlvIncomeReplacement({ annualIncomePaise: 1_000_000 * P, ownConsumptionPct: 30, workingYears: 20, discountRatePct: 8, existingCoverPaise: 200_000_000 });
+assert("HLV income-replacement (8% discount)", ir8.needPaise, 687_270_319);
+assert("HLV gap = need − existing cover", ir8.gapPaise, 687_270_319 - 200_000_000);
+// Expense + liabilities: PV(₹6L × 25yr @0%) ₹1.5Cr + ₹50L liabilities − ₹30L assets = ₹1.7Cr.
+const el = hlvExpenseLiability({ annualExpensePaise: 600_000 * P, yearsToCover: 25, discountRatePct: 0, outstandingLiabilitiesPaise: 5_000_000 * P, existingAssetsPaise: 3_000_000 * P, existingCoverPaise: 5_000_000 * P });
+assert("HLV expense+liabilities need", el.needPaise, 1_700_000_000);
+assert("HLV expense+liabilities gap", el.gapPaise, 1_700_000_000 - 500_000_000);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

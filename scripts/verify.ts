@@ -18,7 +18,7 @@ import { breakdownByAccount, topNTransactions, bucketDrill, accountPeriodFlow, t
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { formatAccountDetails } from "../src/lib/accounts/format.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY, isForbiddenAutoParent,
-  selectActiveRules, reorderPriorities, isReapplyTarget, reapplyRules, type ReapplyTxn } from "../src/lib/ingest/rules.js";
+  selectActiveRules, moveInOrder, isReapplyTarget, reapplyRules, type ReapplyTxn } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER, resolveLlmDispatch } from "../src/lib/integrations.js";
 import { suggestCategories as geminiSuggest } from "../src/lib/llm/gemini.js";
 import { suggestCategories as openaiSuggest } from "../src/lib/llm/openai.js";
@@ -634,8 +634,9 @@ for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${
   });
   const out2 = reapplyRules(settled, active);
 
-  const reorder = reorderPriorities(["a", "b", "c"]);
-  const reorderOk = reorder.map((r) => `${r.id}:${r.priority}`).join(",") === "a:10,b:20,c:30";
+  const reorderOk = moveInOrder(["a", "b", "c"], "c", "up").join(",") === "a,c,b"     // c earlier
+    && moveInOrder(["a", "b", "c"], "a", "down").join(",") === "b,a,c"                // a later
+    && moveInOrder(["a", "b", "c"], "a", "up").join(",") === "a,b,c";                 // boundary no-op
 
   const mig08 = readFileSync("supabase/migrations/0008_rule_hits.sql", "utf8");
 
@@ -652,7 +653,7 @@ for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${
     [`hits tally == rows changed (${out.changed})`, tallyOk],
     [`re-run is idempotent (2nd pass changes 0; 1st changed ${out.changed})`, out.changed > 0 && out2.changed === 0],
     [`remaining = eligible still on fallback = ${out.remaining}`, out.remaining === 1], // only t6
-    [`reorderPriorities renumbers to 10,20,30`, reorderOk],
+    [`moveInOrder swaps adjacent up/down; boundary is a no-op`, reorderOk],
     [`migration 0008 declares last_hit_count + last_run_at`, mig08.includes("last_hit_count") && mig08.includes("last_run_at")],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`RULESREPO ${ok ? "PASS" : "FAIL"}: ${label}`); }

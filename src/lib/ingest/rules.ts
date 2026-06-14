@@ -72,9 +72,19 @@ export function selectActiveRules<T extends { active: boolean; priority: number 
   return rows.filter((r) => r.active).sort((a, b) => a.priority - b.priority);
 }
 
-/** Renumber a desired rule order to deterministic, evenly-spaced priorities (10,20,30,…). */
-export function reorderPriorities(orderedIds: readonly string[]): Array<{ id: string; priority: number }> {
-  return orderedIds.map((id, i) => ({ id, priority: (i + 1) * 10 }));
+/**
+ * Move a rule one slot up (earlier = lower priority = evaluated sooner) or down within the current
+ * order. Pure; returns the new id order (unchanged at a boundary). The route persists this by swapping
+ * just the two affected priorities — O(1) writes regardless of rule count, order stays deterministic.
+ */
+export function moveInOrder(orderedIds: readonly string[], id: string, direction: "up" | "down"): string[] {
+  const ids = [...orderedIds];
+  const i = ids.indexOf(id);
+  if (i < 0) return ids;
+  const j = direction === "up" ? i - 1 : i + 1;
+  if (j < 0 || j >= ids.length) return ids; // already at the top/bottom
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  return ids;
 }
 
 /**

@@ -3,16 +3,17 @@
 // only description text + the allowed category NAMES are ever sent — never amount/date/balance/account.
 import { GoogleGenAI, Type, type Schema } from "@google/genai";
 import { buildSuggestPrompt, type PromptCategory } from "./prompt";
+import { LlmKeyMissingError, type CategorySuggestion, type SuggestResult } from "./provider";
 
 // Quality default; env-overridable via GEMINI_MODEL (see suggestCategories). If gemini-2.5-flash errors
 // on the free tier, set GEMINI_MODEL=gemini-2.5-flash-lite to fall back without a code change.
 export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
-export class GeminiKeyMissingError extends Error {
+export class GeminiKeyMissingError extends LlmKeyMissingError {
   constructor() { super("GEMINI_API_KEY is not set"); this.name = "GeminiKeyMissingError"; }
 }
 
-export interface CategorySuggestion { index: number; category: string }
+export type { CategorySuggestion };
 
 const SUGGEST_SCHEMA: Schema = {
   type: Type.ARRAY,
@@ -31,7 +32,7 @@ export async function suggestCategories(
   descriptions: string[],
   categories: PromptCategory[],
   opts?: { model?: string },
-): Promise<{ suggestions: CategorySuggestion[]; model: string; prompt: string }> {
+): Promise<SuggestResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new GeminiKeyMissingError();
   const model = opts?.model || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;

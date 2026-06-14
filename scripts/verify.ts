@@ -7,6 +7,7 @@ import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
+import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
 import { breakdownByAccount, topNTransactions, bucketDrill, type DrillTxn } from "../src/lib/drilldown.js";
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { formatAccountDetails } from "../src/lib/accounts/format.js";
@@ -201,6 +202,29 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
     ["instructs bucket-first + Uncategorized Review fallback", prompt.includes("bucket-first") && prompt.includes("Uncategorized Review")],
   ];
   for (const [label, ok] of promptChecks) { if (!ok) failures++; console.log(`PROMPT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- OpenAI adapter (Prompt 05): request carries description-only, JSON parsed, invalid → fallback ----
+{
+  const desc = "UPI/DR/512282836511/LAZYPAY/AIRP · LazyPay";
+  const cats = [{ name: "Food Delivery", parent: "03 Spend-it Wants" }, { name: "Fuel", parent: "02 Spend-it Needs" }];
+  const oaPrompt = buildSuggestPrompt([desc], cats);
+  const body = buildOpenAiRequestBody(oaPrompt, "gpt-4o-mini");
+  const content = body.messages[0]?.content ?? "";
+  const allowed = new Set(cats.map((c) => c.name));
+  const parsedOk = parseOpenAiSuggestions('{"suggestions":[{"index":0,"category":"Fuel"}]}', allowed);
+  const parsedBad = parseOpenAiSuggestions('{"suggestions":[{"index":0,"category":"Bogus Leaf"}]}', allowed);
+  const openaiChecks: Array<[string, boolean]> = [
+    ["request payload carries only the description prompt (no extra fields)",
+      content === oaPrompt && content.includes(desc) && Object.keys(body).sort().join(",") === "messages,model,response_format,temperature"],
+    ["payload omits money/date/account fields, temperature deterministic",
+      body.temperature === 0 && !/amount|balance|"date"|account|ref_?no/i.test(JSON.stringify({ messages: body.messages }))],
+    ["parses a well-formed JSON response into the suggestion shape",
+      parsedOk.length === 1 && parsedOk[0].index === 0 && parsedOk[0].category === "Fuel"],
+    ["coerces an unknown/invalid category to Uncategorized Review",
+      parsedBad.length === 1 && parsedBad[0].category === "Uncategorized Review"],
+  ];
+  for (const [label, ok] of openaiChecks) { if (!ok) failures++; console.log(`OPENAI ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- Dashboard drill-down aggregation (Pass 1): breakdown-by-account + top-N, pure & gate-checkable ----

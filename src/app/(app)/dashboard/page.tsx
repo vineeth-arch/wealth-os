@@ -17,10 +17,10 @@ import { TrendingUp, PiggyBank, Wallet, LineChart } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "income" | "leakage" | "invest" }) {
+function Tile({ label, value, sub, tone, href }: { label: string; value: string; sub?: string; tone?: "income" | "leakage" | "invest"; href?: string }) {
   const color = tone === "income" ? "text-income" : tone === "leakage" ? "text-leakage" : tone === "invest" ? "text-invest" : "text-foreground";
-  return (
-    <Card>
+  const card = (
+    <Card className={href ? "h-full transition-colors hover:border-ring hover:bg-accent/40" : undefined}>
       <CardHeader className="pb-2"><CardDescription>{label}</CardDescription></CardHeader>
       <CardContent>
         <div className={`text-2xl font-semibold tracking-tight ${color}`}>{value}</div>
@@ -28,6 +28,7 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
       </CardContent>
     </Card>
   );
+  return href ? <Link href={href} className="focus:outline-none">{card}</Link> : card;
 }
 
 export default async function DashboardPage() {
@@ -145,11 +146,11 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Tile label="Cash net worth" value={formatINR(netWorthPaise)} sub="bank + cards; broker cash excluded" />
-        {hasHoldings && <Tile label="Investments" value={formatINR(investments.valuePaise)} tone="invest" sub={investments.asOfDate ? `as of ${formatDate(investments.asOfDate)}` : undefined} />}
-        {hasHoldings && <Tile label="Total net worth" value={formatINR(netWorthPaise + investments.valuePaise)} sub="cash + investments" />}
-        {latest && <FlowKpis txns={drillTxns} month={latest.month} categories={categoryOptions}
-          totals={{ income: latest.incomePaise, spend: latest.spendPaise, invest: latest.investPaise, leakage: latest.leakagePaise }} />}
+        <Tile label="Cash net worth" value={formatINR(netWorthPaise)} sub="bank + cards; broker cash excluded" href="/accounts" />
+        {hasHoldings && <Tile label="Investments" value={formatINR(investments.valuePaise)} tone="invest" sub={investments.asOfDate ? `as of ${formatDate(investments.asOfDate)}` : undefined} href="/holdings" />}
+        {hasHoldings && <Tile label="Total net worth" value={formatINR(netWorthPaise + investments.valuePaise)} sub="cash + investments" href="/accounts" />}
+        {latest && <FlowKpis month={latest.month}
+          totals={{ income: latest.incomePaise, spend: latest.spendPaise, invest: latest.investPaise, leakage: latest.leakagePaise, net: latest.incomePaise - latest.spendPaise - latest.investPaise }} />}
       </div>
 
       {hasHoldings && (

@@ -259,11 +259,15 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
   const top = topNTransactions(dtxns, "spend", "2026-03", 5);
   const emptyBy = breakdownByAccount(dtxns, "income", "2099-01");
   const emptyTop = topNTransactions(dtxns, "income", "2099-01", 5);
+  // net = income − spend − invest (no invest rows here, transfers excluded): 20500000 − 1210000 = 19290000
+  const netBy = breakdownByAccount(dtxns, "net", "2026-03");
+  const netSum = netBy.reduce((s, a) => s + a.subtotalPaise, 0);
   const drillChecks: Array<[string, boolean]> = [
     [`income breakdown sums to headline ₹2,05,000 over 2 accounts = ${incSum}`, incSum === 20500000 && incBy.length === 2],
     [`spend breakdown sums to headline, transfers excluded = ${spendSum}`, spendSum === 1210000],
     [`top-5 capped & ordered by |amount| desc = ${top.map((t) => t.id).join(",")}`, top.length === 5 && top.map((t) => t.id).join(",") === "s2,s4,s6,s1,s3"],
     [`empty month → empty breakdown + empty top-list`, emptyBy.length === 0 && emptyTop.length === 0],
+    [`net = income − spend − invest, transfers excluded = ${netSum}`, netSum === 19290000],
   ];
   for (const [label, ok] of drillChecks) { if (!ok) failures++; console.log(`DRILL ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }

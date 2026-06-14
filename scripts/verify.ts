@@ -20,6 +20,7 @@ import { selectSourceIds } from "../src/lib/prices/types.js";
 import { autoMapHolding, deriveYahooSymbol, needsConfirmation } from "../src/lib/holdings.js";
 import { computeRegime, compareRegimes } from "../src/lib/calc/tax.js";
 import { amortizationSchedule, emiPaise, totalInterestPaise, prepaymentImpact } from "../src/lib/calc/loan.js";
+import { emergencyFund } from "../src/lib/calc/emergency.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
@@ -556,6 +557,17 @@ assert("reduce_emi lowers EMI below base", (re.newEmiPaise ?? Infinity) < 1_266_
 assert("reduce_emi also saves interest (>0)", re.interestSavedPaise > 0 ? 1 : 0, 1);
 // The two modes differ: reduce_tenure saves more interest than reduce_emi for the same lump sum.
 assert("reduce_tenure saves more than reduce_emi", rt.interestSavedPaise > re.interestSavedPaise ? 1 : 0, 1);
+
+// ---- Emergency-fund sizing (Pass 2): months × needs, gap vs current liquid ----
+console.log("\n" + "-".repeat(78));
+// ₹60,000/mo needs, ₹3,00,000 liquid → 6mo target ₹3.6L (gap ₹60k), 9mo ₹5.4L, 12mo ₹7.2L.
+const ef = emergencyFund({ monthlyNeedsPaise: 60_000 * P, currentLiquidPaise: 300_000 * P });
+assert("EF 6-month target", ef.targets[0].targetPaise, 360_000 * P);
+assert("EF 6-month gap (target − liquid)", ef.targets[0].gapPaise, 60_000 * P);
+assert("EF 12-month target", ef.targets[2].targetPaise, 720_000 * P);
+// Over-funded clamps the gap at 0.
+const efFull = emergencyFund({ monthlyNeedsPaise: 50_000 * P, currentLiquidPaise: 900_000 * P });
+assert("EF gap clamps at 0 when over-funded", efFull.targets[0].gapPaise, 0);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

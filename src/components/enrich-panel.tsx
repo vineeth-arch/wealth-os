@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useBusy } from "@/components/busy-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, FileUp, Loader2 } from "lucide-react";
@@ -17,22 +18,33 @@ export function EnrichPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EnrichResult | null>(null);
+  const { begin, end } = useBusy();
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
 
   const accept = source === "gpay" ? ".md,.markdown,.txt,text/markdown" : ".html,.htm,text/html";
   const filePrompt = source === "gpay" ? "Choose a Google Pay .md export" : "Choose a BHIM .html export";
 
   async function upload() {
     if (!file) { setError("Choose a UPI export file."); return; }
+    const id = begin("UPI enrich");
     setBusy(true); setError(null); setResult(null);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("source", source);
-    const res = await fetch("/api/enrich", { method: "POST", body: fd });
-    const json = await res.json();
-    setBusy(false);
-    if (!res.ok) { setError(json.error ?? "enrich failed"); return; }
-    setResult(json as EnrichResult);
-    router.refresh();
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("source", source);
+      const res = await fetch("/api/enrich", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!mounted.current) return; // enrichment ran server-side; UI gone — skip the update
+      if (!res.ok) { setError(json.error ?? "enrich failed"); return; }
+      setResult(json as EnrichResult);
+      router.refresh();
+    } catch (e) {
+      if (mounted.current) setError((e as Error).message);
+    } finally {
+      if (mounted.current) setBusy(false);
+      end(id);
+    }
   }
 
   return (

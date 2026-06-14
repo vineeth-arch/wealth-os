@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useBusy } from "@/components/busy-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,12 +90,17 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
   const [info, setInfo] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
+  const { begin, end } = useBusy();
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
 
   async function runSuggest() {
+    const busyId = begin("AI-suggest");
     setLoading(true); setError(null); setInfo(null); setPrompt(null);
     try {
       const res = await fetch("/api/ai/suggest", { method: "POST" });
       const json = await res.json().catch(() => ({}));
+      if (!mounted.current) return;
       if (!res.ok) throw new Error(json.error ?? "request failed");
       if (json.disabled) { setSuggestions([]); setInfo(json.reason ?? "AI suggestions are disabled."); }
       else {
@@ -103,18 +109,21 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
         setPrompt(json.prompt || null);
         setInfo(`${json.suggested ?? 0} suggestion(s) from ${json.groups ?? 0} distinct descriptions (${json.scanned ?? 0} uncategorized transactions).`);
       }
-    } catch (e) { setError((e as Error).message); }
-    setLoading(false);
+    } catch (e) { if (mounted.current) setError((e as Error).message); }
+    finally { if (mounted.current) setLoading(false); end(busyId); }
   }
 
   async function runRerun() {
+    const busyId = begin("Re-run rules");
     setError(null); setInfo(null);
     try {
       const res = await fetch("/api/rules/apply", { method: "POST" });
       const json = await res.json().catch(() => ({}));
+      if (!mounted.current) return;
       if (!res.ok) throw new Error(json.error ?? "request failed");
       setInfo(`Re-ran rules: ${json.recategorized} recategorized, ${json.remaining} still Uncategorized (of ${json.scanned} scanned).`);
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) { if (mounted.current) setError((e as Error).message); }
+    finally { end(busyId); }
   }
 
   function onApplied(key: string, updated: number, ruleCreated: boolean) {

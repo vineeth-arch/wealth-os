@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { ImportWizard } from "@/components/import-wizard";
 import { ReviewTable, type ReviewTxn, type ReviewCategory } from "@/components/review-table";
@@ -6,44 +5,30 @@ import { AiSuggestPanel, type AiCategory } from "@/components/ai-suggest-panel";
 import { llmProvider } from "@/lib/integrations";
 import { EnrichPanel } from "@/components/enrich-panel";
 import { RulesManager, type RuleRow, type RuleCategory } from "@/components/rules-manager";
+import { TransactionsTabs, type TxTab } from "@/components/transactions-tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "import" | "review" | "rules";
-const TABS: { id: Tab; label: string; blurb: string }[] = [
-  { id: "import", label: "Import", blurb: "Drop a markdown statement. It is parsed and reconciled server-side; categorize, then commit. Re-importing the same period is a no-op." },
-  { id: "review", label: "Review", blurb: "Re-categorize and tag leakage on committed transactions. Changes save instantly. Showing the most recent 300." },
-  { id: "rules", label: "Rules", blurb: "Vendor → category rules applied deterministically at import and on demand. Add your own, toggle the seeded ones, then re-run them over Uncategorized Review." },
-];
-
 export default async function TransactionsPage({ searchParams }: { searchParams: Promise<{ tab?: string; account?: string }> }) {
   const sp = await searchParams;
-  const tab: Tab = sp.tab === "review" ? "review" : sp.tab === "rules" ? "rules" : "import";
-  const active = TABS.find((t) => t.id === tab)!;
+  const tab: TxTab = sp.tab === "review" ? "review" : sp.tab === "rules" ? "rules" : "import";
 
+  // All three sections render and stay MOUNTED (the client hub toggles visibility) so an in-progress
+  // import's parsed rows survive tab switches. Server-component sections are passed as props.
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
-        <p className="text-sm text-muted-foreground">{active.blurb}</p>
       </div>
-
-      <nav className="flex gap-1 border-b">
-        {TABS.map((t) => (
-          <Link key={t.id} href={`/transactions?tab=${t.id}`}
-            className={cn("border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              t.id === tab ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-            {t.label}
-          </Link>
-        ))}
-      </nav>
-
-      {tab === "import" && <ImportSection />}
-      {tab === "review" && <ReviewSection accountFilter={sp.account ?? ""} />}
-      {tab === "rules" && <RulesSection />}
+      <TransactionsTabs
+        initialTab={tab}
+        importSection={<ImportSection />}
+        reviewSection={<ReviewSection accountFilter={sp.account ?? ""} />}
+        rulesSection={<RulesSection />}
+      />
     </div>
   );
 }

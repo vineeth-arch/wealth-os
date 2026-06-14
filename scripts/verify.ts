@@ -18,6 +18,7 @@ import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/l
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER, resolveLlmDispatch } from "../src/lib/integrations.js";
 import { suggestCategories as geminiSuggest } from "../src/lib/llm/gemini.js";
 import { suggestCategories as openaiSuggest } from "../src/lib/llm/openai.js";
+import { busyReducer, BUSY_INITIAL, isBusy as busyIsBusy, busyLabel } from "../src/lib/busy.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
 import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
 import { selectSourceIds } from "../src/lib/prices/types.js";
@@ -206,6 +207,23 @@ if (reimportInserts > 0 || dupWithin > 0) failures++;
     ["gemini and openai adapters are distinct functions", (geminiSuggest as unknown) !== (openaiSuggest as unknown)],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`LLM-DISPATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Busy store: count-based, never negative (Prompt 10 Pass 1) ----
+{
+  const s1 = busyReducer(BUSY_INITIAL, { type: "begin", id: 1, label: "Import" });
+  const s2 = busyReducer(s1, { type: "begin", id: 2, label: "AI-suggest" });
+  const s2end1 = busyReducer(s2, { type: "end", id: 1 });          // two begins, one end → still busy
+  const s1end1 = busyReducer(s1, { type: "end", id: 1 });          // back to idle
+  const clamp = busyReducer(BUSY_INITIAL, { type: "end", id: 99 }); // end on empty → no-op, never negative
+  const checks: Array<[string, boolean]> = [
+    ["begin → busy, count 1, label set", busyIsBusy(s1) && s1.ops.length === 1 && busyLabel(s1) === "Import"],
+    ["end → idle, count 0", !busyIsBusy(s1end1) && s1end1.ops.length === 0],
+    ["two begins then one end → still busy, label = remaining op", busyIsBusy(s2end1) && s2end1.ops.length === 1 && busyLabel(s2end1) === "AI-suggest"],
+    ["extra end clamps at 0 (never negative)", !busyIsBusy(clamp) && clamp.ops.length === 0],
+    ["idle initial state is not busy", !busyIsBusy(BUSY_INITIAL) && busyLabel(BUSY_INITIAL) === null],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`BUSY ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- BHIM UPI enrichment ----

@@ -1,6 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useBusy } from "@/components/busy-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +66,9 @@ function CategorySelect({ value, options, onChange }: { value: string; options: 
 
 export function ImportWizard({ accounts, categories }: { accounts: Account[]; categories: Category[] }) {
   const router = useRouter();
+  const { begin, end } = useBusy();
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [fileName, setFileName] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
@@ -76,19 +80,27 @@ export function ImportWizard({ accounts, categories }: { accounts: Account[]; ca
 
   async function parse() {
     if (!file || !accountId) { setError("Pick an account and a file."); return; }
+    const id = begin("Import");
     setParsing(true); setError(null); setResult(null); setStatements(null);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("accountId", accountId);
-    const res = await fetch("/api/import", { method: "POST", body: fd });
-    const json = await res.json();
-    setParsing(false);
-    if (!res.ok) { setError(json.error ?? "import failed"); return; }
-    const data = json as ImportResponse;
-    setStatements(data.results.map((s) => ({
-      stmt: s,
-      rows: s.transactions.map((t) => ({ categoryName: t.suggestedCategory, tags: [], included: true })),
-    })));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("accountId", accountId);
+      const res = await fetch("/api/import", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!mounted.current) return; // op completed server-side; UI gone — drop the result quietly
+      if (!res.ok) { setError(json.error ?? "import failed"); return; }
+      const data = json as ImportResponse;
+      setStatements(data.results.map((s) => ({
+        stmt: s,
+        rows: s.transactions.map((t) => ({ categoryName: t.suggestedCategory, tags: [], included: true })),
+      })));
+    } catch (e) {
+      if (mounted.current) setError((e as Error).message);
+    } finally {
+      if (mounted.current) setParsing(false);
+      end(id);
+    }
   }
 
   function setRow(si: number, ri: number, patch: Partial<RowState>) {
@@ -109,6 +121,7 @@ export function ImportWizard({ accounts, categories }: { accounts: Account[]; ca
 
   async function commit() {
     if (!statements) return;
+    const id = begin("Commit");
     setCommitting(true); setError(null);
     const payload: CommitRequest = {
       accountId,
@@ -130,13 +143,20 @@ export function ImportWizard({ accounts, categories }: { accounts: Account[]; ca
         }),
       })),
     };
-    const res = await fetch("/api/commit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const json = await res.json();
-    setCommitting(false);
-    if (!res.ok) { setError(json.error ?? "commit failed"); return; }
-    setResult(json);
-    setStatements(null);
-    router.refresh();
+    try {
+      const res = await fetch("/api/commit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (!mounted.current) return; // committed server-side regardless; just no UI to update
+      if (!res.ok) { setError(json.error ?? "commit failed"); return; }
+      setResult(json);
+      setStatements(null);
+      router.refresh();
+    } catch (e) {
+      if (mounted.current) setError((e as Error).message);
+    } finally {
+      if (mounted.current) setCommitting(false);
+      end(id);
+    }
   }
 
   return (

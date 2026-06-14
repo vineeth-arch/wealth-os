@@ -9,7 +9,7 @@ import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelS
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
-import { breakdownByAccount, topNTransactions, bucketDrill, type DrillTxn } from "../src/lib/drilldown.js";
+import { breakdownByAccount, topNTransactions, bucketDrill, accountPeriodFlow, type DrillTxn } from "../src/lib/drilldown.js";
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { formatAccountDetails } from "../src/lib/accounts/format.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
@@ -262,12 +262,19 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
   // net = income − spend − invest (no invest rows here, transfers excluded): 20500000 − 1210000 = 19290000
   const netBy = breakdownByAccount(dtxns, "net", "2026-03");
   const netSum = netBy.reduce((s, a) => s + a.subtotalPaise, 0);
+  // accountPeriodFlow: A1 in = 18500000 (i1); A1 out = 120000+90000+300000+200000+2000000 (s1,s3,s4,s6,t1) = 2710000
+  const apf = accountPeriodFlow(dtxns, "2026-03");
+  const a1 = apf.get("A1"); const a2 = apf.get("A2");
   const drillChecks: Array<[string, boolean]> = [
     [`income breakdown sums to headline ₹2,05,000 over 2 accounts = ${incSum}`, incSum === 20500000 && incBy.length === 2],
     [`spend breakdown sums to headline, transfers excluded = ${spendSum}`, spendSum === 1210000],
     [`top-5 capped & ordered by |amount| desc = ${top.map((t) => t.id).join(",")}`, top.length === 5 && top.map((t) => t.id).join(",") === "s2,s4,s6,s1,s3"],
     [`empty month → empty breakdown + empty top-list`, emptyBy.length === 0 && emptyTop.length === 0],
     [`net = income − spend − invest, transfers excluded = ${netSum}`, netSum === 19290000],
+    [`accountPeriodFlow A1: in ${a1?.inflowPaise} out ${a1?.outflowPaise} (raw flow, transfers incl)`,
+      !!a1 && a1.inflowPaise === 18500000 && a1.outflowPaise === 2710000],
+    [`accountPeriodFlow A2: in ${a2?.inflowPaise} out ${a2?.outflowPaise}`,
+      !!a2 && a2.inflowPaise === 2000000 && a2.outflowPaise === 500000],
   ];
   for (const [label, ok] of drillChecks) { if (!ok) failures++; console.log(`DRILL ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }

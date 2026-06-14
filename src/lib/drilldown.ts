@@ -78,6 +78,26 @@ export function topNTransactions(txns: DrillTxn[], metric: DrillMetric, month: s
     .slice(0, n);
 }
 
+export interface AccountFlow { accountId: string; inflowPaise: number; outflowPaise: number; count: number }
+
+/**
+ * Per-account inflow/outflow for a month — the inverse of breakdownByAccount (which splits one metric
+ * across accounts; this splits one account's raw flow). Powers the Accounts page's "contribution to
+ * the dashboard". outflowPaise is a positive magnitude. Keyed by accountId for direct lookup.
+ */
+export function accountPeriodFlow(txns: DrillTxn[], month: string): Map<string, AccountFlow> {
+  const map = new Map<string, AccountFlow>();
+  for (const t of txns) {
+    if (monthOf(t.txnDate) !== month) continue;
+    const cur = map.get(t.accountId) ?? { accountId: t.accountId, inflowPaise: 0, outflowPaise: 0, count: 0 };
+    if (t.amountPaise < 0) cur.outflowPaise += -t.amountPaise;
+    else cur.inflowPaise += t.amountPaise;
+    cur.count += 1;
+    map.set(t.accountId, cur);
+  }
+  return map;
+}
+
 export interface BucketLeaf { categoryName: string; inflowPaise: number; outflowPaise: number; netPaise: number; count: number; txns: DrillTxn[] }
 export interface BucketDrill { inflowPaise: number; outflowPaise: number; netPaise: number; totalPaise: number; leaves: BucketLeaf[] }
 

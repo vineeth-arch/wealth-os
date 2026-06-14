@@ -41,7 +41,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
       </nav>
 
       {tab === "import" && <ImportSection />}
-      {tab === "review" && <ReviewSection />}
+      {tab === "review" && <ReviewSection accountFilter={sp.account ?? ""} />}
       {tab === "rules" && <RulesSection />}
     </div>
   );
@@ -73,12 +73,14 @@ async function ImportSection() {
   return <ImportWizard accounts={accounts} categories={categories} />;
 }
 
-async function ReviewSection() {
+async function ReviewSection({ accountFilter }: { accountFilter: string }) {
   const supabase = await createSupabaseServer();
+  let txnQuery = supabase.from("transactions")
+    .select("id,txn_date,amount_paise,description_raw,merchant,tags,category_id,category_source,account_id")
+    .order("txn_date", { ascending: false }).limit(300);
+  if (accountFilter) txnQuery = txnQuery.eq("account_id", accountFilter);
   const [{ data: txnsRaw }, { data: catsRaw }, { data: acctsRaw }] = await Promise.all([
-    supabase.from("transactions")
-      .select("id,txn_date,amount_paise,description_raw,merchant,tags,category_id,category_source,account_id")
-      .order("txn_date", { ascending: false }).limit(300),
+    txnQuery,
     supabase.from("categories").select("id,name,parent_id,auto_assignable"),
     supabase.from("accounts").select("id,name"),
   ]);
@@ -106,8 +108,16 @@ async function ReviewSection() {
     accountName: t.account_id ? acctById.get(t.account_id as string) ?? "" : "",
   }));
 
+  const filterName = accountFilter ? acctById.get(accountFilter) ?? "" : "";
+
   return (
     <div className="space-y-6">
+      {accountFilter && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="rounded-full border bg-muted/40 px-3 py-1">Filtered to <span className="font-medium">{filterName || "account"}</span></span>
+          <Link href="/transactions?tab=review" className="text-xs text-muted-foreground hover:text-foreground">Clear</Link>
+        </div>
+      )}
       <EnrichPanel />
       <AiSuggestPanel categories={aiCategories} />
       <ReviewTable transactions={transactions} categories={categories} />

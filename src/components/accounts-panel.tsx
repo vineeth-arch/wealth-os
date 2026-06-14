@@ -1,19 +1,23 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatINR, formatDate } from "@/lib/format";
+import { formatINR, formatDate, formatMonth } from "@/lib/format";
 import { formatAccountDetails, institutionLabel, type AccountDetails } from "@/lib/accounts/format";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, ArrowRight } from "lucide-react";
 
 export interface AccountRow {
   id: string; name: string; institution: string; kind: string;
   anchorBalancePaise: number | null; anchorDate: string | null;
   accountHolderName: string; accountNumber: string; ifsc: string; branch: string; accountType: string; upiId: string;
 }
+
+export interface AccountFlow { inflowPaise: number; outflowPaise: number; count: number }
+export type AccountFlowMap = Record<string, AccountFlow>;
 
 type EditState = Pick<AccountRow, "accountHolderName" | "accountNumber" | "ifsc" | "branch" | "accountType" | "upiId">;
 
@@ -32,15 +36,15 @@ const COLUMN: Record<keyof EditState, string> = {
   branch: "branch", accountType: "account_type", upiId: "upi_id",
 };
 
-export function AccountsPanel({ accounts }: { accounts: AccountRow[] }) {
+export function AccountsPanel({ accounts, flows, month }: { accounts: AccountRow[]; flows: AccountFlowMap; month: string }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {accounts.map((a) => <AccountCard key={a.id} account={a} />)}
+      {accounts.map((a) => <AccountCard key={a.id} account={a} flow={flows[a.id]} month={month} />)}
     </div>
   );
 }
 
-function AccountCard({ account }: { account: AccountRow }) {
+function AccountCard({ account, flow, month }: { account: AccountRow; flow?: AccountFlow; month: string }) {
   const router = useRouter();
   const [s, setS] = useState<EditState>({
     accountHolderName: account.accountHolderName, accountNumber: account.accountNumber, ifsc: account.ifsc,
@@ -87,6 +91,24 @@ function AccountCard({ account }: { account: AccountRow }) {
           {account.anchorBalancePaise !== null
             ? <>Anchor {formatINR(account.anchorBalancePaise)} · {account.anchorDate ? formatDate(account.anchorDate) : "—"}</>
             : <>No anchor yet — set on first statement import.</>}
+        </div>
+
+        <div className="rounded-md border bg-muted/30 p-3">
+          <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Contribution · {month ? formatMonth(month) : "—"}
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">In</span>
+            <span className="font-medium text-income">{formatINR(flow?.inflowPaise ?? 0)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Out</span>
+            <span className="font-medium text-destructive">{formatINR(flow?.outflowPaise ?? 0)}</span>
+          </div>
+          <Link href={`/transactions?tab=review&account=${account.id}`}
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            View transactions <ArrowRight className="h-3 w-3" />
+          </Link>
         </div>
 
         <div className="grid gap-2">

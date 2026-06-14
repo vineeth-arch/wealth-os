@@ -17,7 +17,8 @@ import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/o
 import { breakdownByAccount, topNTransactions, bucketDrill, accountPeriodFlow, type DrillTxn } from "../src/lib/drilldown.js";
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { formatAccountDetails } from "../src/lib/accounts/format.js";
-import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY, isForbiddenAutoParent } from "../src/lib/ingest/rules.js";
+import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY, isForbiddenAutoParent,
+  selectActiveRules, reorderPriorities, isReapplyTarget, reapplyRules, type ReapplyTxn } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER, resolveLlmDispatch } from "../src/lib/integrations.js";
 import { suggestCategories as geminiSuggest } from "../src/lib/llm/gemini.js";
 import { suggestCategories as openaiSuggest } from "../src/lib/llm/openai.js";
@@ -588,6 +589,74 @@ for (const t of everyTxn) {
 console.log(`AUTO-CATEGORIZATION: ${hit}/${everyTxn.length} matched a rule; ${catCount.get(FALLBACK_CATEGORY) ?? 0} → ${FALLBACK_CATEGORY}`);
 const topRules = [...ruleHits.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
 for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${rules[i].match}" → ${rules[i].category}`);
+
+// ---- Global rule repository (Prompt 16): account-agnostic match, ordering, enablement, re-run policy ----
+{
+  // A rule whose target lives under 14 Cash Leakage Watchlist must be refused at load (the 14/15 wall).
+  let rejected14 = false;
+  try { loadRules("- match: SOMEVENDOR\n  category: Food Delivery Leakage\n", taxonomy); }
+  catch { rejected14 = true; }
+
+  // Synthetic repo with explicit ids/priorities. r-zomDining (prio 5) is DISABLED; the enabled r-zomFood
+  // (prio 10) must win over r-amazon (prio 30) for a ZOMATO line — proving order + enablement.
+  const repo = [
+    { id: "r-amazon", priority: 30, active: true, match: "AMAZON", category: "Groceries" },
+    { id: "r-zomDining", priority: 5, active: false, match: "ZOMATO", category: "Fuel" },
+    { id: "r-zomFood", priority: 10, active: true, match: "ZOMATO", category: "Food Delivery" },
+  ];
+  const active = selectActiveRules(repo);
+  const orderOk = active.map((r) => r.id).join(",") === "r-zomFood,r-amazon"; // disabled dropped, ascending
+  const engineRules = active.map((r) => ({ match: r.match, category: r.category }));
+  const zomatoCat = categorize("UPI/ZOMATO ORDER", engineRules).category;       // first match wins by priority
+  const disabledSkipped = zomatoCat === "Food Delivery";                        // not "Fuel" (disabled, lower prio)
+
+  // account-agnostic: two txns with identical text but different ids/accounts resolve identically.
+  const txns: ReapplyTxn[] = [
+    { id: "t1", text: "UPI/ZOMATO ORDER", categorySource: "default", categoryName: FALLBACK_CATEGORY },   // change
+    { id: "t2", text: "UPI/ZOMATO ORDER", categorySource: "default", categoryName: FALLBACK_CATEGORY },   // change (same text, diff account)
+    { id: "t3", text: "AMAZON PAY", categorySource: "ai_suggested", categoryName: "Online Shopping" },     // re-evaluated (AI)
+    { id: "t4", text: "AMAZON PAY", categorySource: "money_manager", categoryName: "Online Shopping" },    // re-evaluated (MM)
+    { id: "t5", text: "AMAZON PAY", categorySource: "user", categoryName: "Online Shopping" },             // PRESERVED (hand-set)
+    { id: "t6", text: "NO RULE MATCHES THIS", categorySource: "default", categoryName: FALLBACK_CATEGORY },// stays uncategorized
+    { id: "t7", text: "UPI/ZOMATO ORDER", categorySource: "rule", categoryName: "Food Delivery" },        // already settled → no-op
+  ];
+  const out = reapplyRules(txns, active);
+  const tallyOk = Object.values(out.hitsByRuleId).reduce((s, n) => s + n, 0) === out.changed;
+  const userPreserved = !out.decisions.some((d) => d.txnId === "t5");
+  const t1t2Same = out.decisions.filter((d) => d.txnId === "t1" || d.txnId === "t2").every((d) => d.category === "Food Delivery");
+  const aiMmReeval = out.decisions.some((d) => d.txnId === "t3") && out.decisions.some((d) => d.txnId === "t4");
+  const noopSkipped = !out.decisions.some((d) => d.txnId === "t7");
+
+  // Idempotent: apply this run's decisions (category set, source → 'rule'), then re-run → nothing changes.
+  const settled: ReapplyTxn[] = txns.map((t) => {
+    const d = out.decisions.find((x) => x.txnId === t.id);
+    return d ? { ...t, categoryName: d.category, categorySource: "rule" } : t;
+  });
+  const out2 = reapplyRules(settled, active);
+
+  const reorder = reorderPriorities(["a", "b", "c"]);
+  const reorderOk = reorder.map((r) => `${r.id}:${r.priority}`).join(",") === "a:10,b:20,c:30";
+
+  const mig08 = readFileSync("supabase/migrations/0008_rule_hits.sql", "utf8");
+
+  const checks: Array<[string, boolean]> = [
+    [`loadRules refuses a rule targeting a parent-14 (Leakage) category`, rejected14],
+    [`selectActiveRules drops disabled + sorts by priority (r-zomFood,r-amazon)`, orderOk],
+    [`first-match-wins by priority → ZOMATO = Food Delivery; disabled rule skipped`, disabledSkipped && zomatoCat === "Food Delivery"],
+    [`account-agnostic: identical text on different accounts → same category`, t1t2Same],
+    [`re-run preserves user-set ('user') row`, userPreserved],
+    [`re-run re-evaluates ai_suggested + money_manager rows`, aiMmReeval],
+    [`re-run skips an already rule-settled no-op row`, noopSkipped],
+    [`isReapplyTarget: default/rule/ai_suggested/money_manager=true, user=false`,
+      isReapplyTarget("default") && isReapplyTarget("rule") && isReapplyTarget("ai_suggested") && isReapplyTarget("money_manager") && !isReapplyTarget("user")],
+    [`hits tally == rows changed (${out.changed})`, tallyOk],
+    [`re-run is idempotent (2nd pass changes 0; 1st changed ${out.changed})`, out.changed > 0 && out2.changed === 0],
+    [`remaining = eligible still on fallback = ${out.remaining}`, out.remaining === 1], // only t6
+    [`reorderPriorities renumbers to 10,20,30`, reorderOk],
+    [`migration 0008 declares last_hit_count + last_run_at`, mig08.includes("last_hit_count") && mig08.includes("last_run_at")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`RULESREPO ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
 
 // ---- Halan bucket math: synthetic, hard-asserted ----
 console.log("\n" + "-".repeat(78));

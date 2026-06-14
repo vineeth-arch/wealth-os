@@ -9,6 +9,7 @@ import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { parseMoneyManager, stripEmojiPrefix } from "../src/lib/ingest/parsers/money-manager.js";
+import { parseGooglePayStatement } from "../src/lib/ingest/parsers/google-pay-statement.js";
 import { matchMoneyManager, DEFAULT_WINDOW_DAYS, planMoneyManagerWrites, mergeMmNote, mmNoteLine, MM_NOTE_PREFIX, type MmMatch, type MmTxnState } from "../src/lib/ingest/money-manager.js";
 import { resolveMmCategory, mmTargetCategoryNames, isSpouseTransfer, SPOUSE_TRANSFER_CATEGORY } from "../src/lib/ingest/money-manager-category-map.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
@@ -1213,6 +1214,35 @@ console.log("\n" + "-".repeat(78));
     [`panel is mounted in the transactions Review section`, page.includes("<MoneyManagerPanel />")],
   ];
   for (const [label, ok] of uiChecks) { if (!ok) failures++; console.log(`MM-UI ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Google Pay statement parser (Pass 1): redacted synthetic fixture, structure not content ----
+console.log("\n" + "-".repeat(78));
+{
+  const { entries: gp, reconciliation: gr, warnings: gw } = parseGooglePayStatement(F("google_pay_statement_sample.md"));
+  const acme = gp.find((e) => e.party === "ACMEGROCERS");
+  const jio = gp.find((e) => e.party === "JioPrepaid");
+  const client = gp.find((e) => e.party === "CLIENTACME");
+  const self = gp.find((e) => e.kind === "self_transfer");
+  const canara = gp.find((e) => e.party === "CanaraTestMerchant");
+  console.log(`\nGOOGLE PAY STATEMENT: ${gp.length} entries (paid ${gp.filter((e) => e.kind === "paid").length} / received ${gp.filter((e) => e.kind === "received").length} / self ${gp.filter((e) => e.kind === "self_transfer").length}); ${gw.length} warnings; reconcile ${gr.ok ? "PASS" : "FAIL"}`);
+  const gpChecks: Array<[string, boolean]> = [
+    [`entries = ${gp.length} (expected 10)`, gp.length === 10],
+    [`Paid to → negative paise (ACME ${acme?.amountPaise}, expected -125000)`, acme?.amountPaise === -125000 && acme?.direction === "outflow"],
+    [`Received from → positive paise (CLIENTACME ${client?.amountPaise}, expected +200000)`, client?.amountPaise === 200000 && client?.direction === "inflow"],
+    [`Self transfer flagged kind=self_transfer`, !!self && self.kind === "self_transfer"],
+    [`verb prefix stripped from party ("PaidtoACMEGROCERS" → "ACMEGROCERS")`, acme?.party === "ACMEGROCERS" && acme?.merchantText === "ACMEGROCERS"],
+    [`funding bank name + last-4 parsed (ACME → HDFC Bank / 0789)`, acme?.fundingBankName === "HDFC Bank" && acme?.fundingBankLast4 === "0789"],
+    [`Canara routed to last-4 8593`, canara?.fundingBankLast4 === "8593" && canara?.fundingBankName === "Canara Bank"],
+    [`upiTxnId captured (ACME = 111111111111, = rowRef)`, acme?.upiTxnId === "111111111111" && acme?.rowRef === "111111111111"],
+    [`paise amount parsed exactly (₹300.90 → -30090)`, jio?.amountPaise === -30090],
+    [`date ISO from "02Dec,2025"`, acme?.txnDate === "2025-12-02"],
+    [`header/footer/summary excluded (no entry party starts with "Transaction"/"Note"/"Page")`,
+      gp.every((e) => !/^(Transaction|Note|Page)/.test(e.party))],
+    [`reconcile-or-show: Σpaid == Sent ${gr.sentTotalPaise} (Δ ${gr.sentDeltaPaise}), Σreceived == Received ${gr.receivedTotalPaise} (Δ ${gr.receivedDeltaPaise})`,
+      gr.sentDeltaPaise === 0 && gr.receivedDeltaPaise === 0 && gr.sentTotalPaise === 875590 && gr.receivedTotalPaise === 200200],
+  ];
+  for (const [label, ok] of gpChecks) { if (!ok) failures++; console.log(`GPAY-STMT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

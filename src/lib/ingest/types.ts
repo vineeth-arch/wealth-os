@@ -47,6 +47,47 @@ export interface StatementParseResult {
 }
 
 /**
+ * Google Pay official "Transaction statement" (PDF→markdown) rows are ENRICHMENT ONLY — never create
+ * transactions (every GPay payment is funded by a bank account that already produces a statement).
+ * A second format alongside the BHIM HTML / GPay-activity exports; this one carries the UPI Transaction
+ * ID and the funding bank + last-4, enabling ID matching and account routing.
+ */
+export interface GooglePayStatementEntry {
+  /** Transaction date, ISO YYYY-MM-DD (from `02Dec,2025`). */
+  txnDate: string;
+  /** Raw time string as printed (e.g. "08:30PM"); the date is what matters for matching. */
+  time: string;
+  /** Signed paise: + inflow (Received), − outflow (Paid / Self transfer). */
+  amountPaise: number;
+  direction: "inflow" | "outflow";
+  kind: "paid" | "received" | "self_transfer";
+  /** Verb-stripped, space-stripped counterparty/merchant text (e.g. "JioPrepaid", "AvaniMehta"). */
+  party: string;
+  /** 12-digit UPI Transaction ID — idempotency key and a potential exact bank-narration match key. */
+  upiTxnId: string;
+  /** Funding bank display name ("HDFC Bank", "State Bank of India", "Canara Bank") or the raw token. */
+  fundingBankName: string;
+  /** Funding account last-4 ("0789") — routes the match to the right wealth-os account. */
+  fundingBankLast4: string;
+  /** Best human label for enrichment (= party). */
+  merchantText: string;
+  /** Stable id for idempotency (= upiTxnId). */
+  rowRef: string;
+}
+
+/** Reconciliation of parsed Paid/Received sums against the statement's stated Sent/Received totals. */
+export interface GpayStatementReconciliation {
+  sentTotalPaise: number | null;
+  receivedTotalPaise: number | null;
+  parsedSentPaise: number;
+  parsedReceivedPaise: number;
+  /** parsed − stated; null when the total wasn't found. */
+  sentDeltaPaise: number | null;
+  receivedDeltaPaise: number | null;
+  ok: boolean;
+}
+
+/**
  * Money Manager (.xlsx) household-spending rows are ENRICHMENT ONLY — never create transactions.
  * Her Note/Description is a far richer merchant label than the bank/UPI string; enriching with it
  * lets the existing vendor rules + AI-suggest categorize correctly.

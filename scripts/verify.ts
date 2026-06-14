@@ -9,7 +9,7 @@ import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { parseMoneyManager, stripEmojiPrefix } from "../src/lib/ingest/parsers/money-manager.js";
-import { matchMoneyManager, DEFAULT_WINDOW_DAYS } from "../src/lib/ingest/money-manager.js";
+import { matchMoneyManager, DEFAULT_WINDOW_DAYS, planMoneyManagerWrites, mergeMmNote, mmNoteLine, MM_NOTE_PREFIX, type MmMatch, type MmTxnState } from "../src/lib/ingest/money-manager.js";
 import { resolveMmCategory, mmTargetCategoryNames, isSpouseTransfer, SPOUSE_TRANSFER_CATEGORY } from "../src/lib/ingest/money-manager-category-map.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
@@ -1136,6 +1136,65 @@ console.log("\n" + "-".repeat(78));
     [`match payload carries {txnId, mmRowRef} for provenance`, exact.matched[0].mmRowRef === "e1"],
   ];
   for (const [label, ok] of matchChecks) { if (!ok) failures++; console.log(`MM-MATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager apply plan (Pass 3): improve-not-overwrite, never raw, idempotent, provenance ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -12000, direction: "outflow", categoryRaw: "Personal",
+    note: "x", description: null, merchantText: "x", rowRef: "e1", ...over,
+  });
+  const st = (over: Partial<MmTxnState>): MmTxnState => ({ id: "t1", merchant: null, notes: null, categorySource: "default", mmRowRef: null, ...over });
+  const match = (txnId: string, mmRowRef: string): MmMatch => ({ txnId, mmRowRef, dayGap: 0, confidence: "exact-day" });
+  const okCat = (_name: string) => ({ id: "cat-x" });   // resolves any name (guard passes)
+  const refuseCat = (_name: string) => null;            // simulates the Leakage 14 / Review 15 guard rejection
+
+  // (a) merchant IMPROVES on a raw UPI string; description_raw never appears in the payload.
+  const eMerch = mmk({ rowRef: "e1", categoryRaw: "Personal", merchantText: "Zomato Booking" });
+  const wMerch = planMoneyManagerWrites([match("t1", "e1")], new Map([["e1", eMerch]]),
+    new Map([["t1", st({ merchant: "UPI/DR/512282836511/ZOMATO" })]]), okCat)[0];
+
+  // (b) category applied to an Uncategorized-Review row, only suggested for an already-categorized one.
+  const eSal = mmk({ rowRef: "es", categoryRaw: "Salary", direction: "inflow", amountPaise: 100, merchantText: "Salary" });
+  const ebr = new Map([["es", eSal]]);
+  const wDefault = planMoneyManagerWrites([match("t1", "es")], ebr, new Map([["t1", st({ categorySource: "default" })]]), okCat)[0];
+  const wUser = planMoneyManagerWrites([match("t1", "es")], ebr, new Map([["t1", st({ categorySource: "user" })]]), okCat)[0];
+
+  // (c) a refused (14/15) mapping is neither applied nor suggested.
+  const eCC = mmk({ rowRef: "ec", categoryRaw: "CC", merchantText: "CC" });
+  const wRefused = planMoneyManagerWrites([match("t1", "ec")], new Map([["ec", eCC]]), new Map([["t1", st({})]]), refuseCat)[0];
+
+  // (d) idempotent re-run: applying onto the already-enriched state produces a no-op.
+  const eTr = mmk({ rowRef: "et", categoryRaw: "Transport", note: "To office", merchantText: "To office" });
+  const first = planMoneyManagerWrites([match("t1", "et")], new Map([["et", eTr]]), new Map([["t1", st({})]]),
+    () => ({ id: "cat-taxi" }))[0];
+  const afterState = st({ merchant: first.merchant ?? null, notes: first.notes, categorySource: "money_manager", mmRowRef: "et" });
+  const second = planMoneyManagerWrites([match("t1", "et")], new Map([["et", eTr]]), new Map([["t1", afterState]]),
+    () => ({ id: "cat-taxi" }))[0];
+
+  const planChecks: Array<[string, boolean]> = [
+    [`merchant improves, not overwrites ("UPI/DR/…/ZOMATO · Zomato Booking")`, wMerch.merchant === "UPI/DR/512282836511/ZOMATO · Zomato Booking"],
+    [`payload never carries description_raw / description_clean`, !("description_raw" in wMerch) && !("description_clean" in wMerch)],
+    [`notes append one "MM: …" line`, wMerch.notes.startsWith(MM_NOTE_PREFIX) && wMerch.notes.split("\n").filter((l) => l.startsWith(MM_NOTE_PREFIX)).length === 1],
+    [`category APPLIED over Uncategorized Review (categoryId set, source money_manager)`, wDefault.categoryId === "cat-x" && wDefault.categorySource === "money_manager"],
+    [`category NOT applied over an already-categorized row → suggestion only`, wUser.categoryId === undefined && wUser.suggestedCategoryName === "Salary"],
+    [`refused (14/15) mapping is neither applied nor suggested`, wRefused.categoryId === undefined && wRefused.suggestedCategoryName === undefined],
+    [`first run changes the row`, first.changed === true && first.merchant === "To office"],
+    [`re-run is a no-op (changed=false) — no duplicate write`, second.changed === false],
+    [`re-run keeps exactly one MM note line (no duplication)`, second.notes.split("\n").filter((l) => l.startsWith(MM_NOTE_PREFIX)).length === 1],
+  ];
+  for (const [label, ok] of planChecks) { if (!ok) failures++; console.log(`MM-PLAN ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // mergeMmNote: append, replace-in-place, preserve foreign lines, idempotent.
+  const noteChecks: Array<[string, boolean]> = [
+    [`null + "MM: a" → "MM: a"`, mergeMmNote(null, "MM: a") === "MM: a"],
+    [`replaces a prior MM line ("MM: a" + "MM: b" → "MM: b")`, mergeMmNote("MM: a", "MM: b") === "MM: b"],
+    [`preserves a foreign note ("hi" + "MM: a" → "hi\\nMM: a")`, mergeMmNote("hi", "MM: a") === "hi\nMM: a"],
+    [`idempotent ("hi\\nMM: a" + "MM: a" → unchanged)`, mergeMmNote("hi\nMM: a", "MM: a") === "hi\nMM: a"],
+    [`mmNoteLine builds "MM: <cat> / <note> · <desc>"`,
+      mmNoteLine({ ...mmk({}), categoryRaw: "Transport", note: "To office", description: "Auto" }) === "MM: Transport / To office · Auto"],
+  ];
+  for (const [label, ok] of noteChecks) { if (!ok) failures++; console.log(`MM-NOTE ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

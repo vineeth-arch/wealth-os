@@ -10,7 +10,8 @@
  * an entry E matches txn T iff T is E's unique nearest candidate AND E is T's unique nearest candidate.
  * Any tie (same-day same-amount pair) or contested pairing is left AMBIGUOUS and never guessed.
  */
-import type { MatchableTxn } from "./enrich.js";
+import { mergeMerchant, type MatchableTxn } from "./enrich.js";
+import { resolveMmCategory } from "./money-manager-category-map.js";
 import type { MoneyManagerEntry } from "./types.js";
 
 export interface MmMatch {
@@ -101,4 +102,109 @@ export function matchMoneyManager(
   });
 
   return { matched, ambiguous, unmatchedMM };
+}
+
+// ─────────────────────────── apply-plan (Pass 3) ───────────────────────────
+// Pure planning of the DB writes for matched pairs. Mirrors the UPI enricher's write contract:
+// `merchant` only IMPROVES (mergeMerchant), `description_raw` is NEVER touched, and a re-run is a
+// no-op. Adds: a single replaceable `MM: …` notes line, a category applied ONLY over an
+// Uncategorized-Review (category_source='default') row (else surfaced as a suggestion), and provenance
+// (enrichment_source='money_manager', mm_row_ref) for idempotent re-uploads.
+
+/** Marker owning the single Money Manager line inside the free-text `notes` column. */
+export const MM_NOTE_PREFIX = "MM: ";
+
+/** Build the one MM context line for a matched entry: `MM: <category> / <note> · <description>`. */
+export function mmNoteLine(entry: MoneyManagerEntry): string {
+  const head = [entry.categoryRaw, entry.note].filter((s) => s && s.trim()).join(" / ");
+  const base = `${MM_NOTE_PREFIX}${head}`;
+  return entry.description && entry.description.trim() ? `${base} · ${entry.description.trim()}` : base;
+}
+
+/**
+ * Replace (not duplicate) the MM line in an existing notes blob: drop any prior `MM: …` line, append
+ * the fresh one. Re-running with the same line is a no-op; an updated export updates in place.
+ */
+export function mergeMmNote(existing: string | null, mmLine: string): string {
+  const kept = (existing ?? "").split("\n").filter((l) => l.trim() !== "" && !l.startsWith(MM_NOTE_PREFIX));
+  if (mmLine.trim()) kept.push(mmLine);
+  return kept.join("\n");
+}
+
+/** Current persisted state of a matched transaction the planner needs to decide improve-vs-overwrite. */
+export interface MmTxnState {
+  id: string;
+  merchant: string | null;
+  notes: string | null;
+  /** 'rule' | 'ai_suggested' | 'user' | 'default' | 'money_manager' — 'default' == still Uncategorized Review. */
+  categorySource: string;
+  /** Previously-recorded MM provenance, for idempotency. */
+  mmRowRef: string | null;
+}
+
+/** One intended write. `changed === false` means an idempotent re-run — the caller skips it. */
+export interface MmWrite {
+  id: string;
+  mmRowRef: string;
+  /** Merged notes blob (MM line replaced/added). */
+  notes: string;
+  /** Present only when it IMPROVES the current merchant (never blanks, never `description_raw`). */
+  merchant?: string;
+  /** Present only when a category is APPLIED (row was Uncategorized Review). */
+  categoryId?: string;
+  categorySource?: "money_manager";
+  /** Present (instead of applying) when the row is already categorized — shown in the report to confirm. */
+  suggestedCategoryName?: string;
+  changed: boolean;
+}
+
+/**
+ * Plan the per-transaction writes for the matched pairs. `resolveCategory` maps a target leaf NAME to
+ * its id, returning null when it must NOT be applied (unknown, or a Leakage 14 / Review 15 guard hit) —
+ * such a mapping is neither applied nor suggested.
+ */
+export function planMoneyManagerWrites(
+  matched: MmMatch[],
+  entriesByRef: Map<string, MoneyManagerEntry>,
+  txnStates: Map<string, MmTxnState>,
+  resolveCategory: (name: string) => { id: string } | null,
+): MmWrite[] {
+  const writes: MmWrite[] = [];
+  for (const m of matched) {
+    const entry = entriesByRef.get(m.mmRowRef);
+    const state = txnStates.get(m.txnId);
+    if (!entry || !state) continue;
+
+    const mergedMerchant = mergeMerchant(state.merchant, entry.merchantText);
+    const merchantChanged = mergedMerchant !== (state.merchant ?? "");
+    const mergedNotes = mergeMmNote(state.notes, mmNoteLine(entry));
+    const notesChanged = mergedNotes !== (state.notes ?? "");
+
+    let categoryId: string | undefined;
+    let categorySource: "money_manager" | undefined;
+    let suggestedCategoryName: string | undefined;
+    const resolution = resolveMmCategory(entry);
+    if (resolution.categoryName) {
+      const resolved = resolveCategory(resolution.categoryName); // null ⇒ forbidden/unknown ⇒ skip
+      if (resolved) {
+        if (state.categorySource === "default") {
+          categoryId = resolved.id;        // apply ONLY over Uncategorized Review
+          categorySource = "money_manager";
+        } else {
+          suggestedCategoryName = resolution.categoryName; // already categorized ⇒ suggest, never overwrite
+        }
+      }
+    }
+
+    const categoryApplied = categoryId !== undefined;
+    const provenanceChanged = state.mmRowRef !== m.mmRowRef;
+    const changed = merchantChanged || notesChanged || categoryApplied || provenanceChanged;
+
+    const w: MmWrite = { id: m.txnId, mmRowRef: m.mmRowRef, notes: mergedNotes, changed };
+    if (merchantChanged) w.merchant = mergedMerchant;
+    if (categoryApplied) { w.categoryId = categoryId; w.categorySource = categorySource; }
+    if (suggestedCategoryName) w.suggestedCategoryName = suggestedCategoryName;
+    writes.push(w);
+  }
+  return writes;
 }

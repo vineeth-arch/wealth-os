@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useBusy } from "@/components/busy-provider";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export type TxTab = "import" | "review" | "rules";
 
@@ -23,12 +25,18 @@ export function TransactionsTabs({ initialTab, importSection, reviewSection, rul
   rulesSection: React.ReactNode;
 }) {
   const [tab, setTab] = useState<TxTab>(initialTab);
+  const { isBusy, label } = useBusy();
+  const [pending, setPending] = useState<TxTab | null>(null);
   const active = TABS.find((t) => t.id === tab)!;
 
-  function go(next: TxTab) {
-    if (next === tab) return;
+  function switchTo(next: TxTab) {
     setTab(next);
     window.history.replaceState(null, "", `/transactions?tab=${next}`);
+  }
+  function go(next: TxTab) {
+    if (next === tab) return;
+    if (isBusy) { setPending(next); return; } // confirm first — the op keeps running regardless
+    switchTo(next);
   }
 
   return (
@@ -46,6 +54,15 @@ export function TransactionsTabs({ initialTab, importSection, reviewSection, rul
       <div className={cn(tab !== "import" && "hidden")}>{importSection}</div>
       <div className={cn(tab !== "review" && "hidden")}>{reviewSection}</div>
       <div className={cn(tab !== "rules" && "hidden")}>{rulesSection}</div>
+
+      <ConfirmDialog
+        open={pending !== null}
+        title={`${label ?? "An operation"} is still running`}
+        description="Switch tabs anyway? It will keep running in the background — nothing is cancelled."
+        confirmLabel="Switch tabs"
+        onConfirm={() => { if (pending) switchTo(pending); setPending(null); }}
+        onCancel={() => setPending(null)}
+      />
     </>
   );
 }

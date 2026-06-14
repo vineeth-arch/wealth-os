@@ -1,10 +1,10 @@
 "use client";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { GuardedLink } from "@/components/guarded-link";
 import { LayoutDashboard, ArrowLeftRight, Landmark, Wallet, LogOut, Moon, Sun, PieChart, Calculator, HandCoins, Settings } from "lucide-react";
 
 const NAV = [
@@ -45,11 +45,11 @@ export function AppShell({ email, children }: { email: string; children: React.R
           {NAV.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
-              <Link key={href} href={href}
+              <GuardedLink key={href} href={href}
                 className={cn("flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   active ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground")}>
                 <Icon className="h-4 w-4" />{label}
-              </Link>
+              </GuardedLink>
             );
           })}
         </nav>
@@ -73,11 +73,11 @@ export function AppShell({ email, children }: { email: string; children: React.R
           {NAV.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
-              <Link key={href} href={href}
+              <GuardedLink key={href} href={href}
                 className={cn("flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm",
                   active ? "bg-secondary text-secondary-foreground" : "text-muted-foreground")}>
                 <Icon className="h-4 w-4" />{label}
-              </Link>
+              </GuardedLink>
             );
           })}
         </nav>

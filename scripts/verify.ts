@@ -9,7 +9,8 @@ import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { parseMoneyManager, stripEmojiPrefix } from "../src/lib/ingest/parsers/money-manager.js";
-import { parseGooglePayStatement } from "../src/lib/ingest/parsers/google-pay-statement.js";
+import { parseGooglePayStatement, matchGooglePayStatement } from "../src/lib/ingest/parsers/google-pay-statement.js";
+import { resolveGpayCategory, gpayTargetCategoryNames, isGpayTransfer } from "../src/lib/ingest/google-pay-category-map.js";
 import { matchMoneyManager, DEFAULT_WINDOW_DAYS, planMoneyManagerWrites, mergeMmNote, mmNoteLine, MM_NOTE_PREFIX, type MmMatch, type MmTxnState } from "../src/lib/ingest/money-manager.js";
 import { resolveMmCategory, mmTargetCategoryNames, isSpouseTransfer, SPOUSE_TRANSFER_CATEGORY } from "../src/lib/ingest/money-manager-category-map.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
@@ -1243,6 +1244,62 @@ console.log("\n" + "-".repeat(78));
       gr.sentDeltaPaise === 0 && gr.receivedDeltaPaise === 0 && gr.sentTotalPaise === 875590 && gr.receivedTotalPaise === 200200],
   ];
   for (const [label, ok] of gpChecks) { if (!ok) failures++; console.log(`GPAY-STMT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Google Pay statement category hints + matcher (Pass 2) ----
+{
+  const gpe = (over: Partial<import("../src/lib/ingest/types.js").GooglePayStatementEntry>): import("../src/lib/ingest/types.js").GooglePayStatementEntry => ({
+    txnDate: "2025-12-02", time: "08:30PM", amountPaise: -125000, direction: "outflow", kind: "paid",
+    party: "ACME", upiTxnId: "111", fundingBankName: "HDFC Bank", fundingBankLast4: "0789",
+    merchantText: "ACME", rowRef: "111", ...over,
+  });
+  // map targets exist + not 14/15; intents
+  const targets = gpayTargetCategoryNames();
+  const allExist = targets.every((n) => taxonomy.has(n));
+  const noneForbidden = targets.every((n) => { const c = taxonomy.get(n); return c && !isForbiddenAutoParent(c.parent || c.name); });
+  const mapChecks: Array<[string, boolean]> = [
+    [`all ${targets.length} hint targets exist in the taxonomy, none Leakage/Review`, allExist && noneForbidden],
+    [`self-transfer → "Own Account Transfer" (override)`, resolveGpayCategory(gpe({ kind: "self_transfer", party: "StateBankofIndia4358" })).categoryName === "Own Account Transfer"],
+    [`family name "VINEETHVINODNAIR" → "Own Account Transfer" (override, space-insensitive)`,
+      isGpayTransfer(gpe({ party: "VINEETHVINODNAIR" })) && resolveGpayCategory(gpe({ party: "VINEETHVINODNAIR" })).categoryName === "Own Account Transfer"],
+    [`JioPrepaid → "Mobile Phone"`, resolveGpayCategory(gpe({ party: "JioPrepaid" })).categoryName === "Mobile Phone"],
+    [`Netflix → "OTT / Entertainment"`, resolveGpayCategory(gpe({ party: "NetflixEntertainmentServicesIndiaLLP" })).categoryName === "OTT / Entertainment"],
+    [`GooglePlay → "Apps & Digital Subscriptions"`, resolveGpayCategory(gpe({ party: "GooglePlay" })).categoryName === "Apps & Digital Subscriptions"],
+    [`unknown merchant → null (left for rules + AI)`, resolveGpayCategory(gpe({ party: "SomeRandomKirana" })).categoryName === null],
+  ];
+  for (const [label, ok] of mapChecks) { if (!ok) failures++; console.log(`GPAY-MAP ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  const T = (id: string, accountId: string, txnDate: string, amountPaise: number, refText: string) => ({ id, accountId, txnDate, amountPaise, refText });
+  const A = (id: string, last4: string) => ({ id, kind: "bank", last4 });
+  const accts = [A("hdfc", "0789"), A("sbi", "4358")];
+
+  // routing: funding 0789 restricts to the HDFC account even though SBI has the same amount/date
+  const routed = matchGooglePayStatement([gpe({})], [T("t1", "hdfc", "2025-12-02", -125000, "x"), T("t2", "sbi", "2025-12-02", -125000, "x")], accts);
+  // ID primary: refText carries the upiTxnId → match even when the date is outside the window
+  const idHit = matchGooglePayStatement([gpe({ upiTxnId: "999", amountPaise: -50000, txnDate: "2025-12-09" })],
+    [T("t1", "hdfc", "2025-12-25", -50000, "UPI/DR/999/MERCHANT")], accts);
+  // fallback amount/window when no id; off-amount → no match
+  const noMatch = matchGooglePayStatement([gpe({ amountPaise: -777 })], [T("t1", "hdfc", "2025-12-02", -778, "x")], accts);
+  // self/spouse flagged isTransfer
+  const selfM = matchGooglePayStatement([gpe({ kind: "self_transfer", party: "StateBankofIndia4358" })], [T("t1", "hdfc", "2025-12-02", -125000, "x")], accts);
+  const spouseM = matchGooglePayStatement([gpe({ party: "VINEETHVINODNAIR" })], [T("t1", "hdfc", "2025-12-02", -125000, "x")], accts);
+  // same-amount same-day within one account → ambiguous
+  const amb = matchGooglePayStatement([gpe({ amountPaise: -8000, txnDate: "2025-12-06" })],
+    [T("a", "hdfc", "2025-12-06", -8000, "x"), T("b", "hdfc", "2025-12-06", -8000, "x")], accts);
+  // unknown last-4 → fall back to all bank/cc accounts
+  const fb = matchGooglePayStatement([gpe({ fundingBankLast4: "9999", amountPaise: -100 })], [T("t1", "hdfc", "2025-12-02", -100, "x")], accts);
+
+  const matchChecks: Array<[string, boolean]> = [
+    [`account routing picks the right account by last-4 (→ HDFC t1, not SBI t2)`, routed.matched.length === 1 && routed.matched[0].txnId === "t1" && routed.matched[0].confidence === "amount-window"],
+    [`UPI-ID match is primary — matches even outside the date window (confidence "id")`, idHit.matched.length === 1 && idHit.matched[0].confidence === "id" && idHit.matched[0].txnId === "t1"],
+    [`amount off by 1 paise → no match`, noMatch.matched.length === 0 && noMatch.unmatched.length === 1],
+    [`self-transfer matched + flagged isTransfer`, selfM.matched.length === 1 && selfM.matched[0].isTransfer === true],
+    [`family-name transfer matched + flagged isTransfer`, spouseM.matched.length === 1 && spouseM.matched[0].isTransfer === true],
+    [`same-amount same-day within one account → ambiguous, neither matched`, amb.matched.length === 0 && amb.ambiguous.length === 1],
+    [`unknown last-4 falls back to all bank/cc accounts`, fb.matched.length === 1 && fb.matched[0].txnId === "t1"],
+    [`byBank breakdown counts matched/total per funding last-4`, routed.byBank["0789"]?.matched === 1 && routed.byBank["0789"]?.total === 1],
+  ];
+  for (const [label, ok] of matchChecks) { if (!ok) failures++; console.log(`GPAY-MATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

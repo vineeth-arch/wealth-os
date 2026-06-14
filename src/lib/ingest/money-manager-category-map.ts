@@ -42,8 +42,21 @@ export const MM_CATEGORY_MAP: Record<string, string | null> = {
  * transfers to a family member's account, which otherwise inflate BOTH income and spend. Token match
  * is case-insensitive, whole-word-ish (substring on the normalized note). Editable per household.
  */
-export const SPOUSE_NAME_TOKENS = ["Vinnie"]; // family-account transfer counterpart name(s)
+export const SPOUSE_NAME_TOKENS = ["Vinnie", "Vineeth Vinod Nair", "Vineeth Nair"]; // family-account transfer counterpart name(s)
 export const SPOUSE_TRANSFER_CATEGORY = "Own Account Transfer"; // neutral family/household transfer (parent 10)
+
+/** Normalize a name for matching: drop everything but letters/digits, lowercase. Makes the compare
+ *  space-insensitive so the Google Pay statement's space-stripped "VINEETHVINODNAIR" matches the
+ *  spaced "Vineeth Vinod Nair" token. */
+export function normalizeNameKey(s: string): string {
+  return s.replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+
+/** Does free text carry a configured family-transfer name token? (space/case-insensitive). */
+export function matchesSpouseToken(text: string): boolean {
+  const hay = normalizeNameKey(text);
+  return SPOUSE_NAME_TOKENS.some((tok) => hay.includes(normalizeNameKey(tok)));
+}
 
 /**
  * MM categories whose mapping is high-confidence enough to apply over an Uncategorized-Review row even
@@ -54,8 +67,7 @@ export const OVERRIDE_CATEGORIES = new Set(["CC", "EMI", "SIP", "Salary", "Bonus
 
 /** A note/description carries a configured family-transfer token. */
 export function isSpouseTransfer(entry: MoneyManagerEntry): boolean {
-  const hay = `${entry.note ?? ""} ${entry.description ?? ""}`.toLowerCase();
-  return SPOUSE_NAME_TOKENS.some((tok) => hay.includes(tok.toLowerCase()));
+  return matchesSpouseToken(`${entry.note ?? ""} ${entry.description ?? ""}`);
 }
 
 export interface MmCategoryResolution {

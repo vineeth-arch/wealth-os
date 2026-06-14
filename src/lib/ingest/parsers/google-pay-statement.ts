@@ -17,6 +17,7 @@
  */
 import type { GooglePayStatementEntry, GpayStatementReconciliation } from "../types.js";
 import { parseAmount, mdCells, isMdRow, isMdSeparator } from "../util.js";
+import { isGpayTransfer } from "../google-pay-category-map.js";
 
 const MONTHS: Record<string, string> = {
   jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
@@ -143,4 +144,115 @@ export function parseGooglePayStatement(md: string): {
   };
 
   return { entries, reconciliation, warnings };
+}
+
+// ─────────────────────────── matcher (Pass 2) ───────────────────────────
+// Match GPay-statement entries to committed bank/credit_card transactions. ENRICHMENT ONLY. Two
+// precision wins this statement uniquely supports: (1) ACCOUNT ROUTING by funding last-4 (restrict
+// candidates to the right account, fall back to all bank/cc only when no last-4 hit); (2) UPI-ID
+// TIEBREAK — when a candidate txn's narration/ref carries the same 12-digit UPI id, that is a near-
+// exact primary key; otherwise fall back to same account + exact signed paise + date within window.
+// 1:1, unambiguous only (mutual strict-closest); >1 candidate either way → ambiguous, never matched.
+
+/** Minimal committed-txn shape: `refText` = ref_no + ' ' + upi_ref + ' ' + description_raw (for ID search). */
+export interface GpayMatchableTxn { id: string; accountId: string; txnDate: string; amountPaise: number; refText: string; }
+/** Account with the last 4 of its `account_number` (empty when unknown — routing then can't bind it). */
+export interface GpayMatchableAccount { id: string; kind: string; last4: string; }
+
+export interface GpayMatch { txnId: string; upiTxnId: string; confidence: "id" | "amount-window"; isTransfer: boolean; }
+export interface GpayMatchResult {
+  matched: GpayMatch[];
+  ambiguous: GooglePayStatementEntry[];
+  unmatched: GooglePayStatementEntry[];
+  /** Per funding last-4: matched / total — surfaces which funding accounts are (un)imported. */
+  byBank: Record<string, { matched: number; total: number }>;
+}
+
+const DAY_MS = 86400000;
+const signOf = (n: number): number => (n < 0 ? -1 : n > 0 ? 1 : 0);
+const gapDays = (a: string, b: string): number =>
+  Math.round(Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / DAY_MS);
+
+const uniqueNearest = <T extends { gap: number }>(arr: T[]): T | null => {
+  if (arr.length === 0) return null;
+  let min = Infinity;
+  for (const x of arr) min = Math.min(min, x.gap);
+  const at = arr.filter((x) => x.gap === min);
+  return at.length === 1 ? at[0] : null; // tie → ambiguous
+};
+
+export function matchGooglePayStatement(
+  entries: GooglePayStatementEntry[],
+  txns: GpayMatchableTxn[],
+  accounts: GpayMatchableAccount[],
+  opts: { windowDays?: number } = {},
+): GpayMatchResult {
+  const windowDays = opts.windowDays ?? 3;
+  const bankAccts = accounts.filter((a) => a.kind === "bank" || a.kind === "credit_card");
+  const allBankIds = bankAccts.map((a) => a.id);
+  const allBankSet = new Set(allBankIds);
+
+  const byLast4 = new Map<string, string[]>();
+  for (const a of bankAccts) if (a.last4) (byLast4.get(a.last4) ?? byLast4.set(a.last4, []).get(a.last4)!).push(a.id);
+  const txnsByAccount = new Map<string, GpayMatchableTxn[]>();
+  for (const t of txns) if (allBankSet.has(t.accountId)) (txnsByAccount.get(t.accountId) ?? txnsByAccount.set(t.accountId, []).get(t.accountId)!).push(t);
+
+  // Routed candidate txns per entry: the account(s) whose last-4 matches the funding line, else all bank/cc.
+  const entryRouted = entries.map((e) => {
+    const ids = byLast4.get(e.fundingBankLast4);
+    const accountIds = ids && ids.length ? ids : allBankIds;
+    const out: GpayMatchableTxn[] = [];
+    for (const id of accountIds) { const arr = txnsByAccount.get(id); if (arr) out.push(...arr); }
+    return out;
+  });
+
+  const taken = new Set<string>();
+  const decided = new Set<number>();
+  const ambiguousIdx = new Set<number>();
+  const matched: GpayMatch[] = [];
+
+  // Phase A — UPI-ID match (primary). Accept iff the entry has exactly one id-candidate AND that txn
+  // is id-claimed by exactly one entry.
+  const idCands = entries.map((e, i) => entryRouted[i].filter((t) => t.refText.includes(e.upiTxnId)));
+  const idClaimants = new Map<string, number[]>();
+  entries.forEach((_, i) => { for (const t of idCands[i]) (idClaimants.get(t.id) ?? idClaimants.set(t.id, []).get(t.id)!).push(i); });
+  entries.forEach((e, i) => {
+    const cands = idCands[i];
+    if (cands.length === 0) return;
+    if (cands.length > 1) { ambiguousIdx.add(i); decided.add(i); return; }
+    const t = cands[0];
+    if ((idClaimants.get(t.id) ?? []).length !== 1) { ambiguousIdx.add(i); decided.add(i); return; }
+    matched.push({ txnId: t.id, upiTxnId: e.upiTxnId, confidence: "id", isTransfer: isGpayTransfer(e) });
+    taken.add(t.id); decided.add(i);
+  });
+
+  // Phase B — same account + exact signed paise + date within window, mutual strict-closest 1:1.
+  const amtCands = entries.map((e, i) => decided.has(i) ? [] : entryRouted[i]
+    .filter((t) => !taken.has(t.id) && signOf(t.amountPaise) === signOf(e.amountPaise) && t.amountPaise === e.amountPaise && gapDays(t.txnDate, e.txnDate) <= windowDays)
+    .map((t) => ({ txnId: t.id, gap: gapDays(t.txnDate, e.txnDate) })));
+  const txnClaimants = new Map<string, Array<{ idx: number; gap: number }>>();
+  entries.forEach((_, i) => { for (const c of amtCands[i]) (txnClaimants.get(c.txnId) ?? txnClaimants.set(c.txnId, []).get(c.txnId)!).push({ idx: i, gap: c.gap }); });
+  entries.forEach((e, i) => {
+    if (decided.has(i)) return;
+    if (amtCands[i].length === 0) return; // → unmatched
+    const best = uniqueNearest(amtCands[i]);
+    if (!best) { ambiguousIdx.add(i); decided.add(i); return; }
+    const claim = uniqueNearest(txnClaimants.get(best.txnId) ?? []);
+    if (!claim || claim.idx !== i || taken.has(best.txnId)) { ambiguousIdx.add(i); decided.add(i); return; }
+    matched.push({ txnId: best.txnId, upiTxnId: e.upiTxnId, confidence: "amount-window", isTransfer: isGpayTransfer(e) });
+    taken.add(best.txnId); decided.add(i);
+  });
+
+  const ambiguous = [...ambiguousIdx].map((i) => entries[i]);
+  const unmatched = entries.filter((_, i) => !decided.has(i));
+
+  const matchedRefs = new Set(matched.map((m) => m.upiTxnId));
+  const byBank: Record<string, { matched: number; total: number }> = {};
+  for (const e of entries) {
+    const k = e.fundingBankLast4 || "unknown";
+    (byBank[k] ??= { matched: 0, total: 0 }).total++;
+    if (matchedRefs.has(e.upiTxnId)) byBank[k].matched++;
+  }
+
+  return { matched, ambiguous, unmatched, byBank };
 }

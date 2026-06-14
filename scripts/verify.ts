@@ -810,7 +810,7 @@ assert("projection grows tax with positive growth", projectCapitalGainsTax(cgSeg
 
 // ---- Money Box Compass — proprietor lens engine (Pass 1): one pool, two lenses, category-driven ----
 console.log("\n" + "-".repeat(78));
-import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep, enjoymentFloor, bandHigher, bandLower } from "../src/lib/compass.js";
+import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep, enjoymentFloor, REFLECTIONS, emptyProfile, bandHigher, bandLower } from "../src/lib/compass.js";
 {
   const cmk = (over: Partial<CompassTxn>): CompassTxn => ({
     txnDate: "2026-03-15", amountPaise: -10000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [], ...over,
@@ -1014,6 +1014,18 @@ import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_
     [`Enjoyment floor: balanced saver → not triggered`, !enjoyBalanced.triggered],
   ];
   for (const [label, ok] of mirrorChecks) { if (!ok) failures++; console.log(`COMPASS-MIRROR ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // Profile / reflection checklist (Pass 5) — pure shape + migration presence
+  const profileMig = readFileSync("supabase/migrations/0006_profile.sql", "utf8");
+  const ep = emptyProfile();
+  const profChecks: Array<[string, boolean]> = [
+    ["exactly 7 reflections with stable unique keys", REFLECTIONS.length === 7 && new Set(REFLECTIONS.map((r) => r.key)).size === 7],
+    ["emptyProfile has empty checklist + default goal-return", Object.keys(ep.checklist).length === 0 && ep.goalReturnAssumption === 8],
+    ["migration 0006 creates profile with RLS owner policy + jsonb data + unique user_id",
+      profileMig.includes("create table public.profile") && profileMig.includes("data jsonb") &&
+      profileMig.includes("enable row level security") && profileMig.includes("profile_owner") && profileMig.includes("unique (user_id)")],
+  ];
+  for (const [label, ok] of profChecks) { if (!ok) failures++; console.log(`COMPASS-PROFILE ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

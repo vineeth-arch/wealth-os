@@ -377,6 +377,32 @@ export function netWorthSeries(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// The Mirror — reflection checklist + persisted profile (Pass 5).
+// ───────────────────────────────────────────────────────────────────────────
+
+/** The 7 monthly/quarterly reflections — stable keys so saved answers survive copy edits. */
+export const REFLECTIONS: ReadonlyArray<{ key: string; text: string }> = [
+  { key: "r1", text: "Chasing the lifestyle of the group just above me?" },
+  { key: "r2", text: "Spending for status or utility?" },
+  { key: "r3", text: "Buying independence or eroding it?" },
+  { key: "r4", text: "Comparing my inside to others' outside?" },
+  { key: "r5", text: "Over-saving so I never enjoy a life I can afford?" },
+  { key: "r6", text: "Expectations growing faster than income?" },
+  { key: "r7", text: "Found my “thing” and cut the rest?" },
+];
+
+/** Persisted in public.profile.data (jsonb). No money lives here — preferences/behaviour only. */
+export interface CompassProfile {
+  checklist: Record<string, boolean>;
+  asOf: string;                  // ISO date the checklist was last reviewed
+  goalReturnAssumption: number;  // expected real return % used by goal planning (default 8)
+}
+
+export function emptyProfile(): CompassProfile {
+  return { checklist: {}, asOf: "", goalReturnAssumption: 8 };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // The Mirror — computable Housel signals (the behaviour). Reflection, not scoring.
 // ───────────────────────────────────────────────────────────────────────────
 

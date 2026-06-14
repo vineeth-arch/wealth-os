@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { CheckCard, BandPill } from "@/components/compass/check-card";
 import { Sparkbars, SparkTrend } from "@/components/compass/sparks";
+import { ReflectionChecklist } from "@/components/compass/reflection-checklist";
 import { loadDrillData } from "@/lib/server/load-drill";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { accountBalances } from "@/lib/halan";
 import {
-  type CompassTxn, type HoldingValue, computeWindow, machineH1, machineH2, machineH3,
+  type CompassTxn, type HoldingValue, type CompassProfile, computeWindow, machineH1, machineH2, machineH3,
   machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep,
   enjoymentFloor, sanityFlags, TRAILING_WINDOW_MONTHS,
 } from "@/lib/compass";
@@ -21,10 +22,14 @@ type InstrumentJoin = { name: string; asset_class: string } | null;
 export default async function CompassPage() {
   const { drillTxns, accounts } = await loadDrillData();
   const supabase = await createSupabaseServer();
-  const [{ data: snapsRaw }, { data: pricesRaw }] = await Promise.all([
+  const [{ data: snapsRaw }, { data: pricesRaw }, { data: userData }, { data: profileRow }] = await Promise.all([
     supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise,instruments(name,asset_class)").order("as_of", { ascending: false }),
     supabase.from("prices").select("isin,price_paise,price_date"),
+    supabase.auth.getUser(),
+    supabase.from("profile").select("data").maybeSingle(),
   ]);
+  const userId = userData.user?.id ?? "";
+  const savedProfile = (profileRow?.data as CompassProfile | undefined) ?? null;
 
   if (drillTxns.length === 0) {
     return (
@@ -293,6 +298,8 @@ export default async function CompassPage() {
             </CardContent>
           </Card>
         </div>
+
+        <ReflectionChecklist userId={userId} initial={savedProfile} />
       </section>
     </div>
   );

@@ -2,7 +2,7 @@
 
 export type Institution =
   | "SBI" | "FEDERAL" | "IDFC_BANK" | "IDFC_CC" | "SURYODAY_CC"
-  | "BHIM_UPI" | "ZERODHA";
+  | "BHIM_UPI" | "ZERODHA" | "UPSTOX";
 
 export interface ParsedTransaction {
   /** ISO YYYY-MM-DD */
@@ -64,17 +64,60 @@ export interface HoldingRow {
   assetClass: "equity" | "mutual_fund";
   sectorOrType: string;
   qty: number;            // units can be fractional for MF
-  avgPricePaise: number;
+  /** Average buy price in paise, or null when the source has no cost basis (e.g. Upstox holdings). */
+  avgPricePaise: number | null;
   lastPricePaise: number;
 }
 
 export interface HoldingsSnapshot {
-  institution: "ZERODHA";
+  institution: "ZERODHA" | "UPSTOX";
   accountName: string;
   asOf: string | null; // ISO date if derivable
   rows: HoldingRow[];
   investedPaise: number | null;
   presentPaise: number | null;
+  reconciliationOk: boolean;
+  warnings: string[];
+}
+
+/** One closed (realized) lot from an Upstox tradewise tax report — matched buy↔sell. All money integer paise. */
+export interface RealizedLot {
+  segment: string;        // "equities" | "fo" | "commodities" | "currencies"
+  scrip: string;
+  isin: string;
+  qty: number;
+  buyDate: string;        // ISO
+  buyAmtPaise: number;
+  sellDate: string;       // ISO
+  sellAmtPaise: number;
+  totalPlPaise: number;
+  shortTermPaise: number;
+  longTermPaise: number;
+}
+
+/** Per-segment realized P&L + charges summary from an Upstox tax report. */
+export interface RealizedSegment {
+  segment: string;
+  grossPlPaise: number;
+  netPlPaise: number;
+  chargesPaise: number;
+  shortTermPaise: number;
+  longTermPaise: number;
+  speculationPaise: number;
+  lots: RealizedLot[];
+}
+
+export interface UpstoxTaxReport {
+  financialYear: string;  // e.g. "2526"
+  segments: RealizedSegment[];
+  reconciliationOk: boolean;
+  warnings: string[];
+}
+
+/** Upstox dividend events → income transactions, with the stated total for reconciliation. */
+export interface UpstoxDividends {
+  rows: ParsedTransaction[];
+  totalDividendPaise: number;
   reconciliationOk: boolean;
   warnings: string[];
 }

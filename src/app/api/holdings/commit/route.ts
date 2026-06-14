@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
   const { data: account } = await supabase.from("accounts")
     .select("id,institution").eq("id", body.accountId).single();
   if (!account) return NextResponse.json({ error: "account not found" }, { status: 404 });
-  if (account.institution !== "ZERODHA") {
-    return NextResponse.json({ error: "holdings commit expects a Zerodha account" }, { status: 400 });
+  if (!["ZERODHA", "UPSTOX"].includes(account.institution)) {
+    return NextResponse.json({ error: "holdings commit expects a broker account (Zerodha/Upstox)" }, { status: 400 });
   }
 
   const asOf = body.asOf || new Date().toISOString().slice(0, 10);

@@ -2523,6 +2523,11 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
     "name": "Zerodha",
     "institution": "ZERODHA",
     "kind": "broker"
+  },
+  {
+    "name": "Upstox",
+    "institution": "UPSTOX",
+    "kind": "broker"
   }
 ];
 

@@ -13,7 +13,7 @@ import type { HoldingView } from "@/app/(app)/holdings/page";
 import { CheckCircle2, AlertTriangle, FileUp, Loader2 } from "lucide-react";
 
 type Account = { id: string; name: string };
-interface HoldingRow { symbol: string; isin: string; assetClass: string; sectorOrType: string; qty: number; avgPricePaise: number; lastPricePaise: number }
+interface HoldingRow { symbol: string; isin: string; assetClass: string; sectorOrType: string; qty: number; avgPricePaise: number | null; lastPricePaise: number }
 interface Snapshot { asOf: string | null; rows: HoldingRow[]; investedPaise: number | null; presentPaise: number | null; reconciliationOk: boolean; warnings: string[] }
 
 export function HoldingsPanel({ accounts, holdings }: { accounts: Account[]; holdings: HoldingView[] }) {
@@ -111,7 +111,7 @@ export function HoldingsPanel({ accounts, holdings }: { accounts: Account[]; hol
                     <TableCell className="text-xs"><span className="font-medium">{r.symbol}</span> <Badge variant="outline" className="ml-1 text-[10px]">{r.assetClass}</Badge></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.isin}</TableCell>
                     <TableCell className="text-right text-xs">{r.qty}</TableCell>
-                    <TableCell className="text-right text-xs">{formatINR(r.avgPricePaise)}</TableCell>
+                    <TableCell className="text-right text-xs">{r.avgPricePaise === null ? "—" : formatINR(r.avgPricePaise)}</TableCell>
                     <TableCell className="text-right text-xs">{formatINR(r.lastPricePaise)}</TableCell>
                   </TableRow>
                 ))}

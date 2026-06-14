@@ -169,7 +169,7 @@ export function parseZerodhaHoldings(buf: Buffer): HoldingsSnapshot {
       const pv = r.indexOf("Present Value"); if (pv >= 0 && r[pv + 1]) combinedPresent = toPaise(r[pv + 1]);
     }
   }
-  const calcInvested = Math.round(rows.reduce((s, r) => s + r.qty * r.avgPricePaise, 0));
+  const calcInvested = Math.round(rows.reduce((s, r) => s + r.qty * (r.avgPricePaise ?? 0), 0));
   const calcPresent = Math.round(rows.reduce((s, r) => s + r.qty * r.lastPricePaise, 0));
   const ok =
     combinedInvested !== null && combinedPresent !== null &&

@@ -5,6 +5,7 @@ import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
 import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
+import { parseUpstoxHoldings } from "../src/lib/ingest/parsers/upstox.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
@@ -332,6 +333,25 @@ const z = parseZerodhaHoldings(readFileSync("fixtures/holdingsVUZ281.xlsx"));
 console.log(`\nZERODHA: ${z.rows.length} holdings (as of ${z.asOf ?? "unknown"})  invested ${z.investedPaise !== null ? formatPaise(z.investedPaise) : "?"}  present ${z.presentPaise !== null ? formatPaise(z.presentPaise) : "?"}  reconcile: ${z.reconciliationOk ? "PASS" : "FAIL"}`);
 if (!z.reconciliationOk) { failures++; for (const w of z.warnings) console.log(`  warn: ${w}`); }
 for (const r of z.rows) console.log(`  ${r.assetClass.padEnd(12)} ${r.symbol.padEnd(28).slice(0, 28)} ${r.isin}  qty ${r.qty}`);
+
+// ---- Upstox holdings ----
+{
+  const u = parseUpstoxHoldings(readFileSync("fixtures/holdings_13062026_GE6088.xlsx"));
+  console.log(`\nUPSTOX HOLDINGS: ${u.rows.length} holdings (as of ${u.asOf ?? "unknown"})  present ${u.presentPaise !== null ? formatPaise(u.presentPaise) : "?"}  reconcile: ${u.reconciliationOk ? "PASS" : "FAIL"}`);
+  const eternal = u.rows.find((r) => r.isin === "INE758T01015");
+  const allInt = u.rows.every((r) => Number.isInteger(r.lastPricePaise) && (r.avgPricePaise === null || Number.isInteger(r.avgPricePaise)));
+  const checks: Array<[string, boolean]> = [
+    [`rows = ${u.rows.length} (expected 16)`, u.rows.length === 16],
+    [`reconciles (Σ valuation = Σ qty×rate)`, u.reconciliationOk],
+    [`asOf = ${u.asOf} (expected 2026-06-12)`, u.asOf === "2026-06-12"],
+    [`ETERNAL qty = ${eternal?.qty} (expected 85)`, eternal?.qty === 85],
+    [`ETERNAL value = ${eternal ? eternal.qty * eternal.lastPricePaise : "?"} paise (expected 2072300)`, !!eternal && eternal.qty * eternal.lastPricePaise === 2072300],
+    [`cost basis null for all (Upstox file has none)`, u.rows.every((r) => r.avgPricePaise === null)],
+    [`money is integer paise`, allInt],
+    [`no preamble/footer/TOTAL leaked (every row a valid ISIN)`, u.rows.every((r) => /^IN[A-Z0-9]{10}$/.test(r.isin))],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`UPSTOX-HOLD ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
 
 // ---- Taxonomy + rule engine ----
 const taxonomy = loadTaxonomy(readFileSync("supabase/seed/taxonomy_master_from_sure.csv", "utf8"));

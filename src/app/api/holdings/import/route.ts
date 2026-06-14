@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { parseZerodhaHoldings } from "@/lib/ingest/parsers/market";
+import { parseUpstoxHoldings } from "@/lib/ingest/parsers/upstox";
 
 export const runtime = "nodejs";
 
-/** Parse a Zerodha holdings workbook server-side and return a preview. Nothing is persisted here. */
+const HOLDINGS_BROKERS = ["ZERODHA", "UPSTOX"];
+
+/** Parse a broker holdings workbook server-side and return a preview. Nothing is persisted here. */
 export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
@@ -20,13 +23,14 @@ export async function POST(request: NextRequest) {
   const { data: account } = await supabase.from("accounts")
     .select("id,name,institution,kind").eq("id", accountId).single();
   if (!account) return NextResponse.json({ error: "account not found" }, { status: 404 });
-  if (account.institution !== "ZERODHA") {
-    return NextResponse.json({ error: `holdings import expects a Zerodha (broker) account, got ${account.institution}` }, { status: 400 });
+  if (!HOLDINGS_BROKERS.includes(account.institution)) {
+    return NextResponse.json({ error: `holdings import expects a broker account (Zerodha/Upstox), got ${account.institution}` }, { status: 400 });
   }
 
   let snapshot;
   try {
-    snapshot = parseZerodhaHoldings(Buffer.from(await file.arrayBuffer()));
+    const buf = Buffer.from(await file.arrayBuffer());
+    snapshot = account.institution === "UPSTOX" ? parseUpstoxHoldings(buf) : parseZerodhaHoldings(buf);
   } catch (e) {
     return NextResponse.json({ error: `parse failed: ${(e as Error).message}` }, { status: 422 });
   }

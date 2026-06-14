@@ -65,17 +65,17 @@ function SuggestionLine({ s, categories, onApplied, onError }: {
 
   return (
     <TableRow>
-      <TableCell className="max-w-[18rem] truncate text-xs" title={s.sample}>{s.sample}</TableCell>
-      <TableCell className="text-xs text-muted-foreground">{s.txnCount}</TableCell>
-      <TableCell><CategorySelect value={categoryName} options={categories} onChange={setCategoryName} /></TableCell>
-      <TableCell>
+      <TableCell className="max-w-[20rem] align-top text-xs"><div className="whitespace-normal break-words">{s.sample}</div></TableCell>
+      <TableCell className="align-top text-xs text-muted-foreground">{s.txnCount}</TableCell>
+      <TableCell className="align-top"><CategorySelect value={categoryName} options={categories} onChange={setCategoryName} /></TableCell>
+      <TableCell className="align-top">
         <div className="flex items-center gap-2">
           <input type="checkbox" checked={createRule} onChange={(e) => setCreateRule(e.target.checked)} aria-label="create rule" />
           <Input value={matchText} disabled={!createRule || busy} onChange={(e) => setMatchText(e.target.value)}
             className="h-8 max-w-[12rem] text-xs uppercase" />
         </div>
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="align-top text-right">
         <Button size="sm" disabled={busy} onClick={confirm}>{busy ? "…" : "Confirm"}</Button>
       </TableCell>
     </TableRow>

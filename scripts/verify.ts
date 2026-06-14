@@ -155,6 +155,18 @@ if (reimportInserts > 0 || dupWithin > 0) failures++;
   for (const [label, ok] of loanChecks) { if (!ok) failures++; console.log(`HDFC-LOAN ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
+// ---- AI-suggest panel: Description wraps, never truncates (Prompt 09 Pass 1) ----
+{
+  const panel = readFileSync("src/components/ai-suggest-panel.tsx", "utf8");
+  const wraps = panel.includes("{s.sample}") && panel.includes("whitespace-normal break-words");
+  const noTruncate = !panel.includes("truncate");
+  const checks: Array<[string, boolean]> = [
+    ["description cell wraps (whitespace-normal break-words around {s.sample})", wraps],
+    ["no `truncate` class remains in the AI-suggest panel", noTruncate],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`AI-SUGGEST ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 // ---- BHIM UPI enrichment ----
 const upi = parseBhimUpi(F("TransactionHistory_1781297699.html"));
 const banks = new Map<string, number>();

@@ -24,6 +24,7 @@ import { emergencyFund } from "../src/lib/calc/emergency.js";
 import { fireCorpus, swpDrawdown } from "../src/lib/calc/retirement.js";
 import { pvAnnuity, hlvIncomeReplacement, hlvExpenseLiability } from "../src/lib/calc/hlv.js";
 import { sipFutureValue, goalCorpus, requiredMonthlySip } from "../src/lib/calc/sip.js";
+import { computeCapitalGainsTax, projectCapitalGainsTax } from "../src/lib/calc/capital-gains.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
@@ -620,6 +621,29 @@ const req = requiredMonthlySip({ targetPaise: target, annualReturnPct: 11, month
 const reached = sipFutureValue({ monthlyPaise: req, annualReturnPct: 11, months: 180, stepUpPct: 10 });
 assert("required SIP reaches the target", reached >= target ? 1 : 0, 1);
 assert("required SIP not wildly over (within one month's SIP)", reached - target < req ? 1 : 0, 1);
+
+// ---- Capital-gains tax (Pass 6): reads the parsed realized-gains segments, equity ST/LT split ----
+console.log("\n" + "-".repeat(78));
+// Equity: ST ₹2,00,000 @20% = ₹40,000; LT ₹3,00,000 − ₹1.25L exemption = ₹1,75,000 @12.5% = ₹21,875.
+const cgSegs = [
+  { segment: "equities", shortTermPaise: 200_000 * P, longTermPaise: 300_000 * P },
+  { segment: "fo", shortTermPaise: 50_000 * P, longTermPaise: 0 }, // business income — not taxed here
+];
+const cg = computeCapitalGainsTax(cgSegs);
+assert("equity STCG tax (20%)", cg.stcgTaxPaise, 40_000 * P);
+assert("LTCG exemption used (₹1.25L)", cg.ltcgExemptionUsedPaise, 125_000 * P);
+assert("LTCG taxable after exemption", cg.ltcgTaxablePaise, 175_000 * P);
+assert("equity LTCG tax (12.5%)", cg.ltcgTaxPaise, 2_187_500);
+assert("total CG tax", cg.totalTaxPaise, 40_000 * P + 2_187_500);
+assert("non-equity ST surfaced separately, untaxed here", cg.otherStcgPaise, 50_000 * P);
+// LT below the exemption → no LTCG tax, whole amount sheltered.
+const cgSmall = computeCapitalGainsTax([{ segment: "equities", shortTermPaise: 0, longTermPaise: 100_000 * P }]);
+assert("LT below exemption → ₹0 tax", cgSmall.ltcgTaxPaise, 0);
+assert("LT below exemption → exemption used = LT", cgSmall.ltcgExemptionUsedPaise, 100_000 * P);
+// Net loss in a bucket → ₹0 tax there.
+assert("net STCG loss → ₹0 tax", computeCapitalGainsTax([{ segment: "equities", shortTermPaise: -50_000 * P, longTermPaise: 0 }]).stcgTaxPaise, 0);
+// Projection: 10% growth raises taxable gains, so the projected tax exceeds the current year's.
+assert("projection grows tax with positive growth", projectCapitalGainsTax(cgSegs, 10).totalTaxPaise > cg.totalTaxPaise ? 1 : 0, 1);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

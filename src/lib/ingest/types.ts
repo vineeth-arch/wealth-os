@@ -46,6 +46,29 @@ export interface StatementParseResult {
   warnings: string[];
 }
 
+/**
+ * Money Manager (.xlsx) household-spending rows are ENRICHMENT ONLY — never create transactions.
+ * Her Note/Description is a far richer merchant label than the bank/UPI string; enriching with it
+ * lets the existing vendor rules + AI-suggest categorize correctly.
+ */
+export interface MoneyManagerEntry {
+  /** From the `Period` column (Excel serial datetime = log time). Only the DATE part matters for matching. ISO YYYY-MM-DD. */
+  loggedAt: string;
+  /** Signed paise: + inflow (Income), − outflow (Exp.). */
+  amountPaise: number;
+  direction: "inflow" | "outflow";
+  /** `Category` with the leading emoji stripped + trimmed (e.g. "Transport", "CC", "SIP"). */
+  categoryRaw: string;
+  /** `Note` column — her label (filled ~100%). */
+  note: string | null;
+  /** `Description` column — often the real merchant/item (~19% filled). */
+  description: string | null;
+  /** Best human label for enrichment: `description` when present, else `note`. */
+  merchantText: string;
+  /** Stable id for idempotency: sha256(period | amountPaise | note | description). */
+  rowRef: string;
+}
+
 /** BHIM/UPI rows are ENRICHMENT ONLY — never create transactions. */
 export interface UpiEnrichmentRow {
   txnDate: string;

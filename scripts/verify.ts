@@ -8,6 +8,7 @@ import { parseHdfcBank } from "../src/lib/ingest/parsers/hdfc.js";
 import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
+import { parseMoneyManager, stripEmojiPrefix } from "../src/lib/ingest/parsers/money-manager.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
@@ -1046,6 +1047,30 @@ import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_
     [`all green → no top action (steady)`, allGreen.topAction === null && allGreen.counts.green === 2],
   ];
   for (const [label, ok] of sumChecks) { if (!ok) failures++; console.log(`COMPASS-SUMMARY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager enrichment parser (Pass 1): redacted synthetic fixture, structure not content ----
+console.log("\n" + "-".repeat(78));
+{
+  const { entries: mm, warnings: mmw } = parseMoneyManager(readFileSync("fixtures/money_manager_sample.xlsx"));
+  const salary = mm.find((e) => e.categoryRaw === "Salary");
+  const transport = mm.find((e) => e.categoryRaw === "Transport");
+  const personal = mm.find((e) => e.categoryRaw === "Personal");
+  const health = mm.find((e) => e.categoryRaw === "Health");
+  console.log(`\nMONEY MANAGER: ${mm.length} entries parsed from the redacted fixture (${mmw.length} warnings)`);
+  const mmChecks: Array<[string, boolean]> = [
+    [`rows = ${mm.length} (expected 8)`, mm.length === 8],
+    [`Income row → positive paise (Salary ${salary?.amountPaise}, expected +5000000)`, salary?.amountPaise === 5000000 && salary?.direction === "inflow"],
+    [`Exp. row → negative paise (Transport ${transport?.amountPaise}, expected -12000)`, transport?.amountPaise === -12000 && transport?.direction === "outflow"],
+    [`emoji stripped from category ("🚖 Transport" → "Transport", "🧘🏼 Health" → "Health")`,
+      transport?.categoryRaw === "Transport" && health?.categoryRaw === "Health"],
+    [`stripEmojiPrefix leaves a plain category untouched ("Other")`, stripEmojiPrefix("Other") === "Other"],
+    [`merchantText falls back to note when description empty (Transport → "To office")`, transport?.merchantText === "To office"],
+    [`merchantText prefers description when present (Personal → "Cafe Coffee Day")`, personal?.merchantText === "Cafe Coffee Day"],
+    [`redundant Amount col (99999) ignored — uses INR (Personal = -25000)`, personal?.amountPaise === -25000],
+    [`rowRef is a stable 64-hex sha256`, !!salary && /^[0-9a-f]{64}$/.test(salary.rowRef)],
+  ];
+  for (const [label, ok] of mmChecks) { if (!ok) failures++; console.log(`MM ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

@@ -24,6 +24,7 @@ const ACCOUNTS = [
   { name: "IDFC FIRST Savings", institution: "IDFC_BANK", kind: "bank" },
   { name: "IDFC FIRST Credit Card", institution: "IDFC_CC", kind: "credit_card" },
   { name: "Suryoday Credit Card", institution: "SURYODAY_CC", kind: "credit_card" },
+  { name: "HDFC — Nirmiti", institution: "HDFC", kind: "bank" },
   { name: "Zerodha", institution: "ZERODHA", kind: "broker" },
   { name: "Upstox", institution: "UPSTOX", kind: "broker" },
 ];

@@ -2520,6 +2520,11 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
     "kind": "credit_card"
   },
   {
+    "name": "HDFC — Nirmiti",
+    "institution": "HDFC",
+    "kind": "bank"
+  },
+  {
     "name": "Zerodha",
     "institution": "ZERODHA",
     "kind": "broker"

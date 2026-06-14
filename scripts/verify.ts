@@ -4,6 +4,7 @@ import { parseIdfcBank } from "../src/lib/ingest/parsers/idfc-bank.js";
 import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
 import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
+import { parseHdfcBank } from "../src/lib/ingest/parsers/hdfc.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
@@ -69,6 +70,10 @@ for (const r of idfcCcAll) report(r);
 const suryAll = parseSuryodayCc(F("Surodyay_CC-2026-05-27.md"));
 for (const r of suryAll) report(r);
 
+// ---- HDFC bank (fixed-width columnar) ----
+const hdfc = parseHdfcBank(F("HDFC_statement.md"));
+report(hdfc);
+
 // ---- Expected-count gates: silence is failure ----
 console.log("\n" + "-".repeat(78));
 const expectCounts: Array<[string, number, number]> = [
@@ -77,6 +82,7 @@ const expectCounts: Array<[string, number, number]> = [
   ["Federal statements", fedAll.length, 12],
   ["IDFC CC statements", idfcCcAll.length, 10],
   ["Suryoday statements", suryAll.length, 6],
+  ["HDFC txns", hdfc.transactions.length, 325],
 ];
 for (const [label, got, want] of expectCounts) {
   const ok = got === want;
@@ -86,18 +92,45 @@ for (const [label, got, want] of expectCounts) {
 
 // ---- Idempotency proof: re-parse + union by hash must add zero rows ----
 console.log("\n" + "-".repeat(78));
-const all = [sbi, idfc, ...fedAll, ...idfcCcAll, ...suryAll];
+const all = [sbi, idfc, ...fedAll, ...idfcCcAll, ...suryAll, hdfc];
 const hashSet = new Set<string>();
 let dupWithin = 0;
 for (const r of all) for (const t of r.transactions) {
   if (hashSet.has(t.contentHash)) dupWithin++;
   hashSet.add(t.contentHash);
 }
-const second = [parseSbi(F("AccountStatement_27052026_133757.md")), parseIdfcBank(F("IDFC_BANK_STATEMENT-2026-05-27.md"))];
+const second = [parseSbi(F("AccountStatement_27052026_133757.md")), parseIdfcBank(F("IDFC_BANK_STATEMENT-2026-05-27.md")), parseHdfcBank(F("HDFC_statement.md"))];
 let reimportInserts = 0;
 for (const r of second) for (const t of r.transactions) if (!hashSet.has(t.contentHash)) reimportInserts++;
 console.log(`DEDUP: ${hashSet.size} unique txns; cross-statement hash collisions: ${dupWithin}; re-import inserts: ${reimportInserts} ${reimportInserts === 0 ? "(PASS — idempotent)" : "(FAIL)"}`);
 if (reimportInserts > 0 || dupWithin > 0) failures++;
+
+// ---- HDFC bank: hard gates on the fixed-width parse — the fixture is the spec ----
+{
+  const t0 = hdfc.transactions[0];
+  const wrapped = "UPI-AVANI ASHISH MEHTA-AVANIMEHTA1966L@OKHDFCBANK-KKBK0001345-119313909063-CAR LOAN";
+  const drCount = hdfc.transactions.filter((t) => t.amountPaise < 0).length;
+  const crCount = hdfc.transactions.filter((t) => t.amountPaise > 0).length;
+  const sumW = hdfc.transactions.reduce((s, t) => (t.amountPaise < 0 ? s - t.amountPaise : s), 0);
+  const sumD = hdfc.transactions.reduce((s, t) => (t.amountPaise > 0 ? s + t.amountPaise : s), 0);
+  const salary = hdfc.transactions.find((t) => t.txnDate === "2026-05-29" && t.descriptionRaw === "SALARY MAY 2026");
+  const hdfcChecks: Array<[string, boolean]> = [
+    [`reconciliation ok (${hdfc.reconciliation.detail})`, hdfc.reconciliation.ok],
+    [`Dr count = ${drCount} (expected 283)`, drCount === 283],
+    [`Cr count = ${crCount} (expected 42)`, crCount === 42],
+    [`Σ withdrawals = ${sumW} (expected 31996148)`, sumW === 31996148],
+    [`Σ deposits = ${sumD} (expected 27266816)`, sumD === 27266816],
+    [`opening = ${hdfc.reconciliation.openingPaise} (expected 9722086)`, hdfc.reconciliation.openingPaise === 9722086],
+    [`closing = ${hdfc.reconciliation.closingPaise} (expected 4992754)`, hdfc.reconciliation.closingPaise === 4992754],
+    [`row[0] date = ${t0?.txnDate} (expected 2026-03-01)`, t0?.txnDate === "2026-03-01"],
+    [`row[0] amount = ${t0?.amountPaise} (expected +1500000)`, t0?.amountPaise === 1500000],
+    [`row[0] closing = ${t0?.balanceAfterPaise} (expected 11222086)`, t0?.balanceAfterPaise === 11222086],
+    [`row[0] wrapped narration joined correctly`, t0?.descriptionRaw === wrapped],
+    [`salary 29/05/26 SALARY MAY 2026 = +5462900`, salary?.amountPaise === 5462900],
+    [`all amounts integer paise`, hdfc.transactions.every((t) => Number.isSafeInteger(t.amountPaise))],
+  ];
+  for (const [label, ok] of hdfcChecks) { if (!ok) failures++; console.log(`HDFC ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
 
 // ---- BHIM UPI enrichment ----
 const upi = parseBhimUpi(F("TransactionHistory_1781297699.html"));

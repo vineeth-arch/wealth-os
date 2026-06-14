@@ -4,10 +4,11 @@ import { parseFederal } from "./parsers/federal.js";
 import { parseIdfcBank } from "./parsers/idfc-bank.js";
 import { parseIdfcCc } from "./parsers/idfc-cc.js";
 import { parseSuryodayCc } from "./parsers/suryoday-cc.js";
+import { parseHdfcBank } from "./parsers/hdfc.js";
 
 /** Institutions that produce transactions from a markdown statement. */
-export type TxnInstitution = "SBI" | "FEDERAL" | "IDFC_BANK" | "IDFC_CC" | "SURYODAY_CC";
-const TXN_INSTITUTIONS: TxnInstitution[] = ["SBI", "FEDERAL", "IDFC_BANK", "IDFC_CC", "SURYODAY_CC"];
+export type TxnInstitution = "SBI" | "FEDERAL" | "IDFC_BANK" | "IDFC_CC" | "SURYODAY_CC" | "HDFC";
+const TXN_INSTITUTIONS: TxnInstitution[] = ["SBI", "FEDERAL", "IDFC_BANK", "IDFC_CC", "SURYODAY_CC", "HDFC"];
 export function isTxnInstitution(s: string): s is TxnInstitution {
   return (TXN_INSTITUTIONS as string[]).includes(s);
 }
@@ -20,5 +21,6 @@ export function parseStatement(institution: TxnInstitution, content: string): St
     case "FEDERAL": return parseFederal(content);
     case "IDFC_CC": return parseIdfcCc(content);
     case "SURYODAY_CC": return parseSuryodayCc(content);
+    case "HDFC": return [parseHdfcBank(content)];
   }
 }

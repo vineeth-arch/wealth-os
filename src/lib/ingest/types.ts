@@ -2,7 +2,7 @@
 
 export type Institution =
   | "SBI" | "FEDERAL" | "IDFC_BANK" | "IDFC_CC" | "SURYODAY_CC"
-  | "BHIM_UPI" | "ZERODHA" | "UPSTOX";
+  | "HDFC" | "BHIM_UPI" | "ZERODHA" | "UPSTOX";
 
 export interface ParsedTransaction {
   /** ISO YYYY-MM-DD */

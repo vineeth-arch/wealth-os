@@ -810,7 +810,7 @@ assert("projection grows tax with positive growth", projectCapitalGainsTax(cgSeg
 
 // ---- Money Box Compass — proprietor lens engine (Pass 1): one pool, two lenses, category-driven ----
 console.log("\n" + "-".repeat(78));
-import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES } from "../src/lib/compass.js";
+import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, bandHigher, bandLower } from "../src/lib/compass.js";
 {
   const cmk = (over: Partial<CompassTxn>): CompassTxn => ({
     txnDate: "2026-03-15", amountPaise: -10000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [], ...over,
@@ -869,6 +869,48 @@ import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_
     [`perMonth series length = months covered`, w.perMonth.length === 3 && w.perMonth[2].personalSpend === 600000],
   ];
   for (const [label, ok] of winChecks) { if (!ok) failures++; console.log(`COMPASS-WINDOW ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Compass Machine H1–H3 (Pass 2): R/A/G bands on the proprietor ratios ----
+{
+  // band helper semantics
+  const bandChecks: Array<[string, boolean]> = [
+    ["bandHigher: ≥green→green, ≥amber→amber, else red", bandHigher(20, 20, 15) === "green" && bandHigher(15, 20, 15) === "amber" && bandHigher(14, 20, 15) === "red"],
+    ["bandLower: ≤green→green, ≤amber→amber, else red", bandLower(25, 25, 30) === "green" && bandLower(30, 25, 30) === "amber" && bandLower(31, 25, 30) === "red"],
+  ];
+  for (const [label, ok] of bandChecks) { if (!ok) failures++; console.log(`COMPASS-BAND ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // avg per-month proprietor figures: income 1,00,000; savings 25,000 (25%); EMI 20,000 (20%); spend 45,000 (45%)
+  const avg = { ...lensTotals([]),
+    personalIncome: 10000000, personalSavings: 2500000, investOutflow: 2000000, protectOutflow: 500000,
+    emiOutflow: 2000000, personalSpend: 4500000, wantsOutflow: 1000000 };
+  const h1 = machineH1(avg);
+  // H2: ₹3,00,000 liquid ÷ ₹45,000/mo = 6.67 months → green; target gap to 6mo already met (0)
+  const h2 = machineH2(avg, 30000000);
+  // H2 red case: only ₹90,000 liquid → 2 months
+  const h2red = machineH2(avg, 9000000);
+  const machineChecks: Array<[string, boolean]> = [
+    [`H1 save rate 25% → green (pct ${h1.saveRate.pct?.toFixed(1)})`, h1.saveRate.band === "green" && Math.round(h1.saveRate.pct ?? 0) === 25],
+    [`H1 EMI 20% → green`, h1.emiLoad.band === "green" && Math.round(h1.emiLoad.pct ?? 0) === 20],
+    [`H1 living cost 45% → green`, h1.livingCost.band === "green" && Math.round(h1.livingCost.pct ?? 0) === 45],
+    [`H1 zero income → null band (categorize first)`, machineH1(lensTotals([])).saveRate.band === null],
+    [`H2 6.67 months → green, gap 0`, h2.band === "green" && Math.round((h2.months ?? 0) * 100) === 667 && h2.gapToTargetPaise === 0],
+    [`H2 2 months → red, gap = 6×spend − liquid = ${h2red.gapToTargetPaise}`, h2red.band === "red" && h2red.gapToTargetPaise === 6 * 4500000 - 9000000],
+    [`H2 no spend → null band`, machineH2(lensTotals([]), 1000000).band === null],
+  ];
+  for (const [label, ok] of machineChecks) { if (!ok) failures++; console.log(`COMPASS-MACHINE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // H3 protection presence (parent 04 term/health leaves) → green; none → red
+  const pmk = (cat: string): CompassTxn => ({ txnDate: "2026-03-01", amountPaise: -300000, parent: "04 Protect", categoryName: cat, tags: [] });
+  const withTerm = machineH3([pmk("Term Insurance Premium")]);
+  const withHealth = machineH3([pmk("Health Insurance Premium")]);
+  const none = machineH3([{ txnDate: "2026-03-01", amountPaise: -450000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [] }]);
+  const h3Checks: Array<[string, boolean]> = [
+    [`H3 term premium → present + green`, withTerm.termPresent && withTerm.anyPresent && withTerm.band === "green"],
+    [`H3 health premium → present + green`, withHealth.healthPresent && withHealth.band === "green"],
+    [`H3 no protection outflow → red`, !none.anyPresent && none.band === "red"],
+  ];
+  for (const [label, ok] of h3Checks) { if (!ok) failures++; console.log(`COMPASS-H3 ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

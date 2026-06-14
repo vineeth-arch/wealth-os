@@ -178,6 +178,96 @@ export interface SanityFlags {
   messages: string[];
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// The Machine — H1–H3 (the numbers). R/A/G bands; thresholds are the spec.
+// All ratios are computed on per-month averages (avg LensTotals); a ratio is
+// scale-invariant so window totals would give the same percentage.
+// ───────────────────────────────────────────────────────────────────────────
+
+export type Band = "red" | "amber" | "green";
+
+/** Higher is better: green at/above `green`, amber at/above `amber`, else red. */
+export function bandHigher(v: number, green: number, amber: number): Band {
+  return v >= green ? "green" : v >= amber ? "amber" : "red";
+}
+/** Lower is better: green at/below `green`, amber at/below `amber`, else red. */
+export function bandLower(v: number, green: number, amber: number): Band {
+  return v <= green ? "green" : v <= amber ? "amber" : "red";
+}
+
+export interface RatioCheck {
+  pct: number | null;        // null when the denominator (personal income) is unavailable
+  band: Band | null;         // null = insufficient data → "categorize first"
+  gapToGreenPaise: number;   // per-month rupees-as-paise needed to reach the green band (0 if green/na)
+}
+
+const naRatio: RatioCheck = { pct: null, band: null, gapToGreenPaise: 0 };
+
+export interface MachineRatios {
+  saveRate: RatioCheck;      // personalSavings ÷ personalIncome — green ≥20, amber 15–20, red <15
+  emiLoad: RatioCheck;       // parent-05 EMI ÷ personalIncome — green ≤25, amber 25–30, red >30
+  livingCost: RatioCheck;    // personalSpend ÷ personalIncome — green ≤50, amber 50–60, red >60
+}
+
+/** H1 — cash-flow ratios (the surplus engine). `avg` is per-month average LensTotals. */
+export function machineH1(avg: LensTotals): MachineRatios {
+  const inc = avg.personalIncome;
+  if (inc <= 0) return { saveRate: naRatio, emiLoad: naRatio, livingCost: naRatio };
+  const saveRatePct = (avg.personalSavings / inc) * 100;
+  const emiPct = (avg.emiOutflow / inc) * 100;
+  const livingPct = (avg.personalSpend / inc) * 100;
+  return {
+    saveRate: { pct: saveRatePct, band: bandHigher(saveRatePct, 20, 15), gapToGreenPaise: Math.max(0, Math.round(inc * 0.2) - avg.personalSavings) },
+    emiLoad: { pct: emiPct, band: bandLower(emiPct, 25, 30), gapToGreenPaise: Math.max(0, avg.emiOutflow - Math.round(inc * 0.25)) },
+    livingCost: { pct: livingPct, band: bandLower(livingPct, 50, 60), gapToGreenPaise: Math.max(0, avg.personalSpend - Math.round(inc * 0.5)) },
+  };
+}
+
+export interface EmergencyFundCheck {
+  months: number | null;     // liquid cash ÷ avg monthly personal spend
+  band: Band | null;
+  targetMonths: number;      // self-employed target = 6 (lumpy income)
+  gapToTargetPaise: number;  // cash still needed to reach the 6-month target
+}
+
+/**
+ * H2 — emergency fund (the foundation). Liquid = bank-kind balances ONLY (cash that survives a
+ * market crash); broker/asset_snapshot excluded. Self-employed target 6 months: green ≥6, amber 3–6,
+ * red <3. Distinct from the Mirror's freedom ratio, which includes investments.
+ */
+export function machineH2(avg: LensTotals, liquidCashPaise: number): EmergencyFundCheck {
+  const target = 6;
+  if (avg.personalSpend <= 0) return { months: null, band: null, targetMonths: target, gapToTargetPaise: 0 };
+  const months = liquidCashPaise / avg.personalSpend;
+  return {
+    months, band: bandHigher(months, 6, 3), targetMonths: target,
+    gapToTargetPaise: Math.max(0, Math.round(target * avg.personalSpend) - liquidCashPaise),
+  };
+}
+
+/** Protection leaves under parent 04 that count as real cover (resolved from the seed taxonomy). */
+export const TERM_PROTECTION_LEAVES: ReadonlySet<string> = new Set<string>(["Term Insurance Premium"]);
+export const HEALTH_PROTECTION_LEAVES: ReadonlySet<string> = new Set<string>(["Health Insurance Premium", "Critical Illness Cover"]);
+
+export interface ProtectionStatus {
+  termPresent: boolean;
+  healthPresent: boolean;
+  anyPresent: boolean;
+  band: Band;                // present → green; none detected → red (coverage AMOUNT is confirmed manually)
+}
+
+/** H3 — protection funded (the shield). Presence detection only; the coverage gap (vs HLV) is manual. */
+export function machineH3(txns: CompassTxn[]): ProtectionStatus {
+  let termPresent = false, healthPresent = false;
+  for (const x of txns) {
+    if (x.amountPaise >= 0 || classifyParent(x.parent) !== "protect") continue;
+    if (TERM_PROTECTION_LEAVES.has(x.categoryName)) termPresent = true;
+    if (HEALTH_PROTECTION_LEAVES.has(x.categoryName)) healthPresent = true;
+  }
+  const anyPresent = termPresent || healthPresent;
+  return { termPresent, healthPresent, anyPresent, band: anyPresent ? "green" : "red" };
+}
+
 export function sanityFlags(t: LensTotals): SanityFlags {
   const income = t.personalIncome;
   const spendExceedsIncome = income > 0 && t.personalSpend > income * 1.5;

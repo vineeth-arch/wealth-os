@@ -19,6 +19,7 @@ import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
 import { selectSourceIds } from "../src/lib/prices/types.js";
 import { autoMapHolding, deriveYahooSymbol, needsConfirmation } from "../src/lib/holdings.js";
 import { computeRegime, compareRegimes } from "../src/lib/calc/tax.js";
+import { amortizationSchedule, emiPaise, totalInterestPaise, prepaymentImpact } from "../src/lib/calc/loan.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
 
@@ -526,6 +527,35 @@ assert("new regime ₹12.75L gross salaried → ₹0", compareRegimes({ grossSal
 assert("new regime ₹20L taxable → ₹2,08,000", computeRegime(2_000_000 * P, "new").totalTaxPaise, 208_000 * P);
 // Old regime, ₹10,00,000 taxable: 12500 + 100000 = 112500 tax + 4% cess = 117000.
 assert("old regime ₹10L taxable → ₹1,17,000", computeRegime(1_000_000 * P, "old").totalTaxPaise, 117_000 * P);
+
+// ---- Loan amortization + prepayment (Pass 1): reducing-balance EMI, paise-exact closure ----
+console.log("\n" + "-".repeat(78));
+// ₹10,00,000 @ 9% p.a. over 120 months. EMI = P·r·(1+r)^n/((1+r)^n−1), r=0.0075 → ₹12,667.58.
+const loan10L = { principalPaise: 1_000_000 * P, annualRatePct: 9, tenureMonths: 120 };
+assert("EMI ₹10L @ 9% / 120mo = ₹12,667.58", emiPaise(loan10L), 1_266_758);
+const sched = amortizationSchedule(loan10L);
+assert("schedule length = tenure", sched.length, 120);
+assert("closing balance ends exactly 0", sched[sched.length - 1].closingBalancePaise, 0);
+assert("Σ principal = principal", sched.reduce((s, x) => s + x.principalPaise, 0), 1_000_000 * P);
+// Zero-rate loan amortizes linearly and still closes to 0.
+const zero = amortizationSchedule({ principalPaise: 1_200_000 * P, annualRatePct: 0, tenureMonths: 12 });
+assert("zero-rate EMI = P/n", zero[0].emiPaise, 100_000 * P);
+assert("zero-rate closes to 0", zero[zero.length - 1].closingBalancePaise, 0);
+assert("zero-rate has no interest", totalInterestPaise(zero), 0);
+
+const baseInterest = totalInterestPaise(sched);
+// ₹2,00,000 prepayment after month 24, reduce-tenure: keeps EMI, shortens loan, saves interest.
+const rt = prepaymentImpact({ ...loan10L, prepaymentPaise: 200_000 * P, atMonth: 24, mode: "reduce_tenure" });
+assert("reduce_tenure saves interest (>0)", rt.interestSavedPaise > 0 && rt.interestSavedPaise < baseInterest ? 1 : 0, 1);
+assert("reduce_tenure shortens loan (monthsSaved>0)", rt.monthsSaved > 0 ? 1 : 0, 1);
+assert("reduce_tenure reports newTenure < 120", (rt.newTenureMonths ?? 120) < 120 ? 1 : 0, 1);
+// Same prepayment, reduce-EMI: keeps tenure, lowers EMI, monthsSaved = 0.
+const re = prepaymentImpact({ ...loan10L, prepaymentPaise: 200_000 * P, atMonth: 24, mode: "reduce_emi" });
+assert("reduce_emi keeps tenure (monthsSaved=0)", re.monthsSaved, 0);
+assert("reduce_emi lowers EMI below base", (re.newEmiPaise ?? Infinity) < 1_266_758 ? 1 : 0, 1);
+assert("reduce_emi also saves interest (>0)", re.interestSavedPaise > 0 ? 1 : 0, 1);
+// The two modes differ: reduce_tenure saves more interest than reduce_emi for the same lump sum.
+assert("reduce_tenure saves more than reduce_emi", rt.interestSavedPaise > re.interestSavedPaise ? 1 : 0, 1);
 
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

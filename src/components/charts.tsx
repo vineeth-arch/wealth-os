@@ -1,5 +1,5 @@
 "use client";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { formatINR, formatINRCompact, formatMonth } from "@/lib/format";
 
 export interface FlowPoint { month: string; income: number; spend: number; invest: number }
@@ -22,6 +22,30 @@ export function CashFlowChart({ data }: { data: FlowPoint[] }) {
           <Bar dataKey="spend" name="Spend" fill="hsl(0 72% 55%)" radius={[3, 3, 0, 0]} />
           <Bar dataKey="invest" name="Invest" fill="hsl(173 58% 36%)" radius={[3, 3, 0, 0]} />
         </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export interface LoanBalancePoint { month: number; balance: number }
+
+/** Outstanding loan balance over the life of the loan (paise on the y-axis, month index on the x-axis). */
+export function LoanBalanceChart({ data }: { data: LoanBalancePoint[] }) {
+  return (
+    <div style={{ width: "100%", height: 280 }}>
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+          <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))"
+            tickFormatter={(v: number) => `${v}`} label={{ value: "month", position: "insideBottomRight", offset: -2, fontSize: 11 }} />
+          <YAxis tickFormatter={(v: number) => formatINRCompact(v)} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={64} />
+          <Tooltip
+            formatter={(v: number) => [formatINR(v), "Balance"]}
+            labelFormatter={(l: number) => `Month ${l}`}
+            contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12, color: "hsl(var(--popover-foreground))" }}
+          />
+          <Line type="monotone" dataKey="balance" name="Balance" stroke="hsl(173 58% 42%)" strokeWidth={2} dot={false} />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );

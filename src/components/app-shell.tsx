@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Upload, ListChecks, Landmark, Wallet, LogOut, Moon, Sun, Plug, PieChart, Calculator, Tags, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Upload, ListChecks, Landmark, Wallet, LogOut, Moon, Sun, Plug, PieChart, Calculator, Tags, TrendingUp, HandCoins } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -15,6 +15,7 @@ const NAV = [
   { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/holdings", label: "Holdings", icon: PieChart },
   { href: "/upstox", label: "Upstox", icon: TrendingUp },
+  { href: "/loans", label: "Loans", icon: HandCoins },
   { href: "/calculators", label: "Calculators", icon: Calculator },
   { href: "/integrations", label: "Integrations", icon: Plug },
 ];

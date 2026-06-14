@@ -1357,6 +1357,24 @@ console.log("\n" + "-".repeat(78));
   for (const [label, ok] of noteChecks) { if (!ok) failures++; console.log(`GPAY-NOTE ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
+// ---- Google Pay statement UI (Pass 4): confirm-before-write, busy guard, unmatched read-only ----
+{
+  const panel = readFileSync("src/components/google-pay-statement-panel.tsx", "utf8");
+  const route = readFileSync("src/app/api/enrich/google-pay-statement/route.ts", "utf8");
+  const page = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+  const uiChecks: Array<[string, boolean]> = [
+    [`panel previews before writing (Scan & preview → mode=preview)`, panel.includes('run("preview")') && panel.includes('mode === "preview"')],
+    [`panel has a separate confirm step that applies (mode=apply)`, panel.includes('run("apply")') && panel.includes("Apply enrichment")],
+    [`panel shows reconciliation deltas + per-funding-bank breakdown`, panel.includes("Reconciliation vs statement totals") && panel.includes("Match coverage by funding account")],
+    [`panel honors the busy/nav-guard pattern (useBusy + begin/end)`, panel.includes("useBusy()") && panel.includes("begin(") && panel.includes("end(id)")],
+    [`unmatched shown read-only, NO insert offered`, panel.includes("Importing these directly isn") && !/insert/i.test(panel)],
+    [`route is enrichment-only: never inserts into transactions`, !route.includes(".insert(") && route.includes(".update(")],
+    [`route guards categories via guardCategory (no 14/15 auto-assign)`, route.includes("guardCategory")],
+    [`panel is mounted in the transactions Review section`, page.includes("<GooglePayStatementPanel />")],
+  ];
+  for (const [label, ok] of uiChecks) { if (!ok) failures++; console.log(`GPAY-UI ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 console.log("\n" + "=".repeat(78));
 console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

@@ -5,6 +5,7 @@ import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
 import { parseIdfcCc } from "../src/lib/ingest/parsers/idfc-cc.js";
 import { parseSuryodayCc } from "../src/lib/ingest/parsers/suryoday-cc.js";
 import { parseHdfcBank } from "../src/lib/ingest/parsers/hdfc.js";
+import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
@@ -130,6 +131,28 @@ if (reimportInserts > 0 || dupWithin > 0) failures++;
     [`all amounts integer paise`, hdfc.transactions.every((t) => Number.isSafeInteger(t.amountPaise))],
   ];
   for (const [label, ok] of hdfcChecks) { if (!ok) failures++; console.log(`HDFC ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- HDFC loan repayment schedule: imported actual schedule is the source of truth ----
+{
+  const sched = parseHdfcLoanSchedule(F("HDFC_loan_Repayment_Schedule.md"));
+  const i1 = sched.rows.find((r) => r.instlNo === 1);
+  const i48 = sched.rows.find((r) => r.instlNo === 48);
+  const loanChecks: Array<[string, boolean]> = [
+    [`reconciliation ok (${sched.reconciliation.detail})`, sched.reconciliation.ok],
+    [`rows = ${sched.rows.length} (expected 48)`, sched.rows.length === 48],
+    [`agreement no = ${sched.agreementNo} (expected 169007392)`, sched.agreementNo === "169007392"],
+    [`loan type = ${sched.loanType} (expected PERSONAL LOAN)`, sched.loanType === "PERSONAL LOAN"],
+    [`amount financed = ${sched.amountFinancedPaise} (expected 57000000)`, sched.amountFinancedPaise === 57000000],
+    [`tenure = ${sched.tenureMonths} (expected 48)`, sched.tenureMonths === 48],
+    [`first due = ${sched.firstDueDate} (expected 2026-04-07)`, sched.firstDueDate === "2026-04-07"],
+    [`Σprincipal = ${sched.totals.principalPaise} (expected 57000000)`, sched.totals.principalPaise === 57000000],
+    [`Σinterest = ${sched.totals.interestPaise} (expected 13835600)`, sched.totals.interestPaise === 13835600],
+    [`Σinstl = ${sched.totals.instlPaise} (expected 70835600)`, sched.totals.instlPaise === 70835600],
+    [`instl 1 = ${i1?.instlPaise} (expected 1595100 = 950700 + 644400)`, i1?.instlPaise === 1595100 && i1?.principalPaise === 950700 && i1?.interestPaise === 644400],
+    [`instl 48 = ${i48?.instlPaise} (expected 1473300), o/s = ${i48?.osPrincipalPaise} (expected 0)`, i48?.instlPaise === 1473300 && i48?.osPrincipalPaise === 0],
+  ];
+  for (const [label, ok] of loanChecks) { if (!ok) failures++; console.log(`HDFC-LOAN ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- BHIM UPI enrichment ----

@@ -13,6 +13,14 @@ import { formatINR, formatPct, formatDate } from "@/lib/format";
 const RUPEE = 100;
 const KINDS = ["home", "vehicle", "personal", "education", "business", "other"] as const;
 
+export interface ImportedScheduleRow {
+  instlNo: number;
+  dueDate: string;
+  instlPaise: number;
+  principalPaise: number;
+  interestPaise: number;
+  osPrincipalPaise: number;
+}
 export interface LoanRecord {
   id: string;
   name: string;
@@ -23,6 +31,8 @@ export interface LoanRecord {
   startDate: string;
   accountId: string | null;
   emiCategory: string | null;
+  source: "computed" | "imported";
+  scheduleRows: ImportedScheduleRow[];
 }
 export interface AccountOption { id: string; name: string }
 
@@ -49,6 +59,7 @@ export function LoansPanel({ loans, accounts, emiCategories }: {
   const [selectedId, setSelectedId] = useState<string | null>(loans[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   const selected = loans.find((l) => l.id === selectedId) ?? null;
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
@@ -81,6 +92,18 @@ export function LoansPanel({ loans, accounts, emiCategories }: {
     setBusy(false);
     if (!res.ok) return setError(json.error ?? "Save failed.");
     resetForm();
+    router.refresh();
+  }
+
+  async function importSchedule(file: File) {
+    setError(null); setImportMsg(null); setBusy(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/loans/import-schedule", { method: "POST", body: fd });
+    const json = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(json.error ?? "Import failed.");
+    setImportMsg(`Imported ${json.name} — ${json.installments} installments, approx ${json.approxAnnualRatePct}% APR.`);
     router.refresh();
   }
 
@@ -155,6 +178,26 @@ export function LoansPanel({ loans, accounts, emiCategories }: {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Import a repayment schedule</CardTitle>
+          <CardDescription>
+            Upload a lender-issued schedule (HDFC personal loan). The actual installments — including
+            the irregular first month and final rounding — are stored verbatim, not recomputed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <input
+            type="file"
+            accept=".md,.txt,text/markdown,text/plain"
+            disabled={busy}
+            className="block text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) importSchedule(f); e.target.value = ""; }}
+          />
+          {importMsg && <p className="text-sm text-muted-foreground">{importMsg}</p>}
+        </CardContent>
+      </Card>
+
       {loans.length === 0 ? (
         <Card><CardHeader><CardTitle>No loans yet</CardTitle><CardDescription>Add a loan above to see its schedule.</CardDescription></CardHeader><CardContent /></Card>
       ) : (
@@ -162,7 +205,11 @@ export function LoansPanel({ loans, accounts, emiCategories }: {
           <CardHeader><CardTitle>Your loans</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {loans.map((l) => {
-              const emi = emiPaise({ principalPaise: l.principalPaise, annualRatePct: l.annualRatePct, tenureMonths: l.tenureMonths });
+              const imported = l.source === "imported";
+              // For an imported loan the regular EMI is a stored row (skip the irregular first); otherwise compute it.
+              const emi = imported
+                ? (l.scheduleRows.find((r) => r.instlNo === 2) ?? l.scheduleRows[0])?.instlPaise ?? 0
+                : emiPaise({ principalPaise: l.principalPaise, annualRatePct: l.annualRatePct, tenureMonths: l.tenureMonths });
               const active = l.id === selectedId;
               return (
                 <div key={l.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 ${active ? "border-primary/60 bg-accent/30" : ""}`}>
@@ -170,9 +217,10 @@ export function LoansPanel({ loans, accounts, emiCategories }: {
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{l.name}</span>
                       <Badge variant="secondary">{l.kind}</Badge>
+                      {imported && <Badge variant="outline">imported</Badge>}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {formatINR(l.principalPaise)} · {formatPct(l.annualRatePct)} · {l.tenureMonths} mo · EMI {formatINR(emi)}
+                      {formatINR(l.principalPaise)} · {imported ? "approx " : ""}{formatPct(l.annualRatePct)} · {l.tenureMonths} mo · EMI {formatINR(emi)}
                     </div>
                   </button>
                   <div className="flex gap-2">
@@ -207,6 +255,7 @@ function Tile({ label, value }: { label: string; value: string }) {
 }
 
 function LoanDetail({ loan }: { loan: LoanRecord }) {
+  if (loan.source === "imported") return <ImportedLoanDetail loan={loan} />;
   const input = { principalPaise: loan.principalPaise, annualRatePct: loan.annualRatePct, tenureMonths: loan.tenureMonths };
   const schedule = useMemo(() => amortizationSchedule(input), [loan.principalPaise, loan.annualRatePct, loan.tenureMonths]);
   const emi = schedule.find((r) => r.month === 1)?.emiPaise ?? emiPaise(input);
@@ -314,6 +363,72 @@ function LoanDetail({ loan }: { loan: LoanRecord }) {
                     <td className="py-1.5">{formatINR(r.interestPaise)}</td>
                     <td className="py-1.5">{formatINR(r.principalPaise)}</td>
                     <td className="py-1.5">{formatINR(r.closingBalancePaise)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/** Imported loan: render the STORED actual schedule (lender-issued), not a recomputed amortization. */
+function ImportedLoanDetail({ loan }: { loan: LoanRecord }) {
+  const rows = loan.scheduleRows;
+  const totalInstl = rows.reduce((s, r) => s + r.instlPaise, 0);
+  const totalInterest = rows.reduce((s, r) => s + r.interestPaise, 0);
+  const chartData = rows.map((r) => ({ month: r.instlNo, balance: r.osPrincipalPaise }));
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>{loan.name}</CardTitle>
+          <CardDescription>
+            Imported actual schedule · first due {formatDate(loan.startDate)}
+            {loan.emiCategory ? ` · EMI category: ${loan.emiCategory}` : ""}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Tile label="Amount financed" value={formatINR(loan.principalPaise)} />
+            <Tile label="Total interest" value={formatINR(totalInterest)} />
+            <Tile label="Total payment" value={formatINR(totalInstl)} />
+            <Tile label="APR (approx)" value={`~${formatPct(loan.annualRatePct)}`} />
+          </div>
+          <LoanBalanceChart data={chartData} />
+          <p className="text-xs text-muted-foreground">
+            Stored exactly as issued — the irregular first installment (broken-period interest) and
+            final-month rounding are preserved. The APR is approximate: backed out from the schedule,
+            not an exact single rate. No transactions are created from this schedule.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Repayment schedule</CardTitle></CardHeader>
+        <CardContent>
+          <div className="max-h-96 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
+                <tr className="border-b text-right">
+                  <th className="py-2 text-left">#</th>
+                  <th className="py-2 text-left">Due date</th>
+                  <th className="py-2">EMI</th><th className="py-2">Interest</th>
+                  <th className="py-2">Principal</th><th className="py-2">O/s Principal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.instlNo} className="border-b text-right last:border-0">
+                    <td className="py-1.5 text-left">{r.instlNo}</td>
+                    <td className="py-1.5 text-left">{formatDate(r.dueDate)}</td>
+                    <td className="py-1.5">{formatINR(r.instlPaise)}</td>
+                    <td className="py-1.5">{formatINR(r.interestPaise)}</td>
+                    <td className="py-1.5">{formatINR(r.principalPaise)}</td>
+                    <td className="py-1.5">{formatINR(r.osPrincipalPaise)}</td>
                   </tr>
                 ))}
               </tbody>

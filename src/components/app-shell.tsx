@@ -5,7 +5,8 @@ import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GuardedLink } from "@/components/guarded-link";
-import { LayoutDashboard, ArrowLeftRight, Landmark, Wallet, LogOut, Moon, Sun, PieChart, Calculator, HandCoins, Settings } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, Landmark, Wallet, LogOut, Moon, Sun, PieChart, Calculator, HandCoins, Settings, HelpCircle } from "lucide-react";
+import Link from "next/link";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -59,6 +60,9 @@ export function AppShell({ email, children }: { email: string; children: React.R
             <Button variant="outline" size="sm" className="flex-1" onClick={toggleTheme}>
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}{dark ? "Light" : "Dark"}
             </Button>
+            <Link href="/help" title="Help & User Guide">
+              <Button variant="ghost" size="sm"><HelpCircle className="h-4 w-4" /></Button>
+            </Link>
             <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4" /></Button>
           </div>
         </div>

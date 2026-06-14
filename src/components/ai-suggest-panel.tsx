@@ -82,7 +82,7 @@ function SuggestionLine({ s, categories, onApplied, onError }: {
   );
 }
 
-export function AiSuggestPanel({ categories }: { categories: AiCategory[] }) {
+export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCategory[]; providerLabel: string }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,14 +127,14 @@ export function AiSuggestPanel({ categories }: { categories: AiCategory[] }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" /> AI category assist</CardTitle>
         <CardDescription>
-          For vendors no rule matched, ask Gemini for a category — only the description text is sent, never amounts,
+          For vendors no rule matched, ask {providerLabel} for a category — only the description text is sent, never amounts,
           dates, balances or account. Confirm each suggestion; optionally save a rule so the next import is deterministic.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={runSuggest} disabled={loading}>
-            <Sparkles className="h-4 w-4" /> {loading ? "Asking Gemini…" : "AI-suggest for uncategorized"}
+            <Sparkles className="h-4 w-4" /> {loading ? `Asking ${providerLabel}…` : "AI-suggest for uncategorized"}
           </Button>
           <Button size="sm" variant="outline" onClick={runRerun} disabled={loading}>
             <Play className="h-4 w-4" /> Re-run rules
@@ -145,7 +145,7 @@ export function AiSuggestPanel({ categories }: { categories: AiCategory[] }) {
         {info && <p className="text-sm text-muted-foreground">{info}</p>}
         {prompt && (
           <details className="rounded-md border p-2 text-xs">
-            <summary className="cursor-pointer text-muted-foreground">Show the exact prompt sent to Gemini</summary>
+            <summary className="cursor-pointer text-muted-foreground">Show the exact prompt sent to {providerLabel}</summary>
             <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap">{prompt}</pre>
           </details>
         )}

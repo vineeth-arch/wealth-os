@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { normalizeDesc } from "@/lib/ingest/util";
 import { FALLBACK_CATEGORY } from "@/lib/ingest/rules";
-import { llmProvider } from "@/lib/integrations";
+import { resolveLlmDispatch } from "@/lib/integrations";
 import { LlmKeyMissingError, type SuggestCategories } from "@/lib/llm/provider";
 import { suggestCategories as geminiSuggest } from "@/lib/llm/gemini";
 import { suggestCategories as openaiSuggest } from "@/lib/llm/openai";
@@ -23,20 +23,15 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  // Determine the active provider (default Gemini when none is set), then dispatch to its adapter.
+  // Resolve the active provider → adapter (pure helper, gate-tested). Defaults to Gemini when none is
+  // active; never silently falls back to another provider — a missing adapter/key returns a clear reason.
   const { data: llmRows } = await supabase.from("integrations").select("provider,meta").eq("kind", "llm").eq("user_id", user.id);
-  const active = (llmRows ?? []).find((r) => (r.meta as { active?: boolean } | null)?.active);
-  const providerId = active?.provider ?? "gemini";
+  const decision = resolveLlmDispatch(llmRows ?? [], (p) => p in ADAPTERS, (v) => Boolean(process.env[v]));
+  if (!decision.ok) {
+    return NextResponse.json({ disabled: true, reason: decision.reason, suggestions: [] });
+  }
+  const { providerId, model } = decision;
   const suggest = ADAPTERS[providerId];
-  if (!suggest) {
-    return NextResponse.json({ disabled: true, reason: `Active LLM provider is "${providerId}". AI-suggest supports Google Gemini and OpenAI — switch it on the Integrations page.`, suggestions: [] });
-  }
-  const prov = llmProvider(providerId)!;
-  if (!process.env[prov.envVar]) {
-    return NextResponse.json({ disabled: true, reason: `${prov.label} key (${prov.envVar}) is not set on the server. Add it to enable AI suggestions.`, suggestions: [] });
-  }
-  const chosen = (active?.meta as { model?: string } | null)?.model;
-  const model = chosen && prov.models.includes(chosen) ? chosen : undefined; // else adapter uses env/default
 
   // Committed transactions still on the default fallback.
   const { data: txnRows } = await supabase.from("transactions")
@@ -73,7 +68,7 @@ export async function POST() {
     result = await suggest(groupList.map((g) => g.sample), allowedCats, model ? { model } : undefined);
   } catch (e) {
     if (e instanceof LlmKeyMissingError) {
-      return NextResponse.json({ disabled: true, reason: `${prov.label} key (${prov.envVar}) is not set on the server.`, suggestions: [] });
+      return NextResponse.json({ disabled: true, reason: `${decision.label} selected but its key is not set on the server.`, suggestions: [] });
     }
     return NextResponse.json({ error: `${providerId}: ${(e as Error).message}` }, { status: 502 });
   }

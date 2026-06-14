@@ -3,6 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import { ImportWizard } from "@/components/import-wizard";
 import { ReviewTable, type ReviewTxn, type ReviewCategory } from "@/components/review-table";
 import { AiSuggestPanel, type AiCategory } from "@/components/ai-suggest-panel";
+import { llmProvider } from "@/lib/integrations";
 import { EnrichPanel } from "@/components/enrich-panel";
 import { RulesManager, type RuleRow, type RuleCategory } from "@/components/rules-manager";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,11 +80,16 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
     .select("id,txn_date,amount_paise,description_raw,merchant,tags,category_id,category_source,account_id")
     .order("txn_date", { ascending: false }).limit(300);
   if (accountFilter) txnQuery = txnQuery.eq("account_id", accountFilter);
-  const [{ data: txnsRaw }, { data: catsRaw }, { data: acctsRaw }] = await Promise.all([
+  const [{ data: txnsRaw }, { data: catsRaw }, { data: acctsRaw }, { data: llmRows }] = await Promise.all([
     txnQuery,
     supabase.from("categories").select("id,name,parent_id,auto_assignable"),
     supabase.from("accounts").select("id,name"),
+    supabase.from("integrations").select("provider,meta").eq("kind", "llm"),
   ]);
+
+  // Active LLM provider's label for the AI-suggest panel (default Gemini — same as the suggest route).
+  const activeLlm = (llmRows ?? []).find((r) => (r.meta as { active?: boolean } | null)?.active);
+  const providerLabel = llmProvider((activeLlm?.provider as string) ?? "gemini")?.label ?? "the model";
 
   const cats = catsRaw ?? [];
   const nameById = new Map(cats.map((c) => [c.id as string, c.name as string]));
@@ -119,7 +125,7 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
         </div>
       )}
       <EnrichPanel />
-      <AiSuggestPanel categories={aiCategories} />
+      <AiSuggestPanel categories={aiCategories} providerLabel={providerLabel} />
       <ReviewTable transactions={transactions} categories={categories} />
     </div>
   );

@@ -15,7 +15,9 @@ import { breakdownByAccount, topNTransactions, bucketDrill, accountPeriodFlow, t
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { formatAccountDetails } from "../src/lib/accounts/format.js";
 import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
-import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER } from "../src/lib/integrations.js";
+import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER, resolveLlmDispatch } from "../src/lib/integrations.js";
+import { suggestCategories as geminiSuggest } from "../src/lib/llm/gemini.js";
+import { suggestCategories as openaiSuggest } from "../src/lib/llm/openai.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
 import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
 import { selectSourceIds } from "../src/lib/prices/types.js";
@@ -165,6 +167,34 @@ if (reimportInserts > 0 || dupWithin > 0) failures++;
     ["no `truncate` class remains in the AI-suggest panel", noTruncate],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`AI-SUGGEST ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- LLM dispatch: active provider drives the adapter; missing key → clear error, never a silent fallback (Prompt 09 Pass 2) ----
+{
+  const ADAPTERS = new Set(["gemini", "openai"]);
+  const hasAdapter = (p: string) => ADAPTERS.has(p);
+  const yes = () => true;
+  const no = () => false;
+  const openaiActive = [{ provider: "openai", meta: { active: true, model: "gpt-4o" } }, { provider: "gemini", meta: { active: false } }];
+  const geminiActive = [{ provider: "gemini", meta: { active: true } }, { provider: "openai", meta: { active: false } }];
+
+  const dOpenaiKey = resolveLlmDispatch(openaiActive, hasAdapter, yes);
+  const dOpenaiNoKey = resolveLlmDispatch(openaiActive, hasAdapter, no);
+  const dGemini = resolveLlmDispatch(geminiActive, hasAdapter, yes);
+  const dNone = resolveLlmDispatch([], hasAdapter, yes);
+  const dAnthropic = resolveLlmDispatch([{ provider: "anthropic", meta: { active: true } }], hasAdapter, yes);
+
+  const checks: Array<[string, boolean]> = [
+    ["active openai + key → dispatch openai", dOpenaiKey.ok === true && dOpenaiKey.providerId === "openai"],
+    ["active openai picks the chosen model gpt-4o", dOpenaiKey.ok === true && dOpenaiKey.model === "gpt-4o"],
+    ["active openai + NO key → not ok, providerId stays openai (no gemini fallback)", dOpenaiNoKey.ok === false && dOpenaiNoKey.providerId === "openai"],
+    ["openai missing-key reason names OPENAI_API_KEY", dOpenaiNoKey.ok === false && dOpenaiNoKey.reason.includes("OPENAI_API_KEY")],
+    ["active gemini + key → dispatch gemini", dGemini.ok === true && dGemini.providerId === "gemini"],
+    ["none active → default gemini", dNone.ok === true && dNone.providerId === "gemini"],
+    ["active anthropic (no adapter) → not ok", dAnthropic.ok === false && dAnthropic.providerId === "anthropic"],
+    ["gemini and openai adapters are distinct functions", (geminiSuggest as unknown) !== (openaiSuggest as unknown)],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`LLM-DISPATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- BHIM UPI enrichment ----

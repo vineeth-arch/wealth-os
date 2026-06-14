@@ -121,7 +121,7 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
       const json = await res.json().catch(() => ({}));
       if (!mounted.current) return;
       if (!res.ok) throw new Error(json.error ?? "request failed");
-      setInfo(`Re-ran rules: ${json.recategorized} recategorized, ${json.remaining} still Uncategorized (of ${json.scanned} scanned).`);
+      setInfo(`Re-ran rules: ${json.recategorized} set by rule${json.reclaimedFromAi ? ` (${json.reclaimedFromAi} reclaimed from AI)` : ""}, ${json.remaining} unchanged (of ${json.scanned} scanned).`);
     } catch (e) { if (mounted.current) setError((e as Error).message); }
     finally { end(busyId); }
   }

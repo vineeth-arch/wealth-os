@@ -5,11 +5,12 @@ import { categorize, FALLBACK_CATEGORY, type VendorRule } from "@/lib/ingest/rul
 export const runtime = "nodejs";
 
 /**
- * Re-apply active vendor rules to ALREADY-COMMITTED transactions that are still on the default
- * fallback (category_source = 'default', i.e. Uncategorized Review and never set by the user).
- * Matches get category_source = 'rule'. Rows the user set ('user') or AI-confirmed ('ai_suggested')
- * are never touched. Safe by construction: rules can't target Leakage/Review, and we additionally
- * refuse to assign any non-auto-assignable category.
+ * Re-apply active vendor rules to ALREADY-COMMITTED transactions on the default fallback
+ * (category_source = 'default') OR previously set by AI ('ai_suggested'). A matching rule wins over an
+ * AI guess — deterministic rules outrank the model — and the row becomes category_source = 'rule'.
+ * Rows the user set by hand ('user') are NEVER touched (precedence: user > rule > AI > fallback).
+ * Safe by construction: rules can't target Leakage/Review, and we additionally refuse to assign any
+ * non-auto-assignable category.
  */
 export async function POST() {
   const supabase = await createSupabaseServer();
@@ -30,18 +31,21 @@ export async function POST() {
   );
 
   const { data: txns } = await supabase.from("transactions")
-    .select("id,description_raw,merchant").eq("user_id", user.id).eq("category_source", "default");
-  const rows = (txns ?? []) as Array<{ id: string; description_raw: string; merchant: string | null }>;
+    .select("id,description_raw,merchant,category_source").eq("user_id", user.id)
+    .in("category_source", ["default", "ai_suggested"]);
+  const rows = (txns ?? []) as Array<{ id: string; description_raw: string; merchant: string | null; category_source: string }>;
 
   // Group the matched transactions by their resulting category so we issue one update per category.
   // Match against the UPI-enriched counterpart name too, so a rule like LAZYPAY fires off `merchant`.
   const byCategory = new Map<string, string[]>();
+  let reclaimedFromAi = 0; // how many of the matched rows were previously AI-categorized
   for (const t of rows) {
     const { category } = categorize(t.description_raw + " " + (t.merchant ?? ""), rules);
     if (category === FALLBACK_CATEGORY) continue;
     const info = byName.get(category);
     if (!info || !info.autoAssignable) continue;
     (byCategory.get(info.id) ?? byCategory.set(info.id, []).get(info.id)!).push(t.id);
+    if (t.category_source === "ai_suggested") reclaimedFromAi++;
   }
 
   let recategorized = 0;
@@ -56,5 +60,5 @@ export async function POST() {
     }
   }
 
-  return NextResponse.json({ scanned: rows.length, recategorized, remaining: rows.length - recategorized });
+  return NextResponse.json({ scanned: rows.length, recategorized, reclaimedFromAi, remaining: rows.length - recategorized });
 }

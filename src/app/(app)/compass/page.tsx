@@ -8,7 +8,8 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import { accountBalances } from "@/lib/halan";
 import {
   type CompassTxn, type HoldingValue, computeWindow, machineH1, machineH2, machineH3,
-  machineH4, machineH5, machineH6Leakage, netWorthSeries, sanityFlags, TRAILING_WINDOW_MONTHS,
+  machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep,
+  enjoymentFloor, sanityFlags, TRAILING_WINDOW_MONTHS,
 } from "@/lib/compass";
 import { formatINR, formatPct, formatMonth } from "@/lib/format";
 import { Gauge, Sparkles, ArrowUpRight, ArrowDownRight, ArrowRight } from "lucide-react";
@@ -48,7 +49,7 @@ export default async function CompassPage() {
   const windowTxns = compassTxns.filter((t) => inWindow.has(t.txnDate.slice(0, 7)));
 
   // Liquid cash = bank-kind balances only (survives a market crash). H2's denominator.
-  const { balances } = accountBalances(
+  const { balances, netWorthPaise: cashNetWorthPaise } = accountBalances(
     accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, anchorBalancePaise: a.anchorBalancePaise, anchorDate: a.anchorDate })),
     drillTxns.map((t) => ({ accountId: t.accountId, txnDate: t.txnDate, amountPaise: t.amountPaise })),
   );
@@ -93,6 +94,11 @@ export default async function CompassPage() {
   const allAccounts = accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, anchorBalancePaise: a.anchorBalancePaise, anchorDate: a.anchorDate }));
   const allFlows = drillTxns.map((t) => ({ accountId: t.accountId, txnDate: t.txnDate, amountPaise: t.amountPaise }));
   const h6trend = netWorthSeries(allAccounts, allFlows, window.months);
+
+  // The Mirror — behavioural signals (reflection, not scoring)
+  const freedom = freedomRatio(window.avg, cashNetWorthPaise, h5.totalPaise);
+  const creep = lifestyleCreep(window);
+  const enjoy = enjoymentFloor(window.avg);
 
   const flags = sanityFlags(window.totals);
   const hasIncome = window.avg.personalIncome > 0;
@@ -233,6 +239,59 @@ export default async function CompassPage() {
               )}
             </div>
           </CheckCard>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">The Mirror</h2>
+          <p className="text-sm text-muted-foreground">Behavioural signals — for reflection, not scoring.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Freedom ratio</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-2xl font-semibold tracking-tight">{freedom.months === null ? "—" : `${freedom.months.toFixed(1)} mo`}</div>
+              <p className="text-xs text-muted-foreground">
+                Total liquid net worth <span className="font-medium text-foreground">including investments</span> ({formatINR(freedom.liquidNetWorthPaise)}) ÷ avg monthly spend — months you could fund your life with zero income. Broader than H2&apos;s cash-only buffer. <span className="italic">Independence is the highest dividend.</span>
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm">Lifestyle creep</CardTitle>
+              <BandPill band={creep.band} />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-2xl font-semibold tracking-tight">{creep.creepPct === null ? "—" : `${creep.creepPct > 0 ? "+" : ""}${creep.creepPct.toFixed(0)}%`}</div>
+              {creep.creepPct === null ? (
+                <p className="text-xs text-muted-foreground">Needs ≥2 months of history.</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Spend {creep.spendGrowthPct!.toFixed(0)}% vs income {creep.incomeGrowthPct!.toFixed(0)}% (first vs second half of the window).
+                  {creep.creepPct > 0 ? " Spending is outpacing income — " : " Income is keeping ahead — "}
+                  <span className="italic">watch for expectations growing faster than income.</span>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Enjoyment floor</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-2xl font-semibold tracking-tight">{enjoy.saveRatePct === null ? "—" : enjoy.triggered ? "Over-saving?" : "Balanced"}</div>
+              {enjoy.triggered ? (
+                <p className="text-xs text-muted-foreground">
+                  Saving {enjoy.saveRatePct!.toFixed(0)}% with wants at only {enjoy.wantsSharePct!.toFixed(0)}% of income. <span className="italic">You can afford to enjoy more — don&apos;t let money become an accounting hobby.</span>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {enjoy.saveRatePct === null ? "Categorize income & spend to compute this." : <>Saving {enjoy.saveRatePct.toFixed(0)}%, wants {enjoy.wantsSharePct!.toFixed(0)}% of income — a healthy balance between saving and living.</>}
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </section>
     </div>

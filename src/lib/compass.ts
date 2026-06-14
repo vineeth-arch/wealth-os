@@ -376,6 +376,65 @@ export function netWorthSeries(
   return { series, band, direction, changePaise };
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// The Mirror — computable Housel signals (the behaviour). Reflection, not scoring.
+// ───────────────────────────────────────────────────────────────────────────
+
+export interface FreedomRatio {
+  months: number | null;             // total liquid net worth (incl. investments) ÷ avg monthly spend
+  liquidNetWorthPaise: number;
+}
+
+/**
+ * Freedom ratio — months you could fund your life with zero income, counting investments too.
+ * Deliberately broader than H2's cash-only emergency fund (independence is the highest dividend).
+ */
+export function freedomRatio(avg: LensTotals, cashNetWorthPaise: number, holdingsValuePaise: number): FreedomRatio {
+  const liquidNetWorthPaise = cashNetWorthPaise + holdingsValuePaise;
+  if (avg.personalSpend <= 0) return { months: null, liquidNetWorthPaise };
+  return { months: liquidNetWorthPaise / avg.personalSpend, liquidNetWorthPaise };
+}
+
+export interface LifestyleCreep {
+  spendGrowthPct: number | null;     // % change, first half vs second half of the window
+  incomeGrowthPct: number | null;
+  creepPct: number | null;           // spendGrowth − incomeGrowth (positive = creep)
+  band: Band | null;                 // green ≤0, amber ≤10, red >10
+}
+
+/**
+ * Lifestyle-creep — does spending grow faster than income? Compares the first vs second half of the
+ * window (halves smooth the lumpy proprietor income). Needs ≥2 covered months.
+ */
+export function lifestyleCreep(window: CompassWindow): LifestyleCreep {
+  const pm = window.perMonth;
+  if (pm.length < 2) return { spendGrowthPct: null, incomeGrowthPct: null, creepPct: null, band: null };
+  const mid = Math.floor(pm.length / 2);
+  const first = pm.slice(0, mid), second = pm.slice(mid);
+  const avgOf = (rows: MonthLens[], key: "personalSpend" | "personalIncome") =>
+    rows.reduce((s, r) => s + r[key], 0) / rows.length;
+  const growth = (a: number, b: number) => (a <= 0 ? (b > 0 ? 100 : 0) : ((b - a) / a) * 100);
+  const spendGrowthPct = growth(avgOf(first, "personalSpend"), avgOf(second, "personalSpend"));
+  const incomeGrowthPct = growth(avgOf(first, "personalIncome"), avgOf(second, "personalIncome"));
+  const creepPct = spendGrowthPct - incomeGrowthPct;
+  return { spendGrowthPct, incomeGrowthPct, creepPct, band: bandLower(creepPct, 0, 10) };
+}
+
+export interface EnjoymentFloor {
+  triggered: boolean;                // saving hard but spending almost nothing on wants
+  saveRatePct: number | null;
+  wantsSharePct: number | null;
+}
+
+/** Enjoyment floor — Housel's counterweight to Halan: if you over-save and barely enjoy, a gentle nudge. */
+export function enjoymentFloor(avg: LensTotals): EnjoymentFloor {
+  const inc = avg.personalIncome;
+  if (inc <= 0) return { triggered: false, saveRatePct: null, wantsSharePct: null };
+  const saveRatePct = (avg.personalSavings / inc) * 100;
+  const wantsSharePct = (avg.wantsOutflow / inc) * 100;
+  return { triggered: saveRatePct > 40 && wantsSharePct < 5, saveRatePct, wantsSharePct };
+}
+
 export function sanityFlags(t: LensTotals): SanityFlags {
   const income = t.personalIncome;
   const spendExceedsIncome = income > 0 && t.personalSpend > income * 1.5;

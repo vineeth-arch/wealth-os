@@ -810,7 +810,7 @@ assert("projection grows tax with positive growth", projectCapitalGainsTax(cgSeg
 
 // ---- Money Box Compass — proprietor lens engine (Pass 1): one pool, two lenses, category-driven ----
 console.log("\n" + "-".repeat(78));
-import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries, bandHigher, bandLower } from "../src/lib/compass.js";
+import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_LEAVES, machineH1, machineH2, machineH3, machineH4, machineH5, machineH6Leakage, netWorthSeries, freedomRatio, lifestyleCreep, enjoymentFloor, bandHigher, bandLower } from "../src/lib/compass.js";
 {
   const cmk = (over: Partial<CompassTxn>): CompassTxn => ({
     txnDate: "2026-03-15", amountPaise: -10000, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [], ...over,
@@ -982,6 +982,38 @@ import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_
     [`H6 <2 months → null band (needs more history)`, trendOne.band === null],
   ];
   for (const [label, ok] of h6Checks) { if (!ok) failures++; console.log(`COMPASS-H6 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Compass Mirror (Pass 4): freedom ratio, lifestyle creep, enjoyment floor ----
+{
+  // avg per-month spend ₹40,000; cash net worth ₹6,00,000 + investments ₹18,00,000 = ₹24,00,000 → 60 months
+  const avg = { ...lensTotals([]), personalIncome: 10000000, personalSavings: 5000000, investOutflow: 5000000, personalSpend: 4000000, wantsOutflow: 200000 };
+  const fr = freedomRatio(avg, 60000000, 180000000);
+  // window where spend grows faster than income → creep red
+  const cmk = (month: string, inc: number, spend: number): CompassTxn[] => ([
+    { txnDate: `${month}-05`, amountPaise: inc, parent: "01 Income", categoryName: "Retainer Income", tags: [] },
+    { txnDate: `${month}-12`, amountPaise: -spend, parent: "02 Spend-it Needs", categoryName: "Groceries", tags: [] },
+  ]);
+  const creepWin = computeWindow([
+    ...cmk("2026-01", 10000000, 3000000), ...cmk("2026-02", 10000000, 3000000),
+    ...cmk("2026-03", 10000000, 6000000), ...cmk("2026-04", 10000000, 6000000),
+  ], 6);
+  const creep = lifestyleCreep(creepWin); // spend +100%, income 0% → creep +100 → red
+  const calmWin = computeWindow([...cmk("2026-01", 10000000, 4000000), ...cmk("2026-02", 12000000, 4000000)], 6);
+  const calm = lifestyleCreep(calmWin); // income up, spend flat → creep negative → green
+  // enjoyment floor: save 50%, wants 2% of income → triggered
+  const enjoy = enjoymentFloor({ ...lensTotals([]), personalIncome: 10000000, personalSavings: 5000000, wantsOutflow: 200000 });
+  const enjoyBalanced = enjoymentFloor({ ...lensTotals([]), personalIncome: 10000000, personalSavings: 2500000, wantsOutflow: 1500000 });
+  const mirrorChecks: Array<[string, boolean]> = [
+    [`Freedom ratio includes investments = ${fr.months?.toFixed(0)} months (expected 60)`, Math.round(fr.months ?? 0) === 60 && fr.liquidNetWorthPaise === 240000000],
+    [`Freedom ratio null when no spend`, freedomRatio(lensTotals([]), 100, 100).months === null],
+    [`Lifestyle creep: spend +100% vs income 0% → red (creep ${creep.creepPct?.toFixed(0)}%)`, creep.band === "red" && Math.round(creep.creepPct ?? 0) === 100],
+    [`Lifestyle creep: income up, spend flat → green`, calm.band === "green" && (calm.creepPct ?? 1) <= 0],
+    [`Lifestyle creep null with <2 months`, lifestyleCreep(computeWindow(cmk("2026-01", 100, 100), 6)).band === null],
+    [`Enjoyment floor: save 50% + wants 2% → triggered`, enjoy.triggered && Math.round(enjoy.saveRatePct ?? 0) === 50],
+    [`Enjoyment floor: balanced saver → not triggered`, !enjoyBalanced.triggered],
+  ];
+  for (const [label, ok] of mirrorChecks) { if (!ok) failures++; console.log(`COMPASS-MIRROR ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

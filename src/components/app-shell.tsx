@@ -5,19 +5,16 @@ import { useEffect, useState } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Upload, ListChecks, Landmark, Wallet, LogOut, Moon, Sun, Plug, PieChart, Calculator, Tags, TrendingUp, HandCoins } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, Landmark, Wallet, LogOut, Moon, Sun, PieChart, Calculator, HandCoins, Settings } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/import", label: "Import", icon: Upload },
-  { href: "/review", label: "Review", icon: ListChecks },
-  { href: "/rules", label: "Rules", icon: Tags },
+  { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/holdings", label: "Holdings", icon: PieChart },
-  { href: "/upstox", label: "Upstox", icon: TrendingUp },
   { href: "/loans", label: "Loans", icon: HandCoins },
   { href: "/calculators", label: "Calculators", icon: Calculator },
-  { href: "/integrations", label: "Integrations", icon: Plug },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AppShell({ email, children }: { email: string; children: React.ReactNode }) {

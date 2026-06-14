@@ -1,6 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoldingsPanel } from "@/components/holdings-panel";
+import { UpstoxPanel } from "@/components/upstox-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +27,16 @@ type InstrumentJoin = {
 export default async function HoldingsPage() {
   const supabase = await createSupabaseServer();
   const [{ data: accountsRaw }, { data: snapsRaw }] = await Promise.all([
-    supabase.from("accounts").select("id,name").in("institution", ["ZERODHA", "UPSTOX"]).order("name"),
+    supabase.from("accounts").select("id,name,institution").in("institution", ["ZERODHA", "UPSTOX"]).order("name"),
     supabase.from("holdings_snapshots")
       .select("account_id,as_of,isin,qty,avg_price_paise,last_price_paise,instruments(name,asset_class,symbol,amfi_scheme_code,yahoo_symbol)")
       .order("as_of", { ascending: false }),
   ]);
 
   const accounts = (accountsRaw ?? []).map((a) => ({ id: a.id as string, name: a.name as string }));
+  const upstoxAccounts = (accountsRaw ?? [])
+    .filter((a) => (a.institution as string) === "UPSTOX")
+    .map((a) => ({ id: a.id as string, name: a.name as string }));
 
   // latest as_of per account → current holdings
   const latestByAccount = new Map<string, string>();
@@ -74,6 +78,19 @@ export default async function HoldingsPage() {
         </Card>
       ) : (
         <HoldingsPanel accounts={accounts} holdings={holdings} />
+      )}
+
+      {upstoxAccounts.length > 0 && (
+        <div className="space-y-4 border-t pt-6">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Upstox reports</h2>
+            <p className="text-sm text-muted-foreground">
+              Import Upstox dividend and tax (realized capital-gains) reports. Dividends post as income
+              transactions; the tax report is stored as a realized-gains record for the tax view.
+            </p>
+          </div>
+          <UpstoxPanel accounts={upstoxAccounts} />
+        </div>
       )}
     </div>
   );

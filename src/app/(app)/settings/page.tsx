@@ -4,7 +4,7 @@ import { IntegrationsPanel } from "@/components/integrations-panel";
 
 export const dynamic = "force-dynamic";
 
-export default async function IntegrationsPage() {
+export default async function SettingsPage() {
   const supabase = await createSupabaseServer();
   const [{ data: integrations }, { data: priceSources }] = await Promise.all([
     supabase.from("integrations").select("kind,provider,status,meta"),
@@ -19,7 +19,7 @@ export default async function IntegrationsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Integrations</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
           AI provider and price-source connections. LLM keys live as server environment variables — they
           never reach the browser or the database; this page only records which provider is active.

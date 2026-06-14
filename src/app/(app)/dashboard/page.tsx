@@ -77,7 +77,7 @@ export default async function DashboardPage() {
             <CardTitle>No transactions yet</CardTitle>
             <CardDescription>Import a statement to see net worth, cash flow, and your Halan buckets.</CardDescription>
           </CardHeader>
-          <CardContent><Button asChild><Link href="/import">Import a statement</Link></Button></CardContent>
+          <CardContent><Button asChild><Link href="/transactions?tab=import">Import a statement</Link></Button></CardContent>
         </Card>
       </div>
     );
@@ -141,7 +141,7 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">{latest ? `Latest month: ${formatMonth(latest.month)}` : ""} · {txns.length} transactions</p>
         </div>
-        <Button asChild variant="outline"><Link href="/import">Import</Link></Button>
+        <Button asChild variant="outline"><Link href="/transactions?tab=import">Import</Link></Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -208,7 +208,7 @@ export default async function DashboardPage() {
           <CardContent>
             <div className="text-3xl font-semibold">{reviewCount}</div>
             <p className="mt-1 text-sm text-muted-foreground">in Uncategorized Review</p>
-            {reviewCount > 0 && <Button asChild variant="outline" className="mt-3"><Link href="/review">Review now</Link></Button>}
+            {reviewCount > 0 && <Button asChild variant="outline" className="mt-3"><Link href="/transactions?tab=review">Review now</Link></Button>}
           </CardContent>
         </Card>
       </div>

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { IntegrationStatus } from "@/lib/integrations";
-import type { IntegrationRow, PriceSourceRow } from "@/app/(app)/integrations/page";
+import type { IntegrationRow, PriceSourceRow } from "@/app/(app)/settings/page";
 import { Bot, LineChart } from "lucide-react";
 
 interface LlmDisplay { id: string; label: string; models: string[]; available: boolean }

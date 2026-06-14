@@ -19,6 +19,8 @@ import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER, resolveLlmDispatc
 import { suggestCategories as geminiSuggest } from "../src/lib/llm/gemini.js";
 import { suggestCategories as openaiSuggest } from "../src/lib/llm/openai.js";
 import { busyReducer, BUSY_INITIAL, isBusy as busyIsBusy, busyLabel } from "../src/lib/busy.js";
+import { SEED_ACCOUNTS } from "../src/lib/seed-data.js";
+import { isTxnInstitution } from "../src/lib/ingest/dispatch.js";
 import { parseMfapiNav } from "../src/lib/prices/mfapi.js";
 import { parseNavAll, parseNavAllForIsinMap } from "../src/lib/prices/amfi.js";
 import { selectSourceIds } from "../src/lib/prices/types.js";
@@ -224,6 +226,25 @@ if (reimportInserts > 0 || dupWithin > 0) failures++;
     ["idle initial state is not busy", !busyIsBusy(BUSY_INITIAL) && busyLabel(BUSY_INITIAL) === null],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`BUSY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Seed accounts: institution must match what /api/import + holdings require (Prompt 11) ----
+{
+  const HOLDINGS_BROKERS = new Set(["ZERODHA", "UPSTOX"]);
+  for (const a of SEED_ACCOUNTS) {
+    let ok: boolean, why: string;
+    if (a.kind === "bank" || a.kind === "credit_card") {
+      ok = isTxnInstitution(a.institution); // must route through parseStatement()
+      why = `${a.name} (${a.kind}) institution=${a.institution} → isTxnInstitution`;
+    } else if (a.kind === "broker") {
+      ok = HOLDINGS_BROKERS.has(a.institution); // holdings import/commit match on the uppercase enum
+      why = `${a.name} (broker) institution=${a.institution} ∈ {ZERODHA,UPSTOX}`;
+    } else {
+      ok = false; why = `${a.name} has unexpected kind=${a.kind}`;
+    }
+    if (!ok) failures++;
+    console.log(`SEED-ACCOUNTS ${ok ? "PASS" : "FAIL"}: ${why}`);
+  }
 }
 
 // ---- BHIM UPI enrichment ----

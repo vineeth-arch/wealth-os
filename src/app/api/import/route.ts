@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     .select("id,name,institution,kind").eq("id", accountId).single();
   if (!account) return NextResponse.json({ error: "account not found" }, { status: 404 });
   if (!isTxnInstitution(account.institution)) {
-    return NextResponse.json({ error: `${account.institution} imports (holdings/UPI) arrive in the next pass; this pass handles bank & credit-card statements.` }, { status: 400 });
+    return NextResponse.json({ error: `${account.institution} accounts don't use this importer — import broker holdings (Zerodha/Upstox) on the Holdings page, and UPI exports via the Enrich panel. This importer handles bank & credit-card statements.` }, { status: 400 });
   }
 
   const text = await file.text();

@@ -1,7 +1,7 @@
 import type { StatementParseResult, ParsedTransaction } from "../types.js";
 import { parseAmount, parseDate, finalizeHashes } from "../util.js";
 
-const ACCOUNT = "HDFC — Nirmiti";
+const ACCOUNT = "HDFC — Sample";
 
 /**
  * HDFC savings statement — fixed-width COLUMNAR text (NOT a markdown table). Column boundaries are

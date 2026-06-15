@@ -41,7 +41,7 @@ The nav is seven items; a few pages have drill-down sub-views you reach by click
 | **Calculators** | A tabbed hub: **emergency fund**, **retirement / FIRE + withdrawal**, **Human Life Value** (insurance cover), **SIP / step-up + goal corpus**, **capital gains**, and **old-vs-new tax regime**. |
 | **Settings** | Which **LLM provider** (Gemini / OpenAI) and price sources are active. Stores the choice only — keys live in the server env, never here. |
 
-**Drill-downs:** `/insights/<metric>` (income · spend · invest · leakage · net) and `/buckets/<NN>` (any of the 15 parent buckets) show the contributing transactions with by-account provenance, a trend, and inline editing. `/upstox` is the Upstox detail page.
+**Drill-downs:** `/insights/<metric>` (income · spend · invest · leakage · net) and `/buckets/<NN>` (any of the 15 parent buckets) show the contributing transactions with by-account provenance, a trend, and inline editing. `/upstox` redirects to `/holdings` (the Upstox section lives there).
 
 ---
 
@@ -131,7 +131,7 @@ Almost always a categorization issue — most often a transfer (own-account move
 Net-worth trend needs ≥2 months of imported statements; the ratios need categorized data. Both fill in as you run the monthly ritual — they're labels, not errors.
 
 **How is my data protected?**
-Your own Supabase project with row-level security — only your logged-in account reads your rows. Source statements stay on your Mac / repo and are not committed to git. LLM keys live in the server env, never in the browser or the database.
+Your own Supabase project with row-level security — only your logged-in account reads your rows. The committed `fixtures/` files are synthetic samples used by the gate — your real statements should stay local and not be committed. LLM keys live in the server env, never in the browser or the database.
 
 **How often do I use this?**
 Monthly: import last month's statements, categorize, read the Compass and dashboard. Hands-free between sessions.

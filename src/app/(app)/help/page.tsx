@@ -109,7 +109,7 @@ export default function HelpPage() {
           </tbody>
         </table>
       </div>
-      <P><Strong>Drill-downs:</Strong> <Code>/insights/&lt;metric&gt;</Code> (income · spend · invest · leakage · net) and <Code>/buckets/&lt;NN&gt;</Code> (any of the 15 parent buckets) show the contributing transactions with by-account provenance, a trend, and inline editing. <Code>/upstox</Code> is the Upstox detail page.</P>
+      <P><Strong>Drill-downs:</Strong> <Code>/insights/&lt;metric&gt;</Code> (income · spend · invest · leakage · net) and <Code>/buckets/&lt;NN&gt;</Code> (any of the 15 parent buckets) show the contributing transactions with by-account provenance, a trend, and inline editing. <Code>/upstox</Code> redirects to <Code>/holdings</Code> (the Upstox section lives there).</P>
 
       {/* Compass */}
       <H2>Reading the Compass</H2>
@@ -223,7 +223,7 @@ export default function HelpPage() {
           },
           {
             q: "How is my data protected?",
-            a: <>Your own Supabase project with row-level security — only your logged-in account reads your rows. Source statements stay on your Mac / repo and are not committed to git. LLM keys live in the server env, never in the browser or the database.</>,
+            a: <>Your own Supabase project with row-level security — only your logged-in account reads your rows. The committed <Code>fixtures/</Code> files are synthetic samples used by the gate — real statements should stay local and not be committed. LLM keys live in the server env, never in the browser or the database.</>,
           },
           {
             q: "How often do I use this?",

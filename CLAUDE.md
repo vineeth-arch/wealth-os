@@ -16,6 +16,7 @@ Fuller narrative is in `README.md`. This file is the operating contract — read
 4. **Own the spec; the agent owns syntax.** The invariants and confirmed facts below are the spec. Implement freely *within* them. Changing one is a version-bump decision, not an implementation detail — ask.
 5. **This is a verifiable domain. Keep it that way.** Every feature should end in something objectively checkable: the gate, `tsc`, `next build`, a reconciliation equality, a row count. If you add logic with no check, you have added risk, not value.
 6. **Lean context.** This file is the lever. Keep it high-signal. If you learn a hard-won fact, add it to "Confirmed facts" in one line; don't bloat.
+7. **Standing references — read before unfamiliar work.** Before any Option B (Budgets / Reports / Dashboard / Balance-Sheet) work, read the relevant `docs/sure-reference/*.md` — the clean-room build spec (Sure's formulas reverse-engineered into wealth-os terms; **NOT** Sure source). Consult `HANDOFF.md` (the verified codebase onboarding ground truth) before touching unfamiliar areas. In short: `docs/sure-reference/` = *what to build*; `HANDOFF.md` = *how the codebase works*.
 
 ## The gate (run before declaring anything done)
 
@@ -28,6 +29,8 @@ npm run build       # next build, must be green
 `npm run verify` is the heart. It parses every fixture in `fixtures/`, asserts each statement's
 own opening->closing arithmetic equals the parsed sum, proves imports are idempotent, and unit-tests
 the bucket math. 30 PASS reports + "ALL GATES PASSED" = good. Anything else = not done.
+
+**UI verification (the gate does not cover runtime).** After ANY change that touches the UI (page, component, layout, nav, interaction), the build is **not done** until the UI is verified at runtime — a 2-minute manual click-through of the affected flow (import → review → AI-suggest → switch tabs → navigate) **or** drive it with the Chrome/browser MCP and confirm it renders and the key interactions work. `verify && typecheck && build` never catches runtime/lifecycle bugs (the IA-v2 lesson): **green ≠ working UI.** Every build prompt's final report states which check was done and what was exercised.
 
 ## Current state
 

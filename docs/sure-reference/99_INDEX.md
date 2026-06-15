@@ -28,9 +28,23 @@ Sure is **AGPL-3.0**; wealth-os is deliberately kept off AGPL. These docs theref
 | `02_REPORTS.md` | Period engine, income-statement metrics, CSV/Sheets export | **Phase B2 — Reports** |
 | `03_DASHBOARD.md` | Dashboard section model + the cashflow **Sankey** algorithm, outflows donut, net-worth line | **Phase B3 — Dashboard** |
 | `04_BALANCE_SHEET.md` | Net worth = assets − liabilities, classification groups, net-worth series | **Phase B3 — Balance-sheet dashboard section** |
-| `05_UX_SHELL.md` *(optional)* | Icon rail + account-tree sidebar, period picker, drag-reorder, privacy-blur | **Phase B4 — cosmetic UX parity (optional)** |
-| `06_HIGH_VALUE_EXTRAS.md` | Candidate extras beyond the 4 screens (Quick-Categorize, recurring, splits, bulk-edit/search, import-revert, privacy-blur) | **Post-Option-B backlog** |
+| `05_UX_SHELL.md` *(optional)* | Icon rail + account-tree sidebar, period picker, drag-reorder, **privacy-blur** | **Phase B4 — cosmetic UX parity (optional)** |
+| `06_TRANSACTIONS.md` | **Ledger backlog**, four sections: Quick-Categorize & Rules, Splits, Bulk-edit & Search, Import-revert | **Post-Option-B backlog** |
+| `07_RECURRING.md` | Recurring detection (Welford variance, day-cluster), next-date, upcoming | **Post-Option-B backlog (L)** |
+
+## Backlog ranking (post-Option-B)
+
+Once Budgets → Reports → Dashboard/Balance-Sheet land, the highest-value extras (ranked by value × fit for an import-only single-user INR app):
+
+1. **Quick-Categorize wizard** — `06_TRANSACTIONS.md` §1 — **S**, top pick (collapses the review→categorize ritual).
+2. **Transaction splits** — `06_TRANSACTIONS.md` §2 — **M** (accuracy).
+3. **Recurring / upcoming** — `07_RECURRING.md` — **L** (forward-looking; biggest "wow").
+4. **Bulk-edit + search** — `06_TRANSACTIONS.md` §3 — **M**.
+5. **Import revert** — `06_TRANSACTIONS.md` §4 — **M**.
+6. **Privacy-blur** — `05_UX_SHELL.md` §6 — **S** (standalone afternoon).
+
+Recommended build sequence: **Quick-Categorize → splits → recurring.** Out of scope (not gaps): live sync, multi-user, AI assistant/MCP, multi-currency — see `00_PORTING_GUIDE.md`.
 
 ## How to use these in a build prompt
 
-Each surface doc follows the same 5-section shape: **What it is → Sure data model → The math/algorithm (numbered) → UI/UX shape → ★ wealth-os build notes**. A build prompt should cite the doc + the numbered rule (e.g. "implement `01_BUDGETS.md` rules 3–6") rather than re-deriving Sure. The **★ build notes** section is the translation layer (which migration, which `src/lib/*` module, what to reuse, which `verify.ts` tests) — that is what makes each doc a spec-precursor, not just Sure documentation.
+Each surface doc follows the same 5-section shape: **What it is → Sure data model → The math/algorithm (numbered) → UI/UX shape → ★ wealth-os build notes**. A build prompt should cite the doc + the numbered rule (e.g. "implement `01_BUDGETS.md` rules 3–6", or "`06_TRANSACTIONS.md` §2") rather than re-deriving Sure. The **★ build notes** section is the translation layer (which migration, which `src/lib/*` module, what to reuse, which `verify.ts` tests) — that is what makes each doc a spec-precursor, not just Sure documentation.

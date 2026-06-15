@@ -100,3 +100,24 @@ Exclusion-set mapping:
 > - **(Recommended) Follow wealth-os convention** — invest (08) stays out of "spend"; budgets cover parents in `SPEND_CLASSES` only. Keeps Budgets consistent with the dashboard cash-flow and Compass.
 > - **Or** add invest as an opt-in budget line (closer to Sure). If chosen, do it as an explicit toggle, not by quietly widening `SPEND_CLASSES`.
 > Either way, **reuse the existing class set as the base**; this decision is *additive*, not a fork of the predicate.
+
+---
+
+## 7. Edit precedence — locked attributes / user-override  (cross-cutting; matters for Rules, Bulk-edit, Splits)
+
+Sure's `Enrichable` concern (`app/models/concerns/enrichable.rb`) governs **who may overwrite a field**: external (Plaid) and internal (Rules, AI) sources may enrich an attribute **only if the user hasn't taken ownership of it**. The module's own comment says it plainly (`:9-10`): "If a Rule tells us to set the category to Groceries, but the user later overrides… we should not override the category again."
+- `enrich_attribute(attr, value, source:)` (`:44`) skips any attribute that is `locked?` (`:123`); writes are logged to `data_enrichments`.
+- `lock_saved_attributes!` (`:139-143`) locks whatever the user just changed; `clear_ai_cache` (`:145`) only unlocks AI-set values that the user hasn't since changed.
+
+**wealth-os equivalent — already present:** `transactions.category_source` (`user | rule | ai_suggested | default | …`) + the **reapply override policy** in `src/lib/ingest/rules.ts` (`REAPPLY_SOURCES` never touches a `user`-set category). When porting Rules/Bulk-edit/Splits, **route writes through that policy** — a rule/bulk action must not overwrite a user-set category; a manual edit sets `category_source = 'user'` and becomes sticky. Do **not** add a `locked_attributes` JSONB; `category_source` is wealth-os's lock.
+
+## 8. Split parents are excluded from all aggregation  (cross-cutting; see `06_TRANSACTIONS.md` §2)
+
+Once splits exist, **a split parent must never be counted** — only its children. Sure enforces this two ways: the parent row is flagged `excluded: true`, and every aggregator merges the `excluding_split_parents` scope (`app/models/entry.rb:72-78`, a `NOT EXISTS (SELECT 1 FROM entries ce WHERE ce.parent_entry_id = entries.id)`). It is applied in income-statement totals, balances, search, and export.
+
+**wealth-os:** when splits land, add the same guard to every aggregator (`bucketTotals`, `accountBalances` in `src/lib/halan.ts`; the loaders in `drilldown.ts`/`server/load-drill.ts`) — exclude split parents, count children. Children sum to the parent, so net figures are unchanged.
+
+## 9. Account visibility & money precision (two smaller cross-cutting notes)
+
+- **Account visibility:** Sure scopes analytics to `Entry.visible` = accounts with `status ∈ {draft, active}` (a deactivated account drops out of totals). **wealth-os has no account status** — all accounts are live — so this maps to **n/a** (don't add a status column for parity).
+- **Money precision:** Sure stores `DECIMAL(19,4)` (4 fractional places) and carries small UI tolerances (±0.01 on the amount filter, ±0.005 on split balancing). wealth-os is **integer paise** — convert `round(major × 100)`, and note that **integer sums are exact**, so split/budget reconciliation needs **no tolerance** (assert `===`, not "within ε"). This is a wealth-os correctness advantage; preserve it.

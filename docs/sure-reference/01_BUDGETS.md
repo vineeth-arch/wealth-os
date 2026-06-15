@@ -11,7 +11,7 @@ A budget is **one row per user per period** (a calendar month in practice) holdi
 **`budgets`** — `db/schema.rb:372`; model `app/models/budget.rb`.
 - `family_id`, `start_date`, `end_date`, `budgeted_spending DECIMAL(19,4)`, `expected_income DECIMAL(19,4)`, `currency`, timestamps.
 - Unique index on `(family_id, start_date, end_date)` → exactly one budget per family per period.
-- Bootstrapped on demand: `Budget.find_or_bootstrap(family, start_date:, user:)` creates the row and a `budget_category` per family category.
+- Bootstrapped on demand: `Budget.find_or_bootstrap(family, start_date:, user:)` (`budget.rb:47-66`) `find_or_create_by!` the row, then `sync_budget_categories` (`:92-109`) **creates a `budget_category` (with `budgeted_spending: 0`) for every family category that lacks one and destroys any orphaned ones** — so the join always mirrors the live taxonomy.
 
 **`budget_categories`** — `db/schema.rb:360`; model `app/models/budget_category.rb`.
 - `budget_id`, `category_id`, `budgeted_spending DECIMAL(19,4)`, `currency`, timestamps.
@@ -47,7 +47,13 @@ Sign already handled: Sure "expense" = positive amount; in wealth-os "spend" = m
 **Income mirror + extras:**
 13. **`suggested_daily_spending`** (`budget.rb` current-month only, positive only) = `available_to_spend / days_remaining`.
 14. **Income side** (`budget.rb:286-308`): `actual_income = Σ inflows in period`; `actual_income_percent = actual_income / expected_income × 100`; `remaining_expected_income = expected_income − actual_income`; `surplus_percent` when remaining is negative.
-15. **`copy_previous`** (`budget.rb` `copy_from!`, controller `copy_previous`): copy `budgeted_spending` + `expected_income` + every per-category allocation from the most-recent initialized prior budget.
+15. **`copy_previous`** (`budget.rb` `copy_from!:151-170`, controller `copy_previous`): copy `budgeted_spending` + `expected_income` + every per-category allocation from the most-recent initialized prior budget.
+
+**Estimates, states & display:**
+16. **Auto-fill estimates** (`budget.rb:223-225, 286-288`): `estimated_spending = income_statement.median_expense(interval: "month")`, `estimated_income = median_income(interval: "month")` (median over monthly history via `FamilyStats`). The Setup form offers these as one-click prefills. → wealth-os: derive from `monthlyCashFlow()` history medians.
+17. **Donut segments** (`to_donut_segments_json`, `budget.rb:203-218`): one segment per parent `{ color: category.color, amount: budget_category_actual_spending(bc), id: bc.id }`, plus — only when `available_to_spend > 0` — an `"unused"` segment `{ color: var(--budget-unallocated-fill), amount: available_to_spend }`. **Overage is implicit** (no unused segment when over). An uninitialized/invalid budget renders a single placeholder segment.
+18. **States** (`budget.rb`): `initialized? = budgeted_spending.present?` (`:138`); `current?` (`:180`) compares to the calendar/custom month; `previous_budget_param`/`next_budget_param` (`:189-201`) gate month nav to a ±2-year window; `allocations_valid?` from rule 9.
+19. **Budget performance in Reports** (`reports_controller.rb:312-322`, current month only): `actual_spending / allocated_spending × 100` — note the denominator is **`allocated_spending`** (rule 6), *not* `budgeted_spending`. Use the same in wealth-os's reports.
 
 ## 4. UI/UX shape
 
@@ -64,7 +70,9 @@ Two-step wizard → show page (`app/controllers/budgets_controller.rb`, `budget_
 - `budget_categories`: `id uuid pk`, `user_id uuid not null`, `budget_id uuid fk`, `category_id uuid fk`, `budgeted_spending_paise bigint not null default 0`, timestamps; `unique(budget_id, category_id)`.
 - RLS owner policy `auth.uid() = user_id` on both.
 
-**Module `src/lib/budget.ts`** (pure, no React/Next — runnable under `tsx`, like `halan.ts`). Implement rules 1–15 over the **same period-filtered `TxnLike[]`** the dashboard already builds. **Reuse, do not re-derive:**
+**`find_or_bootstrap` equivalent:** on first visit to a month, upsert a `budgets` row and **sync `budget_categories` against the live taxonomy** (rule from §2) — create a 0-paise row per leaf, prune orphans. The **donut** (rule 17) is a Recharts ring; segments come straight from `bucketTotals()`. (Sure's API emits both a formatted string and a `_cents` integer; wealth-os stores **paise natively**, so its `/api/budgets` just returns paise — no dual representation needed.)
+
+**Module `src/lib/budget.ts`** (pure, no React/Next — runnable under `tsx`, like `halan.ts`). Implement rules 1–19 over the **same period-filtered `TxnLike[]`** the dashboard already builds. **Reuse, do not re-derive:**
 - per-category / per-parent spend → `bucketTotals()` and the drill aggregation in `src/lib/drilldown.ts` (do **not** recompute from raw rows).
 - the spend predicate → `SPEND_CLASSES` (`halan.ts:20`); the sign/net logic → `halan.ts` (porting guide §2, §6).
 - the parent/leaf map → `parentByCatId` (`src/lib/server/load-drill.ts`); **never hardcode category-name strings** (porting guide §5).

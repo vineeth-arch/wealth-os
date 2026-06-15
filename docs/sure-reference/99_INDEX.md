@@ -29,6 +29,7 @@ Sure is **AGPL-3.0**; wealth-os is deliberately kept off AGPL. These docs theref
 | `03_DASHBOARD.md` | Dashboard section model + the cashflow **Sankey** algorithm, outflows donut, net-worth line | **Phase B3 — Dashboard** |
 | `04_BALANCE_SHEET.md` | Net worth = assets − liabilities, classification groups, net-worth series | **Phase B3 — Balance-sheet dashboard section** |
 | `05_UX_SHELL.md` *(optional)* | Icon rail + account-tree sidebar, period picker, drag-reorder, privacy-blur | **Phase B4 — cosmetic UX parity (optional)** |
+| `06_HIGH_VALUE_EXTRAS.md` | Candidate extras beyond the 4 screens (Quick-Categorize, recurring, splits, bulk-edit/search, import-revert, privacy-blur) | **Post-Option-B backlog** |
 
 ## How to use these in a build prompt
 

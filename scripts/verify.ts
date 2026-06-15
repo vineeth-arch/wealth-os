@@ -8,13 +8,20 @@ import { parseHdfcBank } from "../src/lib/ingest/parsers/hdfc.js";
 import { parseHdfcLoanSchedule } from "../src/lib/ingest/parsers/hdfc-loan.js";
 import { parseBhimUpi, parseGooglePay, parseZerodhaHoldings } from "../src/lib/ingest/parsers/market.js";
 import { parseUpstoxHoldings, parseUpstoxDividends, parseUpstoxTaxReport, excelSerialToISO } from "../src/lib/ingest/parsers/upstox.js";
+import { parseMoneyManager, stripEmojiPrefix } from "../src/lib/ingest/parsers/money-manager.js";
+import { parseGooglePayStatement, matchGooglePayStatement, planGooglePayWrites, gpayNoteLine, GPAY_NOTE_PREFIX, type GpayMatch, type GpayTxnState } from "../src/lib/ingest/parsers/google-pay-statement.js";
+import { mergeSourceNote } from "../src/lib/ingest/money-manager.js";
+import { resolveGpayCategory, gpayTargetCategoryNames, isGpayTransfer } from "../src/lib/ingest/google-pay-category-map.js";
+import { matchMoneyManager, DEFAULT_WINDOW_DAYS, planMoneyManagerWrites, mergeMmNote, mmNoteLine, MM_NOTE_PREFIX, type MmMatch, type MmTxnState } from "../src/lib/ingest/money-manager.js";
+import { resolveMmCategory, mmTargetCategoryNames, isSpouseTransfer, SPOUSE_TRANSFER_CATEGORY } from "../src/lib/ingest/money-manager-category-map.js";
 import { matchEnrichment, mergeMerchant } from "../src/lib/ingest/enrich.js";
 import { buildSuggestPrompt } from "../src/lib/llm/prompt.js";
 import { buildOpenAiRequestBody, parseOpenAiSuggestions } from "../src/lib/llm/openai.js";
 import { breakdownByAccount, topNTransactions, bucketDrill, accountPeriodFlow, type DrillTxn } from "../src/lib/drilldown.js";
 import { buildUserCategoryUpdate, isKnownCategory, buildRuleDraft } from "../src/lib/recategorize.js";
 import { formatAccountDetails } from "../src/lib/accounts/format.js";
-import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY } from "../src/lib/ingest/rules.js";
+import { loadTaxonomy, loadRules, categorize, FALLBACK_CATEGORY, isForbiddenAutoParent,
+  selectActiveRules, moveInOrder, isReapplyTarget, reapplyRules, type ReapplyTxn } from "../src/lib/ingest/rules.js";
 import { deriveLlmStatus, isLlmProvider, DEFAULT_LLM_PROVIDER, resolveLlmDispatch } from "../src/lib/integrations.js";
 import { suggestCategories as geminiSuggest } from "../src/lib/llm/gemini.js";
 import { suggestCategories as openaiSuggest } from "../src/lib/llm/openai.js";
@@ -33,7 +40,7 @@ import { pvAnnuity, hlvIncomeReplacement, hlvExpenseLiability } from "../src/lib
 import { sipFutureValue, goalCorpus, requiredMonthlySip } from "../src/lib/calc/sip.js";
 import { computeCapitalGainsTax, projectCapitalGainsTax } from "../src/lib/calc/capital-gains.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
-import type { StatementParseResult, UpiEnrichmentRow } from "../src/lib/ingest/types.js";
+import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "../src/lib/ingest/types.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -604,6 +611,77 @@ console.log(`AUTO-CATEGORIZATION: ${hit}/${everyTxn.length} matched a rule; ${ca
 const topRules = [...ruleHits.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
 for (const [i, n] of topRules) console.log(`  ${n.toString().padStart(4)}×  "${rules[i].match}" → ${rules[i].category}`);
 
+// ---- Global rule repository (Prompt 16): account-agnostic match, ordering, enablement, re-run policy ----
+{
+  // A rule whose target lives under 14 Cash Leakage Watchlist must be refused at load (the 14/15 wall).
+  let rejected14 = false;
+  try { loadRules("- match: SOMEVENDOR\n  category: Food Delivery Leakage\n", taxonomy); }
+  catch { rejected14 = true; }
+
+  // Synthetic repo with explicit ids/priorities. r-zomDining (prio 5) is DISABLED; the enabled r-zomFood
+  // (prio 10) must win over r-amazon (prio 30) for a ZOMATO line — proving order + enablement.
+  const repo = [
+    { id: "r-amazon", priority: 30, active: true, match: "AMAZON", category: "Groceries" },
+    { id: "r-zomDining", priority: 5, active: false, match: "ZOMATO", category: "Fuel" },
+    { id: "r-zomFood", priority: 10, active: true, match: "ZOMATO", category: "Food Delivery" },
+  ];
+  const active = selectActiveRules(repo);
+  const orderOk = active.map((r) => r.id).join(",") === "r-zomFood,r-amazon"; // disabled dropped, ascending
+  const engineRules = active.map((r) => ({ match: r.match, category: r.category }));
+  const zomatoCat = categorize("UPI/ZOMATO ORDER", engineRules).category;       // first match wins by priority
+  const disabledSkipped = zomatoCat === "Food Delivery";                        // not "Fuel" (disabled, lower prio)
+
+  // account-agnostic: two txns with identical text but different ids/accounts resolve identically.
+  const txns: ReapplyTxn[] = [
+    { id: "t1", text: "UPI/ZOMATO ORDER", categorySource: "default", categoryName: FALLBACK_CATEGORY },   // change
+    { id: "t2", text: "UPI/ZOMATO ORDER", categorySource: "default", categoryName: FALLBACK_CATEGORY },   // change (same text, diff account)
+    { id: "t3", text: "AMAZON PAY", categorySource: "ai_suggested", categoryName: "Online Shopping" },     // re-evaluated (AI)
+    { id: "t4", text: "AMAZON PAY", categorySource: "money_manager", categoryName: "Online Shopping" },    // re-evaluated (MM)
+    { id: "t5", text: "AMAZON PAY", categorySource: "user", categoryName: "Online Shopping" },             // PRESERVED (hand-set)
+    { id: "t6", text: "NO RULE MATCHES THIS", categorySource: "default", categoryName: FALLBACK_CATEGORY },// stays uncategorized
+    { id: "t7", text: "UPI/ZOMATO ORDER", categorySource: "rule", categoryName: "Food Delivery" },        // already settled → no-op
+    { id: "t8", text: "AMAZON PAY", categorySource: "google_pay_statement", categoryName: "Online Shopping" }, // re-evaluated (GPay)
+  ];
+  const out = reapplyRules(txns, active);
+  const matchedTallyOk = Object.values(out.matchedByRuleId).reduce((s, n) => s + n, 0) === out.matched;
+  const userPreserved = !out.decisions.some((d) => d.txnId === "t5");
+  const t1t2Same = out.decisions.filter((d) => d.txnId === "t1" || d.txnId === "t2").every((d) => d.category === "Food Delivery");
+  const aiMmGpayReeval = ["t3", "t4", "t8"].every((id) => out.decisions.some((d) => d.txnId === id));
+  const noopSkipped = !out.decisions.some((d) => d.txnId === "t7");
+
+  // Idempotent: apply this run's decisions (category set, source → 'rule'), then re-run → nothing changes.
+  const settled: ReapplyTxn[] = txns.map((t) => {
+    const d = out.decisions.find((x) => x.txnId === t.id);
+    return d ? { ...t, categoryName: d.category, categorySource: "rule" } : t;
+  });
+  const out2 = reapplyRules(settled, active);
+
+  const reorderOk = moveInOrder(["a", "b", "c"], "c", "up").join(",") === "a,c,b"     // c earlier
+    && moveInOrder(["a", "b", "c"], "a", "down").join(",") === "b,a,c"                // a later
+    && moveInOrder(["a", "b", "c"], "a", "up").join(",") === "a,b,c";                 // boundary no-op
+
+  const mig08 = readFileSync("supabase/migrations/0009_rule_hits.sql", "utf8");
+
+  const checks: Array<[string, boolean]> = [
+    [`loadRules refuses a rule targeting a parent-14 (Leakage) category`, rejected14],
+    [`selectActiveRules drops disabled + sorts by priority (r-zomFood,r-amazon)`, orderOk],
+    [`first-match-wins by priority → ZOMATO = Food Delivery; disabled rule skipped`, disabledSkipped && zomatoCat === "Food Delivery"],
+    [`account-agnostic: identical text on different accounts → same category`, t1t2Same],
+    [`re-run preserves user-set ('user') row`, userPreserved],
+    [`re-run re-evaluates ai_suggested + money_manager + google_pay_statement rows`, aiMmGpayReeval],
+    [`re-run skips an already rule-settled no-op row`, noopSkipped],
+    [`isReapplyTarget: default/rule/ai_suggested/money_manager/google_pay_statement=true, user=false`,
+      isReapplyTarget("default") && isReapplyTarget("rule") && isReapplyTarget("ai_suggested") && isReapplyTarget("money_manager") && isReapplyTarget("google_pay_statement") && !isReapplyTarget("user")],
+    [`per-rule matched tally == total matched (${out.matched})`, matchedTallyOk],
+    [`rows newly categorized this run (changed) = ${out.changed}`, out.changed === 5],
+    [`re-run is idempotent (2nd pass changes 0; 1st changed ${out.changed})`, out.changed > 0 && out2.changed === 0],
+    [`remaining = eligible still on fallback = ${out.remaining}`, out.remaining === 1], // only t6
+    [`moveInOrder swaps adjacent up/down; boundary is a no-op`, reorderOk],
+    [`migration 0009 declares last_hit_count + last_run_at`, mig08.includes("last_hit_count") && mig08.includes("last_run_at")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`RULESREPO ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 // ---- Halan bucket math: synthetic, hard-asserted ----
 console.log("\n" + "-".repeat(78));
 import { bucketTotals, monthlyCashFlow, leakageByParent, accountBalances, classifyParent, holdingsValue } from "../src/lib/halan.js";
@@ -1064,6 +1142,330 @@ import { lensTotals, computeWindow, reconcile, type CompassTxn, BUSINESS_INCOME_
     [`all green → no top action (steady)`, allGreen.topAction === null && allGreen.counts.green === 2],
   ];
   for (const [label, ok] of sumChecks) { if (!ok) failures++; console.log(`COMPASS-SUMMARY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager enrichment parser (Pass 1): redacted synthetic fixture, structure not content ----
+console.log("\n" + "-".repeat(78));
+{
+  const { entries: mm, warnings: mmw } = parseMoneyManager(readFileSync("fixtures/money_manager_sample.xlsx"));
+  const salary = mm.find((e) => e.categoryRaw === "Salary");
+  const transport = mm.find((e) => e.categoryRaw === "Transport");
+  const personal = mm.find((e) => e.categoryRaw === "Personal");
+  const health = mm.find((e) => e.categoryRaw === "Health");
+  console.log(`\nMONEY MANAGER: ${mm.length} entries parsed from the redacted fixture (${mmw.length} warnings)`);
+  const mmChecks: Array<[string, boolean]> = [
+    [`rows = ${mm.length} (expected 8)`, mm.length === 8],
+    [`Income row → positive paise (Salary ${salary?.amountPaise}, expected +5000000)`, salary?.amountPaise === 5000000 && salary?.direction === "inflow"],
+    [`Exp. row → negative paise (Transport ${transport?.amountPaise}, expected -12000)`, transport?.amountPaise === -12000 && transport?.direction === "outflow"],
+    [`emoji stripped from category ("🚖 Transport" → "Transport", "🧘🏼 Health" → "Health")`,
+      transport?.categoryRaw === "Transport" && health?.categoryRaw === "Health"],
+    [`stripEmojiPrefix leaves a plain category untouched ("Other")`, stripEmojiPrefix("Other") === "Other"],
+    [`merchantText falls back to note when description empty (Transport → "To office")`, transport?.merchantText === "To office"],
+    [`merchantText prefers description when present (Personal → "Cafe Coffee Day")`, personal?.merchantText === "Cafe Coffee Day"],
+    [`redundant Amount col (99999) ignored — uses INR (Personal = -25000)`, personal?.amountPaise === -25000],
+    [`rowRef is a stable 64-hex sha256`, !!salary && /^[0-9a-f]{64}$/.test(salary.rowRef)],
+  ];
+  for (const [label, ok] of mmChecks) { if (!ok) failures++; console.log(`MM ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager category map (Pass 2): targets resolved from the taxonomy, never 14/15 ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -10000, direction: "outflow", categoryRaw: "Personal",
+    note: null, description: null, merchantText: "", rowRef: "r", ...over,
+  });
+  // every map target must EXIST in the taxonomy and must NOT be a Leakage(14)/Review(15) leaf
+  const targets = mmTargetCategoryNames();
+  const allExist = targets.every((n) => taxonomy.has(n));
+  const noneForbidden = targets.every((n) => { const c = taxonomy.get(n); return c && !isForbiddenAutoParent(c.parent || c.name); });
+  const mapChecks: Array<[string, boolean]> = [
+    [`all ${targets.length} map targets exist in the taxonomy`, allExist],
+    [`no map target is a Leakage(14)/Review(15) leaf`, noneForbidden],
+    [`CC → "Credit Card Bill Payment Transfer" (Transfer, parent 10)`,
+      resolveMmCategory(mmk({ categoryRaw: "CC" })).categoryName === "Credit Card Bill Payment Transfer" && taxonomy.get("Credit Card Bill Payment Transfer")?.parent === "10 Transfers & Adjustments"],
+    [`SIP → "SIP Mutual Fund" (Invest, parent 08)`,
+      resolveMmCategory(mmk({ categoryRaw: "SIP" })).categoryName === "SIP Mutual Fund" && taxonomy.get("SIP Mutual Fund")?.parent === "08 Invest-it"],
+    [`Transport → "Taxi / Cab / Auto" (parent 02)`,
+      resolveMmCategory(mmk({ categoryRaw: "Transport" })).categoryName === "Taxi / Cab / Auto"],
+    [`Salary → "Salary" (parent 01), is an override`,
+      resolveMmCategory(mmk({ categoryRaw: "Salary", direction: "inflow", amountPaise: 100 })).categoryName === "Salary" && resolveMmCategory(mmk({ categoryRaw: "Salary" })).isOverride],
+    [`Personal / Other → null (not forced — left for rules + AI)`,
+      resolveMmCategory(mmk({ categoryRaw: "Personal" })).categoryName === null && resolveMmCategory(mmk({ categoryRaw: "Other" })).categoryName === null],
+    [`note "Vinnie" → family-account transfer override "${SPOUSE_TRANSFER_CATEGORY}" (parent 10), regardless of category`,
+      isSpouseTransfer(mmk({ note: "Vinnie", categoryRaw: "Other", direction: "inflow", amountPaise: 50000 })) &&
+      resolveMmCategory(mmk({ note: "Vinnie", categoryRaw: "Other" })).categoryName === SPOUSE_TRANSFER_CATEGORY &&
+      taxonomy.get(SPOUSE_TRANSFER_CATEGORY)?.parent === "10 Transfers & Adjustments"],
+  ];
+  for (const [label, ok] of mapChecks) { if (!ok) failures++; console.log(`MM-MAP ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager matcher (Pass 2): direction + exact amount within ±window, 1:1 unambiguous ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -5000, direction: "outflow", categoryRaw: "Personal",
+    note: "x", description: null, merchantText: "x", rowRef: Math.random().toString(36).slice(2), ...over,
+  });
+  const T = (id: string, txnDate: string, amountPaise: number) => ({ id, accountId: "A", txnDate, amountPaise });
+
+  const exact = matchMoneyManager([T("t1", "2026-03-05", -5000)], [mmk({ rowRef: "e1" })]);
+  const within = matchMoneyManager([T("t1", "2026-03-07", -5000)], [mmk({ loggedAt: "2026-03-05", rowRef: "e1" })]);
+  const offByOne = matchMoneyManager([T("t1", "2026-03-05", -5001)], [mmk({ rowRef: "e1" })]);
+  const wrongDir = matchMoneyManager([T("t1", "2026-03-05", -5000)], [mmk({ amountPaise: 5000, direction: "inflow", rowRef: "e1" })]);
+  const outside = matchMoneyManager([T("t1", "2026-03-09", -5000)], [mmk({ loggedAt: "2026-03-05", rowRef: "e1" })]);
+  const tie = matchMoneyManager([T("a", "2026-03-06", -8000), T("b", "2026-03-06", -8000)], [mmk({ loggedAt: "2026-03-06", amountPaise: -8000, rowRef: "e1" })]);
+  const greedy = matchMoneyManager(
+    [T("far", "2026-03-08", -8000), T("near", "2026-03-05", -8000)],
+    [mmk({ loggedAt: "2026-03-06", amountPaise: -8000, rowRef: "e1" })],
+  );
+
+  const matchChecks: Array<[string, boolean]> = [
+    [`exact same-day match enriches (t1, exact-day)`, exact.matched.length === 1 && exact.matched[0].txnId === "t1" && exact.matched[0].confidence === "exact-day" && exact.ambiguous.length === 0],
+    [`match within window (gap 2 ≤ ${DEFAULT_WINDOW_DAYS}) → within-window`, within.matched.length === 1 && within.matched[0].confidence === "within-window"],
+    [`amount off by 1 paise → no match (unmatched)`, offByOne.matched.length === 0 && offByOne.unmatchedMM.length === 1],
+    [`direction differs (same magnitude) → no match`, wrongDir.matched.length === 0 && wrongDir.unmatchedMM.length === 1],
+    [`outside window (gap 4 > ${DEFAULT_WINDOW_DAYS}) → no match`, outside.matched.length === 0 && outside.unmatchedMM.length === 1],
+    [`same-amount same-day pair → ambiguous, neither matched`, tie.matched.length === 0 && tie.ambiguous.length === 1],
+    [`greedy picks the closest date (→ "near", not "far")`, greedy.matched.length === 1 && greedy.matched[0].txnId === "near"],
+    [`match payload carries {txnId, mmRowRef} for provenance`, exact.matched[0].mmRowRef === "e1"],
+  ];
+  for (const [label, ok] of matchChecks) { if (!ok) failures++; console.log(`MM-MATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager apply plan (Pass 3): improve-not-overwrite, never raw, idempotent, provenance ----
+{
+  const mmk = (over: Partial<MoneyManagerEntry>): MoneyManagerEntry => ({
+    loggedAt: "2026-03-05", amountPaise: -12000, direction: "outflow", categoryRaw: "Personal",
+    note: "x", description: null, merchantText: "x", rowRef: "e1", ...over,
+  });
+  const st = (over: Partial<MmTxnState>): MmTxnState => ({ id: "t1", merchant: null, notes: null, categorySource: "default", mmRowRef: null, ...over });
+  const match = (txnId: string, mmRowRef: string): MmMatch => ({ txnId, mmRowRef, dayGap: 0, confidence: "exact-day" });
+  const okCat = (_name: string) => ({ id: "cat-x" });   // resolves any name (guard passes)
+  const refuseCat = (_name: string) => null;            // simulates the Leakage 14 / Review 15 guard rejection
+
+  // (a) merchant IMPROVES on a raw UPI string; description_raw never appears in the payload.
+  const eMerch = mmk({ rowRef: "e1", categoryRaw: "Personal", merchantText: "Zomato Booking" });
+  const wMerch = planMoneyManagerWrites([match("t1", "e1")], new Map([["e1", eMerch]]),
+    new Map([["t1", st({ merchant: "UPI/DR/512282836511/ZOMATO" })]]), okCat)[0];
+
+  // (b) category applied to an Uncategorized-Review row, only suggested for an already-categorized one.
+  const eSal = mmk({ rowRef: "es", categoryRaw: "Salary", direction: "inflow", amountPaise: 100, merchantText: "Salary" });
+  const ebr = new Map([["es", eSal]]);
+  const wDefault = planMoneyManagerWrites([match("t1", "es")], ebr, new Map([["t1", st({ categorySource: "default" })]]), okCat)[0];
+  const wUser = planMoneyManagerWrites([match("t1", "es")], ebr, new Map([["t1", st({ categorySource: "user" })]]), okCat)[0];
+
+  // (c) a refused (14/15) mapping is neither applied nor suggested.
+  const eCC = mmk({ rowRef: "ec", categoryRaw: "CC", merchantText: "CC" });
+  const wRefused = planMoneyManagerWrites([match("t1", "ec")], new Map([["ec", eCC]]), new Map([["t1", st({})]]), refuseCat)[0];
+
+  // (d) idempotent re-run: applying onto the already-enriched state produces a no-op.
+  const eTr = mmk({ rowRef: "et", categoryRaw: "Transport", note: "To office", merchantText: "To office" });
+  const first = planMoneyManagerWrites([match("t1", "et")], new Map([["et", eTr]]), new Map([["t1", st({})]]),
+    () => ({ id: "cat-taxi" }))[0];
+  const afterState = st({ merchant: first.merchant ?? null, notes: first.notes, categorySource: "money_manager", mmRowRef: "et" });
+  const second = planMoneyManagerWrites([match("t1", "et")], new Map([["et", eTr]]), new Map([["t1", afterState]]),
+    () => ({ id: "cat-taxi" }))[0];
+
+  const planChecks: Array<[string, boolean]> = [
+    [`merchant improves, not overwrites ("UPI/DR/…/ZOMATO · Zomato Booking")`, wMerch.merchant === "UPI/DR/512282836511/ZOMATO · Zomato Booking"],
+    [`payload never carries description_raw / description_clean`, !("description_raw" in wMerch) && !("description_clean" in wMerch)],
+    [`notes append one "MM: …" line`, wMerch.notes.startsWith(MM_NOTE_PREFIX) && wMerch.notes.split("\n").filter((l) => l.startsWith(MM_NOTE_PREFIX)).length === 1],
+    [`category APPLIED over Uncategorized Review (categoryId set, source money_manager)`, wDefault.categoryId === "cat-x" && wDefault.categorySource === "money_manager"],
+    [`category NOT applied over an already-categorized row → suggestion only`, wUser.categoryId === undefined && wUser.suggestedCategoryName === "Salary"],
+    [`refused (14/15) mapping is neither applied nor suggested`, wRefused.categoryId === undefined && wRefused.suggestedCategoryName === undefined],
+    [`first run changes the row`, first.changed === true && first.merchant === "To office"],
+    [`re-run is a no-op (changed=false) — no duplicate write`, second.changed === false],
+    [`re-run keeps exactly one MM note line (no duplication)`, second.notes.split("\n").filter((l) => l.startsWith(MM_NOTE_PREFIX)).length === 1],
+  ];
+  for (const [label, ok] of planChecks) { if (!ok) failures++; console.log(`MM-PLAN ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // mergeMmNote: append, replace-in-place, preserve foreign lines, idempotent.
+  const noteChecks: Array<[string, boolean]> = [
+    [`null + "MM: a" → "MM: a"`, mergeMmNote(null, "MM: a") === "MM: a"],
+    [`replaces a prior MM line ("MM: a" + "MM: b" → "MM: b")`, mergeMmNote("MM: a", "MM: b") === "MM: b"],
+    [`preserves a foreign note ("hi" + "MM: a" → "hi\\nMM: a")`, mergeMmNote("hi", "MM: a") === "hi\nMM: a"],
+    [`idempotent ("hi\\nMM: a" + "MM: a" → unchanged)`, mergeMmNote("hi\nMM: a", "MM: a") === "hi\nMM: a"],
+    [`mmNoteLine builds "MM: <cat> / <note> · <desc>"`,
+      mmNoteLine({ ...mmk({}), categoryRaw: "Transport", note: "To office", description: "Auto" }) === "MM: Transport / To office · Auto"],
+  ];
+  for (const [label, ok] of noteChecks) { if (!ok) failures++; console.log(`MM-NOTE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Money Manager UI (Pass 4): confirm-before-write, busy guard, unmatched read-only (no insert) ----
+{
+  const panel = readFileSync("src/components/money-manager-panel.tsx", "utf8");
+  const route = readFileSync("src/app/api/enrich/money-manager/route.ts", "utf8");
+  const page = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+  const uiChecks: Array<[string, boolean]> = [
+    [`panel previews before writing (Scan & preview → mode=preview)`, panel.includes('run("preview")') && panel.includes('mode === "preview"')],
+    [`panel has a separate confirm step that applies (mode=apply)`, panel.includes('run("apply")') && panel.includes("Apply enrichment")],
+    [`panel honors the busy/nav-guard pattern (useBusy + begin/end)`, panel.includes("useBusy()") && panel.includes("begin(") && panel.includes("end(id)")],
+    [`unmatched shown read-only with the deferred-cash note, NO insert offered`,
+      panel.includes("Importing these as cash is not supported yet") && !/insert/i.test(panel)],
+    [`route is enrichment-only: never inserts into transactions`, !route.includes(".insert(") && route.includes(".update(")],
+    [`route guards categories via guardCategory (no 14/15 auto-assign)`, route.includes("guardCategory")],
+    [`panel is mounted in the transactions Review section`, page.includes("<MoneyManagerPanel />")],
+  ];
+  for (const [label, ok] of uiChecks) { if (!ok) failures++; console.log(`MM-UI ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Google Pay statement parser (Pass 1): redacted synthetic fixture, structure not content ----
+console.log("\n" + "-".repeat(78));
+{
+  const { entries: gp, reconciliation: gr, warnings: gw } = parseGooglePayStatement(F("google_pay_statement_sample.md"));
+  const acme = gp.find((e) => e.party === "ACMEGROCERS");
+  const jio = gp.find((e) => e.party === "JioPrepaid");
+  const client = gp.find((e) => e.party === "CLIENTACME");
+  const self = gp.find((e) => e.kind === "self_transfer");
+  const canara = gp.find((e) => e.party === "CanaraTestMerchant");
+  console.log(`\nGOOGLE PAY STATEMENT: ${gp.length} entries (paid ${gp.filter((e) => e.kind === "paid").length} / received ${gp.filter((e) => e.kind === "received").length} / self ${gp.filter((e) => e.kind === "self_transfer").length}); ${gw.length} warnings; reconcile ${gr.ok ? "PASS" : "FAIL"}`);
+  const gpChecks: Array<[string, boolean]> = [
+    [`entries = ${gp.length} (expected 10)`, gp.length === 10],
+    [`Paid to → negative paise (ACME ${acme?.amountPaise}, expected -125000)`, acme?.amountPaise === -125000 && acme?.direction === "outflow"],
+    [`Received from → positive paise (CLIENTACME ${client?.amountPaise}, expected +200000)`, client?.amountPaise === 200000 && client?.direction === "inflow"],
+    [`Self transfer flagged kind=self_transfer`, !!self && self.kind === "self_transfer"],
+    [`verb prefix stripped from party ("PaidtoACMEGROCERS" → "ACMEGROCERS")`, acme?.party === "ACMEGROCERS" && acme?.merchantText === "ACMEGROCERS"],
+    [`funding bank name + last-4 parsed (ACME → HDFC Bank / 0789)`, acme?.fundingBankName === "HDFC Bank" && acme?.fundingBankLast4 === "0789"],
+    [`Canara routed to last-4 8593`, canara?.fundingBankLast4 === "8593" && canara?.fundingBankName === "Canara Bank"],
+    [`upiTxnId captured (ACME = 111111111111, = rowRef)`, acme?.upiTxnId === "111111111111" && acme?.rowRef === "111111111111"],
+    [`paise amount parsed exactly (₹300.90 → -30090)`, jio?.amountPaise === -30090],
+    [`date ISO from "02Dec,2025"`, acme?.txnDate === "2025-12-02"],
+    [`header/footer/summary excluded (no entry party starts with "Transaction"/"Note"/"Page")`,
+      gp.every((e) => !/^(Transaction|Note|Page)/.test(e.party))],
+    [`reconcile-or-show: Σpaid == Sent ${gr.sentTotalPaise} (Δ ${gr.sentDeltaPaise}), Σreceived == Received ${gr.receivedTotalPaise} (Δ ${gr.receivedDeltaPaise})`,
+      gr.sentDeltaPaise === 0 && gr.receivedDeltaPaise === 0 && gr.sentTotalPaise === 875590 && gr.receivedTotalPaise === 200200],
+  ];
+  for (const [label, ok] of gpChecks) { if (!ok) failures++; console.log(`GPAY-STMT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Google Pay statement category hints + matcher (Pass 2) ----
+{
+  const gpe = (over: Partial<import("../src/lib/ingest/types.js").GooglePayStatementEntry>): import("../src/lib/ingest/types.js").GooglePayStatementEntry => ({
+    txnDate: "2025-12-02", time: "08:30PM", amountPaise: -125000, direction: "outflow", kind: "paid",
+    party: "ACME", upiTxnId: "111", fundingBankName: "HDFC Bank", fundingBankLast4: "0789",
+    merchantText: "ACME", rowRef: "111", ...over,
+  });
+  // map targets exist + not 14/15; intents
+  const targets = gpayTargetCategoryNames();
+  const allExist = targets.every((n) => taxonomy.has(n));
+  const noneForbidden = targets.every((n) => { const c = taxonomy.get(n); return c && !isForbiddenAutoParent(c.parent || c.name); });
+  const mapChecks: Array<[string, boolean]> = [
+    [`all ${targets.length} hint targets exist in the taxonomy, none Leakage/Review`, allExist && noneForbidden],
+    [`self-transfer → "Own Account Transfer" (override)`, resolveGpayCategory(gpe({ kind: "self_transfer", party: "StateBankofIndia4358" })).categoryName === "Own Account Transfer"],
+    [`family name "VINEETHVINODNAIR" → "Own Account Transfer" (override, space-insensitive)`,
+      isGpayTransfer(gpe({ party: "VINEETHVINODNAIR" })) && resolveGpayCategory(gpe({ party: "VINEETHVINODNAIR" })).categoryName === "Own Account Transfer"],
+    [`JioPrepaid → "Mobile Phone"`, resolveGpayCategory(gpe({ party: "JioPrepaid" })).categoryName === "Mobile Phone"],
+    [`Netflix → "OTT / Entertainment"`, resolveGpayCategory(gpe({ party: "NetflixEntertainmentServicesIndiaLLP" })).categoryName === "OTT / Entertainment"],
+    [`GooglePlay → "Apps & Digital Subscriptions"`, resolveGpayCategory(gpe({ party: "GooglePlay" })).categoryName === "Apps & Digital Subscriptions"],
+    [`unknown merchant → null (left for rules + AI)`, resolveGpayCategory(gpe({ party: "SomeRandomKirana" })).categoryName === null],
+  ];
+  for (const [label, ok] of mapChecks) { if (!ok) failures++; console.log(`GPAY-MAP ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  const T = (id: string, accountId: string, txnDate: string, amountPaise: number, refText: string) => ({ id, accountId, txnDate, amountPaise, refText });
+  const A = (id: string, last4: string) => ({ id, kind: "bank", last4 });
+  const accts = [A("hdfc", "0789"), A("sbi", "4358")];
+
+  // routing: funding 0789 restricts to the HDFC account even though SBI has the same amount/date
+  const routed = matchGooglePayStatement([gpe({})], [T("t1", "hdfc", "2025-12-02", -125000, "x"), T("t2", "sbi", "2025-12-02", -125000, "x")], accts);
+  // ID primary: refText carries the upiTxnId → match even when the date is outside the window
+  const idHit = matchGooglePayStatement([gpe({ upiTxnId: "999", amountPaise: -50000, txnDate: "2025-12-09" })],
+    [T("t1", "hdfc", "2025-12-25", -50000, "UPI/DR/999/MERCHANT")], accts);
+  // fallback amount/window when no id; off-amount → no match
+  const noMatch = matchGooglePayStatement([gpe({ amountPaise: -777 })], [T("t1", "hdfc", "2025-12-02", -778, "x")], accts);
+  // self/spouse flagged isTransfer
+  const selfM = matchGooglePayStatement([gpe({ kind: "self_transfer", party: "StateBankofIndia4358" })], [T("t1", "hdfc", "2025-12-02", -125000, "x")], accts);
+  const spouseM = matchGooglePayStatement([gpe({ party: "VINEETHVINODNAIR" })], [T("t1", "hdfc", "2025-12-02", -125000, "x")], accts);
+  // same-amount same-day within one account → ambiguous
+  const amb = matchGooglePayStatement([gpe({ amountPaise: -8000, txnDate: "2025-12-06" })],
+    [T("a", "hdfc", "2025-12-06", -8000, "x"), T("b", "hdfc", "2025-12-06", -8000, "x")], accts);
+  // unknown last-4 → fall back to all bank/cc accounts
+  const fb = matchGooglePayStatement([gpe({ fundingBankLast4: "9999", amountPaise: -100 })], [T("t1", "hdfc", "2025-12-02", -100, "x")], accts);
+
+  const matchChecks: Array<[string, boolean]> = [
+    [`account routing picks the right account by last-4 (→ HDFC t1, not SBI t2)`, routed.matched.length === 1 && routed.matched[0].txnId === "t1" && routed.matched[0].confidence === "amount-window"],
+    [`UPI-ID match is primary — matches even outside the date window (confidence "id")`, idHit.matched.length === 1 && idHit.matched[0].confidence === "id" && idHit.matched[0].txnId === "t1"],
+    [`amount off by 1 paise → no match`, noMatch.matched.length === 0 && noMatch.unmatched.length === 1],
+    [`self-transfer matched + flagged isTransfer`, selfM.matched.length === 1 && selfM.matched[0].isTransfer === true],
+    [`family-name transfer matched + flagged isTransfer`, spouseM.matched.length === 1 && spouseM.matched[0].isTransfer === true],
+    [`same-amount same-day within one account → ambiguous, neither matched`, amb.matched.length === 0 && amb.ambiguous.length === 1],
+    [`unknown last-4 falls back to all bank/cc accounts`, fb.matched.length === 1 && fb.matched[0].txnId === "t1"],
+    [`byBank breakdown counts matched/total per funding last-4`, routed.byBank["0789"]?.matched === 1 && routed.byBank["0789"]?.total === 1],
+  ];
+  for (const [label, ok] of matchChecks) { if (!ok) failures++; console.log(`GPAY-MATCH ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Google Pay statement apply plan (Pass 3): improve-not-overwrite, idempotent, provenance ----
+{
+  const gpe = (over: Partial<import("../src/lib/ingest/types.js").GooglePayStatementEntry>): import("../src/lib/ingest/types.js").GooglePayStatementEntry => ({
+    txnDate: "2025-12-02", time: "08:30PM", amountPaise: -125000, direction: "outflow", kind: "paid",
+    party: "RandomKirana", upiTxnId: "u1", fundingBankName: "HDFC Bank", fundingBankLast4: "0789",
+    merchantText: "RandomKirana", rowRef: "u1", ...over,
+  });
+  const st = (over: Partial<GpayTxnState>): GpayTxnState => ({ id: "t1", merchant: null, notes: null, categorySource: "default", enrichmentRef: null, ...over });
+  const gm = (txnId: string, upiTxnId: string): GpayMatch => ({ txnId, upiTxnId, confidence: "id", isTransfer: false });
+  const okCat = (_n: string) => ({ id: "cat-x" });
+  const refuseCat = (_n: string) => null;
+
+  // (a) merchant IMPROVES on a raw UPI string; description_raw never in the payload.
+  const eM = gpe({ upiTxnId: "u1", party: "ChaiPoint", merchantText: "ChaiPoint" });
+  const wM = planGooglePayWrites([gm("t1", "u1")], new Map([["u1", eM]]), new Map([["t1", st({ merchant: "UPI/DR/511/CHAI" })]]), okCat)[0];
+
+  // (b) self-transfer category applied over Uncategorized Review; only suggested over an already-categorized row.
+  const eS = gpe({ upiTxnId: "us", kind: "self_transfer", party: "StateBankofIndia4358" });
+  const ebr = new Map([["us", eS]]);
+  const wDef = planGooglePayWrites([gm("t1", "us")], ebr, new Map([["t1", st({ categorySource: "default" })]]), okCat)[0];
+  const wUser = planGooglePayWrites([gm("t1", "us")], ebr, new Map([["t1", st({ categorySource: "user" })]]), okCat)[0];
+
+  // (c) a refused (14/15) mapping is neither applied nor suggested.
+  const wRef = planGooglePayWrites([gm("t1", "us")], ebr, new Map([["t1", st({})]]), refuseCat)[0];
+
+  // (d) idempotent re-run.
+  const eT = gpe({ upiTxnId: "ut", party: "Blinkit", merchantText: "Blinkit" });
+  const first = planGooglePayWrites([gm("t1", "ut")], new Map([["ut", eT]]), new Map([["t1", st({})]]), okCat)[0];
+  const after = st({ merchant: first.merchant ?? null, notes: first.notes, categorySource: "default", enrichmentRef: "ut" });
+  const second = planGooglePayWrites([gm("t1", "ut")], new Map([["ut", eT]]), new Map([["t1", after]]), okCat)[0];
+
+  const planChecks: Array<[string, boolean]> = [
+    [`merchant improves, not overwrites ("UPI/DR/511/CHAI · ChaiPoint")`, wM.merchant === "UPI/DR/511/CHAI · ChaiPoint"],
+    [`payload never carries description_raw / description_clean`, !("description_raw" in wM) && !("description_clean" in wM)],
+    [`notes append one "GPay: …" line`, wM.notes.startsWith(GPAY_NOTE_PREFIX) && wM.notes.split("\n").filter((l) => l.startsWith(GPAY_NOTE_PREFIX)).length === 1],
+    [`self-transfer category APPLIED over Uncategorized Review (source google_pay_statement)`, wDef.categoryId === "cat-x" && wDef.categorySource === "google_pay_statement"],
+    [`NOT applied over an already-categorized row → suggestion only`, wUser.categoryId === undefined && wUser.suggestedCategoryName === "Own Account Transfer"],
+    [`refused (14/15) mapping neither applied nor suggested`, wRef.categoryId === undefined && wRef.suggestedCategoryName === undefined],
+    [`first run changes the row`, first.changed === true && first.merchant === "Blinkit"],
+    [`re-run is a no-op (changed=false)`, second.changed === false],
+    [`re-run keeps exactly one GPay note line`, second.notes.split("\n").filter((l) => l.startsWith(GPAY_NOTE_PREFIX)).length === 1],
+  ];
+  for (const [label, ok] of planChecks) { if (!ok) failures++; console.log(`GPAY-PLAN ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  const noteChecks: Array<[string, boolean]> = [
+    [`mergeSourceNote: null + "GPay: a" → "GPay: a"`, mergeSourceNote(null, "GPay: a", GPAY_NOTE_PREFIX) === "GPay: a"],
+    [`coexists with an MM line ("MM: x" + GPay → both kept)`, mergeSourceNote("MM: x", "GPay: a", GPAY_NOTE_PREFIX) === "MM: x\nGPay: a"],
+    [`replaces a prior GPay line ("GPay: a" + "GPay: b" → "GPay: b")`, mergeSourceNote("GPay: a", "GPay: b", GPAY_NOTE_PREFIX) === "GPay: b"],
+    [`gpayNoteLine builds "GPay: <party> (via <bank> <last4>)"`, gpayNoteLine(gpe({ party: "JioPrepaid" })) === "GPay: JioPrepaid (via HDFC Bank 0789)"],
+    [`gpayNoteLine handles a blank payee`, gpayNoteLine(gpe({ party: "" })) === "GPay: (unknown payee) (via HDFC Bank 0789)"],
+  ];
+  for (const [label, ok] of noteChecks) { if (!ok) failures++; console.log(`GPAY-NOTE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Google Pay statement UI (Pass 4): confirm-before-write, busy guard, unmatched read-only ----
+{
+  const panel = readFileSync("src/components/google-pay-statement-panel.tsx", "utf8");
+  const route = readFileSync("src/app/api/enrich/google-pay-statement/route.ts", "utf8");
+  const page = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+  const enrichPanel = readFileSync("src/components/enrich-panel.tsx", "utf8");
+  const uiChecks: Array<[string, boolean]> = [
+    [`the two Google Pay entry points are format-disambiguated (My Activity vs official Transaction statement)`,
+      enrichPanel.includes("My Activity") && panel.includes("Transaction statement") && panel.includes("official")],
+    [`panel previews before writing (Scan & preview → mode=preview)`, panel.includes('run("preview")') && panel.includes('mode === "preview"')],
+    [`panel has a separate confirm step that applies (mode=apply)`, panel.includes('run("apply")') && panel.includes("Apply enrichment")],
+    [`panel shows reconciliation deltas + per-funding-bank breakdown`, panel.includes("Reconciliation vs statement totals") && panel.includes("Match coverage by funding account")],
+    [`panel honors the busy/nav-guard pattern (useBusy + begin/end)`, panel.includes("useBusy()") && panel.includes("begin(") && panel.includes("end(id)")],
+    [`unmatched shown read-only, NO insert offered`, panel.includes("Importing these directly isn") && !/insert/i.test(panel)],
+    [`route is enrichment-only: never inserts into transactions`, !route.includes(".insert(") && route.includes(".update(")],
+    [`route guards categories via guardCategory (no 14/15 auto-assign)`, route.includes("guardCategory")],
+    [`panel is mounted in the transactions Review section`, page.includes("<GooglePayStatementPanel />")],
+  ];
+  for (const [label, ok] of uiChecks) { if (!ok) failures++; console.log(`GPAY-UI ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

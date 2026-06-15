@@ -4,6 +4,8 @@ import { ReviewTable, type ReviewTxn, type ReviewCategory } from "@/components/r
 import { AiSuggestPanel, type AiCategory } from "@/components/ai-suggest-panel";
 import { llmProvider } from "@/lib/integrations";
 import { EnrichPanel } from "@/components/enrich-panel";
+import { MoneyManagerPanel } from "@/components/money-manager-panel";
+import { GooglePayStatementPanel } from "@/components/google-pay-statement-panel";
 import { RulesManager, type RuleRow, type RuleCategory } from "@/components/rules-manager";
 import { TransactionsTabs, type TxTab } from "@/components/transactions-tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +112,8 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
         </div>
       )}
       <EnrichPanel />
+      <MoneyManagerPanel />
+      <GooglePayStatementPanel />
       <AiSuggestPanel categories={aiCategories} providerLabel={providerLabel} />
       <ReviewTable transactions={transactions} categories={categories} />
     </div>
@@ -119,7 +123,7 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
 async function RulesSection() {
   const supabase = await createSupabaseServer();
   const [{ data: ruleRows }, { data: cats }] = await Promise.all([
-    supabase.from("vendor_rules").select("id,priority,match_text,active,category:categories(name)").order("priority"),
+    supabase.from("vendor_rules").select("id,priority,match_text,active,last_hit_count,category:categories(name)").order("priority"),
     supabase.from("categories").select("id,name,parent_id,auto_assignable"),
   ]);
 
@@ -138,6 +142,7 @@ async function RulesSection() {
     matchText: r.match_text as string,
     categoryName: (r.category as unknown as { name: string }).name,
     active: r.active as boolean,
+    hitCount: (r.last_hit_count as number | null) ?? null,
   }));
 
   return <RulesManager rules={rules} categories={categories} />;

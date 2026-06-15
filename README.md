@@ -79,6 +79,8 @@ fixtures/                synthetic, format-faithful statement samples (committed
 - One daily Vercel cron (`/api/cron/daily`): keepalive every run (Supabase free pauses at ~7 days idle) + weekly price refresh gated inside the handler.
 - Holdings (`/holdings`) - Zerodha workbook -> `instruments` + `holdings_snapshots`, with ISIN->source-code auto-mapping (human confirms the rest). Dashboard shows present value (last-known-price fallback), as-of date, and cash-vs-total net worth.
 - Calculators (`/calculators`) - old vs new tax regime (salaried, v1); FY 2025-26 / AY 2026-27 slabs verified by web search and asserted in the gate.
+- Money Manager enrichment (`/transactions` → Review) - a household `.xlsx` export is matched to already-imported bank/credit-card transactions by direction + exact amount within ±3 days. Matched rows get her richer merchant note (`merchant` improved, never overwriting `description_raw`), a replaceable `MM:` line in `notes`, and the mapped Halan category **only** over an Uncategorized-Review row (else surfaced as a suggestion). Provenance (`enrichment_source`, `mm_row_ref`) makes re-uploads idempotent. ENRICHMENT ONLY — unmatched entries are shown read-only, never inserted.
+- Google Pay statement enrichment (`/transactions` → Review) - the official Google Pay "Transaction statement" (PDF→markdown), a SECOND enrichment format. Parser reconciles paise-exact against the statement's stated Sent/Received totals. The matcher routes by funding-account last-4 and uses the 12-digit UPI Transaction ID as a primary match key when it appears in the bank narration, else exact amount + direction + date window. Self / family-account (spouse-token) transfers map to a neutral parent-10 transfer; a replaceable `GPay:` `notes` line + `enrichment_ref` provenance keep re-uploads idempotent. ENRICHMENT ONLY.
 
 ### Integrations strategy (scope boundary)
 
@@ -93,6 +95,7 @@ fixtures/                synthetic, format-faithful statement samples (committed
 - Physical/digital gold ingestion (`manual_ibja`) + an `asset_snapshot` account. Demat-held SGBs are already covered via the Zerodha + Yahoo path.
 - §87A marginal relief (and the new-regime special marginal-relief band); more calculators.
 - BHIM UPI merchant enrichment surfacing.
+- Importing UNMATCHED Money Manager entries as cash transactions — deferred. A missed match looks identical to a genuine cash spend, so blind insertion risks double-counting; it needs its own dedup design. Also deferred: multi-account MM exports and per-account matching (the current export is a single coarse "Bank Accounts").
 - Loan module follow-ups: multi-loan optimisation (avalanche vs snowball ordering) and pulling live loan balances from statements — manual entry only for now.
 - IPS / rebalancing engine and a full net-worth forward-projection module; EPF/PPF/NPS maturity projection (needs those balances ingested first, via future EPFO/NPS/CAS parsers).
 - Capital-gains tax: loss set-off / carry-forward, cess & surcharge, and slab treatment of F&O/commodities/currencies (currently surfaced as slab income, not taxed in the calculator).

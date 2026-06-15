@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Play, Trash2 } from "lucide-react";
+import { useBusy } from "@/components/busy-provider";
+import { ChevronDown, ChevronUp, Play, Trash2 } from "lucide-react";
 
 export interface RuleCategory { name: string; parent: string | null }
-export interface RuleRow { id: string; priority: number; matchText: string; categoryName: string; active: boolean }
+export interface RuleRow { id: string; priority: number; matchText: string; categoryName: string; active: boolean; hitCount?: number | null }
 
 /** Native grouped select — same approach as import/review (fast across hundreds of options × many rows). */
 function CategorySelect({ value, options, onChange, includeBlank }: {
@@ -40,12 +41,15 @@ function CategorySelect({ value, options, onChange, includeBlank }: {
 /** Rough client-side mirror of normalizeDesc (util.ts can't be imported client-side — it pulls node:crypto). Used only to skip no-op saves; the server normalizes authoritatively. */
 const roughNorm = (s: string) => s.replace(/\s+/g, " ").trim().toUpperCase();
 
-function RuleLine({ rule, categories, isDuplicate, onPatch, onDelete }: {
+function RuleLine({ rule, categories, isDuplicate, isFirst, isLast, onPatch, onDelete, onMove }: {
   rule: RuleRow;
   categories: RuleCategory[];
   isDuplicate: boolean;
+  isFirst: boolean;
+  isLast: boolean;
   onPatch: (id: string, patch: Partial<RuleRow>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onMove: (id: string, direction: "up" | "down") => Promise<void>;
 }) {
   const [match, setMatch] = useState(rule.matchText);
   const [busy, setBusy] = useState(false);
@@ -60,7 +64,21 @@ function RuleLine({ rule, categories, isDuplicate, onPatch, onDelete }: {
 
   return (
     <TableRow className={rule.active ? "" : "opacity-50"}>
-      <TableCell className="text-xs text-muted-foreground">{rule.priority}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <div className="flex flex-col">
+            <button onClick={() => onMove(rule.id, "up")} disabled={isFirst} aria-label="move rule up"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-30">
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={() => onMove(rule.id, "down")} disabled={isLast} aria-label="move rule down"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-30">
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <span className="text-xs text-muted-foreground tabular-nums">{rule.priority}</span>
+        </div>
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
           <Input value={match} disabled={busy}
@@ -80,6 +98,9 @@ function RuleLine({ rule, categories, isDuplicate, onPatch, onDelete }: {
           {rule.active ? "active" : "off"}
         </button>
       </TableCell>
+      <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+        {rule.hitCount == null ? "—" : rule.hitCount}
+      </TableCell>
       <TableCell className="text-right">
         <Button variant="ghost" size="sm" onClick={() => onDelete(rule.id)} aria-label="delete rule">
           <Trash2 className="h-4 w-4" />
@@ -96,6 +117,7 @@ export function RulesManager({ rules, categories }: { rules: RuleRow[]; categori
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const { begin, end } = useBusy();
 
   // match_text is server-normalized (uppercased, whitespace-collapsed), so duplicates are identical
   // strings. Two rules can share a match (the constraint is on priority, not match_text); the lowest
@@ -121,37 +143,63 @@ export function RulesManager({ rules, categories }: { rules: RuleRow[]; categori
     setError(null); setMsg(null);
     if (!matchText.trim() || !categoryName) { setError("Enter match text and pick a category."); return; }
     setBusy(true);
+    const op = begin("Add rule");
     try {
       const { rule } = await api("POST", "/api/rules", { matchText, categoryName });
       setRows((rs) => [...rs, rule].sort((a, b) => a.priority - b.priority));
       setMatchText(""); setCategoryName("");
     } catch (err) { setError((err as Error).message); }
-    setBusy(false);
+    finally { end(op); setBusy(false); }
   }
 
   async function patchRule(id: string, patch: Partial<RuleRow>) {
     setError(null); setMsg(null);
+    const op = begin("Save rule");
     try {
       const { rule } = await api("PATCH", "/api/rules", { id, ...patch });
       setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch, ...rule } : r)));
     } catch (err) { setError((err as Error).message); }
+    finally { end(op); }
   }
 
   async function deleteRule(id: string) {
     setError(null); setMsg(null);
+    const op = begin("Delete rule");
     try {
       await api("DELETE", "/api/rules", { id });
       setRows((rs) => rs.filter((r) => r.id !== id));
     } catch (err) { setError((err as Error).message); }
+    finally { end(op); }
+  }
+
+  async function moveRule(id: string, direction: "up" | "down") {
+    setError(null); setMsg(null);
+    const op = begin("Reorder rules");
+    try {
+      const res = await api("POST", "/api/rules/reorder", { id, direction });
+      if (res.moved === false) return; // already at a boundary
+      setRows((rs) => {
+        const byId = new Map(rs.map((r) => [r.id, r] as const));
+        for (const upd of [res.a, res.b] as Array<{ id: string; priority: number }>) {
+          const r = byId.get(upd.id);
+          if (r) byId.set(upd.id, { ...r, priority: upd.priority });
+        }
+        return [...byId.values()].sort((a, b) => a.priority - b.priority);
+      });
+    } catch (err) { setError((err as Error).message); }
+    finally { end(op); }
   }
 
   async function rerun() {
     setError(null); setMsg(null); setBusy(true);
+    const op = begin("Re-run rules");
     try {
       const r = await api("POST", "/api/rules/apply");
-      setMsg(`Re-ran rules: ${r.recategorized} recategorized, ${r.remaining} still Uncategorized (of ${r.scanned} scanned).`);
+      const hits = (r.hits ?? {}) as Record<string, number>;
+      setRows((rs) => rs.map((row) => (row.active ? { ...row, hitCount: hits[row.id] ?? 0 } : row)));
+      setMsg(`Re-ran rules across all accounts: ${r.recategorized} newly categorized · ${r.matched} matched · ${r.remaining} still Uncategorized (of ${r.scanned} scanned).`);
     } catch (err) { setError((err as Error).message); }
-    setBusy(false);
+    finally { end(op); setBusy(false); }
   }
 
   return (
@@ -163,9 +211,11 @@ export function RulesManager({ rules, categories }: { rules: RuleRow[]; categori
         <CardHeader>
           <CardTitle>Add a rule</CardTitle>
           <CardDescription>
-            Match text is normalized (uppercased, whitespace-collapsed) and matched as a substring of each
-            transaction&apos;s description; the lowest-priority rule that matches wins. Leakage (14) and Review (15)
-            categories can&apos;t be auto-assigned — leakage is a tag you set at review.
+            These rules apply to <span className="font-medium text-foreground">all accounts</span>; they are
+            evaluated top to bottom, <span className="font-medium text-foreground">first match wins</span>. Match
+            text is normalized (uppercased, whitespace-collapsed) and matched as a substring of each
+            transaction&apos;s description. Leakage (14) and Review (15) categories can&apos;t be auto-assigned —
+            leakage is a tag you set at review.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -192,16 +242,19 @@ export function RulesManager({ rules, categories }: { rules: RuleRow[]; categori
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[72px]">Priority</TableHead>
+                <TableHead className="w-[96px]">Order</TableHead>
                 <TableHead>Match text</TableHead>
                 <TableHead className="w-[17rem]">Category</TableHead>
                 <TableHead className="w-[88px]">Active</TableHead>
+                <TableHead className="w-[72px] text-right">Hits</TableHead>
                 <TableHead className="w-[56px] text-right">Delete</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
-                <RuleLine key={r.id} rule={r} categories={categories} isDuplicate={dupTexts.has(r.matchText)} onPatch={patchRule} onDelete={deleteRule} />
+              {rows.map((r, i) => (
+                <RuleLine key={r.id} rule={r} categories={categories} isDuplicate={dupTexts.has(r.matchText)}
+                  isFirst={i === 0} isLast={i === rows.length - 1}
+                  onPatch={patchRule} onDelete={deleteRule} onMove={moveRule} />
               ))}
             </TableBody>
           </Table>

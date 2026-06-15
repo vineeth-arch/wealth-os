@@ -12,40 +12,34 @@
 **What (original):** the docs (`README.md` / `USER_GUIDE.md` / `/help`) described a **Compass** (Machine H1–H6 + Mirror, proprietor identity `personalIncome = Σ01 − parent11 − parent12`) as shipped, but the audit's starting branch had no `/compass` route, no `compass.ts`, and no Compass nav item — the feature lived only on the unmerged `origin/main` / `claude/compass-full-build-wyvtuo`.
 **Resolution:** `origin/main` (which carries the full Compass: `src/lib/compass.ts`, `/compass` page + components, migration `0006_profile.sql`, +compass gate tests) was merged into this branch. Compass is now **present and gate-tested**, the identity (`compass.ts:47`) matches the docs, and the nav includes the Compass item. The merged tree's gate is green. The docs and code now agree; **no further action.** (`HANDOFF.md` §6(d) describes the implemented engine.)
 
-### D-2 · P1 · Drift / UX trap · `src/lib/integrations.ts:30` (+ `:24`, `:65`)
-**What:** `DEFAULT_LLM_PROVIDER = "anthropic"` and Anthropic is listed first in `LLM_PROVIDERS`, but **no Anthropic adapter is wired** (only Gemini + OpenAI exist in the `ADAPTERS` map used by `src/app/api/ai/suggest/route.ts`). `resolveLlmDispatch` separately falls back to `gemini` when no provider is active (`integrations.ts:65`), and `CLAUDE.md`/`USER_GUIDE.md` say "Gemini by default." Three sources disagree.
-**Why it matters:** a user who selects/keeps the default provider (Anthropic) and runs AI-suggest gets `ok:false` ("switch it on the Integrations page") rather than a working suggestion — a confusing dead end. The boundary stays safe (it never silently substitutes), but the default is a trap.
-**Recommended fix (do NOT apply):** set `DEFAULT_LLM_PROVIDER = "gemini"` to match the dispatch fallback and the docs, or implement an Anthropic adapter mirroring `src/lib/llm/openai.ts` and register it.
+### D-2 · RESOLVED (was P1) · Drift / UX trap · `src/lib/integrations.ts:30`
+**What (original):** `DEFAULT_LLM_PROVIDER = "anthropic"` with no Anthropic adapter wired, causing AI-suggest to dead-end for the default provider selection.
+**Resolution (commit `3a95649`):** changed `DEFAULT_LLM_PROVIDER = "gemini"` (`integrations.ts:30`). Now matches the dispatch fallback and the docs. Gate green.
 
-### S-1 · P1 · Security / privacy + drift · `fixtures/*` (13 files, git-tracked)
-**What:** `git ls-files fixtures/` shows 13 real statement fixtures committed, containing real PII: account number `55550100300498` + IFSC `FDRL0005555` + email `vineethnair98@gmail.com` (`fixtures/Federalbank-2026-05-27.md`), account/CRN numbers (`fixtures/IDFC_CC-2026-05-27.md`), a loan agreement number (`fixtures/HDFC_loan_Repayment_Schedule.md`), etc. `fixtures/` is **not** in `.gitignore`. This directly contradicts `CLAUDE.md`/`USER_GUIDE.md`: "Source statements stay on your Mac / repo and are not committed to git."
-**Why it matters:** the owner's real financial identifiers are in git history (and would ship to any fork/clone). No PAN/UCC found (good), but account+IFSC+email is enough to be sensitive.
-**Recommended fix (do NOT apply):** replace fixtures with synthetic-but-format-faithful data (the parsers only need the layout, not real numbers), `.gitignore` the originals, and scrub history. The gate must still pass on the synthetic fixtures.
+### S-1 · RESOLVED (was P1) · Security / privacy + drift · `fixtures/*`
+**What (original):** 13 real statement fixtures committed to git containing real PII (account numbers, IFSC codes, email, addresses, third-party names), contradicting docs claiming fixtures are not committed.
+**Resolution (this commit):** all 13 fixtures scrubbed — identity fields replaced with synthetic same-format values (names, emails, account/CIF numbers, IFSC codes, VPAs, addresses, card masks, loan agreement number). Money amounts, dates, and balances are **unchanged** so all 12+ reconciliation chains still hold and the gate (ALL GATES PASSED) verifies this on synthetic data. Four xlsx files renamed to drop client codes (`GE6088`, `VUZ281`) from filenames. Source code references (`hdfc.ts:4`, `seed-data.ts`, `generate-app-data.ts`) also scrubbed. Docs updated to accurately state fixtures are synthetic gate samples. **No git-history rewrite** — past commits retain original data by owner's explicit choice (history scrub is a separate, irreversible operation).
+**Remaining exposure:** git history before this commit contains the original PII. Owner declined history rewrite; accepted risk.
 
-### C-1 · P2 · Untested load-bearing contract · `scripts/verify.ts:526-528`
-**What:** the taxonomy size is **computed and `console.log`-ged** (`TAXONOMY: ${taxonomy.size} names (${parents} parents ...)`) but never **asserted**. The "276 = 15 + 261" contract is real (CSV has 276 rows, 15 parents; `seed-data.ts` matches) but no gate check fails if a CSV edit changes it.
-**Why it matters:** a stray edit to `taxonomy_master_from_sure.csv` could silently change the taxonomy shape and still pass the gate. Untested contract.
-**Recommended fix (do NOT apply):** add `["taxonomy = 276 (15 parents, 261 leaves)", taxonomy.size === 276 && parents === 15]` to the gate's check list.
+### C-1 · RESOLVED (was P2) · Untested load-bearing contract · `scripts/verify.ts`
+**What (original):** taxonomy 276 = 15+261 count was logged but not asserted.
+**Resolution (commit `3a95649`):** hard assertion added at `verify.ts:545` — gate now fails if taxonomy diverges from 276 names / 15 parents.
 
-### C-2 · P2 · Partially-tested contract · `scripts/verify.ts` (LLM section), `src/app/api/ai/suggest/route.ts:38`
-**What:** the no-money-to-LLM boundary is gate-tested only at the edges — `buildOpenAiRequestBody`/`buildSuggestPrompt` are asserted to carry description-only, no dates/amounts. The **actual enforcement** (the route's DB column selection `.select("id,description_raw,merchant")`) and the **Gemini** request body are not gate-asserted; they're guaranteed by code structure alone.
-**Why it matters:** the hard wall (invariant #6) is the project's highest-value guarantee; its enforcement point isn't directly covered, so a future edit adding `amount_paise` to that select would not fail the gate.
-**Recommended fix (do NOT apply):** add a structural test that the payload feeding the adapters derives only from description-level fields (e.g. assert the suggest builder rejects/ignores money keys), and mirror the "description-only" assertion for the Gemini request body.
+### C-2 · RESOLVED (was P2) · Partially-tested contract · `scripts/verify.ts`
+**What (original):** LLM-boundary enforcement point (DB select columns in AI-suggest route) was not gate-asserted.
+**Resolution (commit `3a95649`):** structural assertion added — gate now verifies that the suggest route selects only `id,description_raw,merchant` (no amount/date/balance columns).
 
-### S-2 · P2 · Privacy (logs) · `src/app/api/ai/suggest/route.ts` (prompt log)
-**What:** the AI-suggest route logs the constructed prompt (which includes transaction **description text**) to server stdout for audit visibility. No money/date is logged (consistent with the boundary), but raw descriptions land in Vercel server logs.
-**Why it matters:** descriptions can themselves be sensitive (merchant/counterparty names); logs are a second data surface.
-**Recommended fix (do NOT apply):** gate the prompt log behind a debug env flag, or log only counts/category names.
+### S-2 · RESOLVED (was P2) · Privacy (logs) · `src/app/api/ai/suggest/route.ts`
+**What (original):** prompt with description text logged unconditionally to server stdout.
+**Resolution (commit `3a95649`):** prompt log gated behind `DEBUG_AI_SUGGEST=true` env var.
 
-### Q-1 · P2 · Swallowed errors · multiple
-**What:** several silent `catch {}` blocks. Most are intentional fallbacks (`app-shell.tsx:31` theme, `accounts-panel.tsx:77` clipboard, date-parse fallbacks in `parsers/upstox.ts:82`, `parsers/market.ts:134`, `prices/amfi.ts:29`, `util.ts:26`). Two worth noting: `src/lib/llm/openai.ts:63` swallows a JSON-parse failure and returns `[]` (a model/parse error then looks identical to "no suggestions"); `src/app/api/holdings/commit/route.ts:47` swallows mapping errors (rows surface as unmapped — documented intent).
-**Why it matters:** `openai.ts:63` can mask real LLM/format failures as empty results.
-**Recommended fix (do NOT apply):** log at debug level in `openai.ts:63` before returning `[]`; leave the documented-intent ones.
+### Q-1 · RESOLVED (was P2) · Swallowed errors · `src/lib/llm/openai.ts:63`
+**What (original):** JSON-parse failure in OpenAI adapter silently returned `[]`, masking real LLM errors as empty results.
+**Resolution (commit `3a95649`):** debug log added before returning `[]` on parse failure.
 
-### D-3 · P2 · Drift · `next.config.mjs` (redirects)
-**What:** `USER_GUIDE.md` / `/help` call `/upstox` "the Upstox detail page," but `next.config.mjs` redirects `/upstox` → `/holdings`; there is no standalone Upstox page on this branch.
-**Why it matters:** minor doc/code mismatch; harmless but reinforces the drift pattern.
-**Recommended fix (do NOT apply):** describe Upstox as a section of `/holdings`, or restore a detail page.
+### D-3 · RESOLVED (was P2) · Drift · `next.config.mjs` (redirects)
+**What (original):** `USER_GUIDE.md` / `/help` called `/upstox` "the Upstox detail page," but it is a redirect to `/holdings`.
+**Resolution (this commit):** both `USER_GUIDE.md:44` and `src/app/(app)/help/page.tsx:112` updated to say `/upstox` redirects to `/holdings`.
 
 ---
 
@@ -69,9 +63,6 @@
 
 ## Health summary
 
-The core is in good shape: the highest-value guarantees — integer paise, the +inflow/−outflow convention, content-hash idempotency, RLS isolation, and the no-money-to-LLM trust boundary — all hold in code, the gate is green (incl. the merged Compass), and there are zero `any`/`TODO`/`FIXME` and no unbounded queries. The biggest drift (Compass documented but absent, D-1) was **resolved by merging `origin/main`**; what remains is the **LLM default-provider trap** (D-2), one real **privacy issue** — the owner's actual account/IFSC/email committed in `fixtures/` contradicting the docs' own "not committed to git" claim (S-1) — and **two true-but-unasserted contracts** (taxonomy shape C-1; the LLM-boundary enforcement point C-2).
+All 7 findings are now resolved. The core guarantees — integer paise, +inflow/−outflow convention, content-hash idempotency, RLS isolation, and the no-money-to-LLM trust boundary — hold in code. The gate is green on fully synthetic fixtures (all reconciliation chains verified). `DEFAULT_LLM_PROVIDER` now correctly defaults to `"gemini"`. The taxonomy 276 = 15+261 contract and the LLM-boundary select are gate-asserted. Prompt logging is behind a debug flag. Zero `any`/`TODO`/`FIXME`, no unbounded queries.
 
-**Top 3 risks:**
-1. **Real PII committed in `fixtures/` (S-1)** — sensitive identifiers in git history; replace with synthetic fixtures and scrub. Highest remaining risk.
-2. **LLM default-provider trap (D-2)** — `DEFAULT_LLM_PROVIDER = "anthropic"` has no adapter; the default selection dead-ends AI-suggest. One-line fix to `gemini`.
-3. **Load-bearing contracts not fully gate-asserted (C-1, C-2)** — the taxonomy count and the LLM-boundary enforcement point can drift without failing the gate; add the two assertions.
+**Remaining exposure:** git history before this commit contains the original PII in fixtures. History rewrite was declined by owner — that remains the only unresolved risk, and it is a deliberate owner decision, not an oversight.

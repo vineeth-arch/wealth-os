@@ -121,7 +121,7 @@ if (reimportInserts > 0 || dupWithin > 0) failures++;
 // ---- HDFC bank: hard gates on the fixed-width parse — the fixture is the spec ----
 {
   const t0 = hdfc.transactions[0];
-  const wrapped = "UPI-AVANI ASHISH MEHTA-AVANIMEHTA1966L@OKHDFCBANK-KKBK0001345-119313909063-CAR LOAN";
+  const wrapped = "UPI-SAMPLE PAYEE OWNER-TESTPAYEE000001@OKHDFCBANK-SMPL0000001-119313909063-CAR LOAN";
   const drCount = hdfc.transactions.filter((t) => t.amountPaise < 0).length;
   const crCount = hdfc.transactions.filter((t) => t.amountPaise > 0).length;
   const sumW = hdfc.transactions.reduce((s, t) => (t.amountPaise < 0 ? s - t.amountPaise : s), 0);
@@ -153,7 +153,7 @@ if (reimportInserts > 0 || dupWithin > 0) failures++;
   const loanChecks: Array<[string, boolean]> = [
     [`reconciliation ok (${sched.reconciliation.detail})`, sched.reconciliation.ok],
     [`rows = ${sched.rows.length} (expected 48)`, sched.rows.length === 48],
-    [`agreement no = ${sched.agreementNo} (expected 169007392)`, sched.agreementNo === "169007392"],
+    [`agreement no = ${sched.agreementNo} (expected 000000001)`, sched.agreementNo === "000000001"],
     [`loan type = ${sched.loanType} (expected PERSONAL LOAN)`, sched.loanType === "PERSONAL LOAN"],
     [`amount financed = ${sched.amountFinancedPaise} (expected 57000000)`, sched.amountFinancedPaise === 57000000],
     [`tenure = ${sched.tenureMonths} (expected 48)`, sched.tenureMonths === 48],
@@ -343,8 +343,8 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
     [`rows = ${gp.length} (expected 200)`, gp.length === 200],
     [`parse-completeness: rows == ${startLines} activity lines`, gp.length === startLines],
     [`named = ${named} (expected 143)`, named === 143],
-    [`distinct masks = ${masks.size} (expected 3: ...7358, ...0498, 653018...61)`,
-      masks.size === 3 && masks.has("XXXXXX7358") && masks.has("XXXXXXXXXX0498") && masks.has("653018XXXXXXXX61")],
+    [`distinct masks = ${masks.size} (expected 3: ...0001, ...0002, 111111...00)`,
+      masks.size === 3 && masks.has("XXXXXX0001") && masks.has("XXXXXXXXXX0002") && masks.has("111111XXXXXXXX00")],
     [`date range ${dates[0]} → ${dates[dates.length - 1]} (expected 2024-12-30 → 2026-06-07)`,
       dates[0] === "2024-12-30" && dates[dates.length - 1] === "2026-06-07"],
     [`unparseable date headers = ${headerWarns} (expected 0 — proves "Sept" handled)`, headerWarns === 0],
@@ -364,6 +364,21 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
     ["instructs bucket-first + Uncategorized Review fallback", prompt.includes("bucket-first") && prompt.includes("Uncategorized Review")],
   ];
   for (const [label, ok] of promptChecks) { if (!ok) failures++; console.log(`PROMPT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- C-2: LLM boundary enforcement — DB select in ai/suggest route must be description-level only ----
+{
+  const routeSrc = readFileSync("src/app/api/ai/suggest/route.ts", "utf8");
+  // Match the transactions select specifically (the one whose columns feed the LLM)
+  const txnSelectMatch = routeSrc.match(/from\("transactions"\)[^;]*?\.select\("([^"]+)"\)/s);
+  const selectCols = txnSelectMatch?.[1] ?? "";
+  const llmBoundaryChecks: Array<[string, boolean]> = [
+    ["ai/suggest transactions select contains description_raw (description-level field present)",
+      selectCols.includes("description_raw")],
+    ["ai/suggest transactions select omits amount/balance/account_id (no money to LLM)",
+      !!selectCols && !/amount|balance|account_id/.test(selectCols)],
+  ];
+  for (const [label, ok] of llmBoundaryChecks) { if (!ok) failures++; console.log(`LLM-BOUNDARY ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- OpenAI adapter (Prompt 05): request carries description-only, JSON parsed, invalid → fallback ----
@@ -505,14 +520,14 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
 }
 
 // ---- Zerodha ----
-const z = parseZerodhaHoldings(readFileSync("fixtures/holdingsVUZ281.xlsx"));
+const z = parseZerodhaHoldings(readFileSync("fixtures/zerodha_holdings.xlsx"));
 console.log(`\nZERODHA: ${z.rows.length} holdings (as of ${z.asOf ?? "unknown"})  invested ${z.investedPaise !== null ? formatPaise(z.investedPaise) : "?"}  present ${z.presentPaise !== null ? formatPaise(z.presentPaise) : "?"}  reconcile: ${z.reconciliationOk ? "PASS" : "FAIL"}`);
 if (!z.reconciliationOk) { failures++; for (const w of z.warnings) console.log(`  warn: ${w}`); }
 for (const r of z.rows) console.log(`  ${r.assetClass.padEnd(12)} ${r.symbol.padEnd(28).slice(0, 28)} ${r.isin}  qty ${r.qty}`);
 
 // ---- Upstox holdings ----
 {
-  const u = parseUpstoxHoldings(readFileSync("fixtures/holdings_13062026_GE6088.xlsx"));
+  const u = parseUpstoxHoldings(readFileSync("fixtures/upstox_holdings.xlsx"));
   console.log(`\nUPSTOX HOLDINGS: ${u.rows.length} holdings (as of ${u.asOf ?? "unknown"})  present ${u.presentPaise !== null ? formatPaise(u.presentPaise) : "?"}  reconcile: ${u.reconciliationOk ? "PASS" : "FAIL"}`);
   const eternal = u.rows.find((r) => r.isin === "INE758T01015");
   const allInt = u.rows.every((r) => Number.isInteger(r.lastPricePaise) && (r.avgPricePaise === null || Number.isInteger(r.avgPricePaise)));
@@ -533,12 +548,15 @@ for (const r of z.rows) console.log(`  ${r.assetClass.padEnd(12)} ${r.symbol.pad
 const taxonomy = loadTaxonomy(readFileSync("supabase/seed/taxonomy_master_from_sure.csv", "utf8"));
 const parents = [...taxonomy.values()].filter((c) => !c.parent).length;
 console.log(`\nTAXONOMY: ${taxonomy.size} names (${parents} parents, ${taxonomy.size - parents} leaves)`);
+// C-1: gate-assert the load-bearing 276 = 15 + 261 contract so a CSV edit can't silently break it
+if (taxonomy.size !== 276 || parents !== 15) failures++;
+console.log(`TAXONOMY ${taxonomy.size === 276 && parents === 15 ? "PASS" : "FAIL"}: 276 names = 15 parents + 261 leaves`);
 const rules = loadRules(readFileSync("supabase/seed/vendor_to_category_starter.yaml", "utf8"), taxonomy);
 console.log(`RULES: ${rules.length} loaded — all categories validated, Leakage/Review guards enforced at load`);
 
 // ---- Upstox dividends (category resolved from taxonomy, not hardcoded) ----
 {
-  const d = parseUpstoxDividends(readFileSync("fixtures/Dividend_20250401_To_20260331_GE6088.xlsx"));
+  const d = parseUpstoxDividends(readFileSync("fixtures/upstox_dividends.xlsx"));
   const sum = d.rows.reduce((s, t) => s + t.amountPaise, 0);
   const r0 = d.rows[0];
   const divCat = taxonomy.get("Dividend Income");
@@ -558,7 +576,7 @@ console.log(`RULES: ${rules.length} loaded — all categories validated, Leakage
 
 // ---- Upstox tax report (realized capital gains) ----
 {
-  const t = parseUpstoxTaxReport(readFileSync("fixtures/tax_report_.xlsx"));
+  const t = parseUpstoxTaxReport(readFileSync("fixtures/upstox_tax_report.xlsx"));
   const eq = t.segments.find((s) => s.segment === "equities");
   const empty = t.segments.filter((s) => s.segment !== "equities");
   const allInt = t.segments.every((s) =>
@@ -704,7 +722,7 @@ assert("account balance respects anchor date", bal.netWorthPaise, 1000000 + 1850
 console.log("\n" + "-".repeat(78));
 assert("LLM connected when key present", deriveLlmStatus(true) === "connected" ? 1 : 0, 1);
 assert("LLM not_connected when key absent", deriveLlmStatus(false) === "not_connected" ? 1 : 0, 1);
-assert("anthropic is a known LLM provider (default)", isLlmProvider(DEFAULT_LLM_PROVIDER) ? 1 : 0, 1);
+assert("gemini is a known LLM provider (default)", isLlmProvider(DEFAULT_LLM_PROVIDER) ? 1 : 0, 1);
 assert("unknown LLM provider rejected", isLlmProvider("totally-made-up") ? 1 : 0, 0);
 
 // ---- Price layer: pure parse + source selection (no network, no yahoo-finance2 in the gate) ----

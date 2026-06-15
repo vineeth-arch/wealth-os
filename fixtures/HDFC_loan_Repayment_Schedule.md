@@ -2,9 +2,9 @@
 | --- | ------------- | --- | --- | ----------------- | --- |
 Repayment Schedule Page : 1
 Currency: Indian Rupee
-| Customer      | MS           |           |                 |               |               |
+| Customer      | XX           |           |                 |               |               |
 | ------------- | ------------ | --------- | --------------- | ------------- | ------------- |
-| Agreement No. | 169007392    |           | Loan Type       | PERSONAL LOAN |               |
+| Agreement No. | 000000001    |           | Loan Type       | PERSONAL LOAN |               |
 | Tenure.       | 48           |           | Amount Financed | 5,70,000.00   |               |
 | Total Instl.  | 48           |           | Frequency       | Monthly       |               |
 | Currency      | Indian Rupee |           |                 |               |               |
@@ -52,9 +52,9 @@ Currency: Indian Rupee
 | --- | --- | ------------------ | --- | --- | ----------------- | --- | --- |
 |     |     | Repayment Schedule |     |     | Page : 2          |     |     |
 Currency: Indian Rupee
-| Customer      |            | MS           |             |                 |               |               |     |
+| Customer      |            | XX           |             |                 |               |               |     |
 | ------------- | ---------- | ------------ | ----------- | --------------- | ------------- | ------------- | --- |
-| Agreement No. |            | 169007392    |             | Loan Type       | PERSONAL LOAN |               |     |
+| Agreement No. |            | 000000001    |             | Loan Type       | PERSONAL LOAN |               |     |
 | Tenure.       |            | 48           |             | Amount Financed | 5,70,000.00   |               |     |
 | Total Instl.  |            | 48           |             | Frequency       | Monthly       |               |     |
 | Currency      |            | Indian Rupee |             |                 |               |               |     |

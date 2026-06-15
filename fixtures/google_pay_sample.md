@@ -18,7 +18,7 @@ Google protects your privacy and security.
 
 Google Pay
 
-Sent ₹1494.00 using Bank Account XXXXXX7358
+Sent ₹1494.00 using Bank Account XXXXXX0001
 
 09:57 • Details
 
@@ -38,7 +38,7 @@ Received ₹4400.00
 
 Google Pay
 
-Paid ₹200.00 using Bank Account XXXXXX7358
+Paid ₹200.00 using Bank Account XXXXXX0001
 
 20:48 • Details
 
@@ -48,7 +48,7 @@ Paid ₹200.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹89.00 using Bank Account XXXXXX7358
+Sent ₹89.00 using Bank Account XXXXXX0001
 
 15:32 • Details
 
@@ -58,7 +58,7 @@ Sent ₹89.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹2000.00 using Bank Account XXXXXX7358
+Paid ₹2000.00 using Bank Account XXXXXX0001
 
 11:25 • Details
 
@@ -68,7 +68,7 @@ Paid ₹2000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹50.00 to Zomato using Bank Account 653018XXXXXXXX61
+Paid ₹50.00 to Zomato using Bank Account 111111XXXXXXXX00
 
 14:25 • Details
 
@@ -78,7 +78,7 @@ Paid ₹50.00 to Zomato using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Sent ₹1000.00 using Bank Account XXXXXXXXXX0498
+Sent ₹1000.00 using Bank Account XXXXXXXXXX0002
 
 09:29 • Details
 
@@ -88,7 +88,7 @@ Sent ₹1000.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹1500.00 using Bank Account XXXXXXXXXX0498
+Sent ₹1500.00 using Bank Account XXXXXXXXXX0002
 
 18:20 • Details
 
@@ -104,7 +104,7 @@ Sent ₹1500.00
 
 Google Pay
 
-Sent ₹1500.00 using Bank Account XXXXXXXXXX0498
+Sent ₹1500.00 using Bank Account XXXXXXXXXX0002
 
 18:19 • Details
 
@@ -114,7 +114,7 @@ Sent ₹1500.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹10,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
+Paid ₹10,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX0001
 
 10:16 • Details
 
@@ -124,7 +124,7 @@ Paid ₹10,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹5.00 to APPLE MEDIA SERVICES using Bank Account XXXXXX7358
+Paid ₹5.00 to APPLE MEDIA SERVICES using Bank Account XXXXXX0001
 
 14:54 • Details
 
@@ -134,7 +134,7 @@ Paid ₹5.00 to APPLE MEDIA SERVICES using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹5.00 to APPLE MEDIA SERVICES using Bank Account XXXXXX7358
+Paid ₹5.00 to APPLE MEDIA SERVICES using Bank Account XXXXXX0001
 
 12:34 • Details
 
@@ -144,7 +144,7 @@ Paid ₹5.00 to APPLE MEDIA SERVICES using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹1000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
+Paid ₹1000.00 to Zerodha Broking Ltd using Bank Account XXXXXX0001
 
 12:53 • Details
 
@@ -152,7 +152,7 @@ Paid ₹1000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹1000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
+Paid ₹1000.00 to Zerodha Broking Ltd using Bank Account XXXXXX0001
 
 12:52 • Details
 
@@ -162,7 +162,7 @@ Paid ₹1000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹313.00 to LAZYPAY REPAYMENT NB using Bank Account XXXXXXXXXX0498
+Paid ₹313.00 to LAZYPAY REPAYMENT NB using Bank Account XXXXXXXXXX0002
 
 17:04 • Details
 
@@ -172,7 +172,7 @@ Paid ₹313.00 to LAZYPAY REPAYMENT NB using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹10.00 to Maha Mumbai Metro Operation Corporation Limited using Bank Account XXXXXXXXXX0498
+Paid ₹10.00 to Maha Mumbai Metro Operation Corporation Limited using Bank Account XXXXXXXXXX0002
 
 20:23 • Details
 
@@ -182,7 +182,7 @@ Paid ₹10.00 to Maha Mumbai Metro Operation Corporation Limited using Bank Acco
 
 Google Pay
 
-Paid ₹399.00 to Designare using Bank Account 653018XXXXXXXX61
+Paid ₹399.00 to Designare using Bank Account 111111XXXXXXXX00
 
 19:18 • Details
 
@@ -192,7 +192,7 @@ Paid ₹399.00 to Designare using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹150.00 to ZOMATO LIMITED using Bank Account XXXXXX7358
+Paid ₹150.00 to ZOMATO LIMITED using Bank Account XXXXXX0001
 
 12:08 • Details
 
@@ -202,7 +202,7 @@ Paid ₹150.00 to ZOMATO LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹40.00 to NEERAJ KUMAR SHAH using Bank Account XXXXXXXXXX0498
+Paid ₹40.00 to NEERAJ KUMAR SHAH using Bank Account XXXXXXXXXX0002
 
 17:24 • Details
 
@@ -210,7 +210,7 @@ Paid ₹40.00 to NEERAJ KUMAR SHAH using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹120.00 to SHIV\_PACKAGING\_ using Bank Account 653018XXXXXXXX61
+Paid ₹120.00 to SHIV\_PACKAGING\_ using Bank Account 111111XXXXXXXX00
 
 17:16 • Details
 
@@ -230,7 +230,7 @@ Received ₹10,000.00
 
 Google Pay
 
-Paid ₹21,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹21,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 20:23 • Details
 
@@ -240,7 +240,7 @@ Paid ₹21,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹21,156.51 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹21,156.51 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 17:55 • Details
 
@@ -250,7 +250,7 @@ Paid ₹21,156.51 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹13,000.00 using Bank Account XXXXXX7358
+Sent ₹13,000.00 using Bank Account XXXXXX0001
 
 13:48 • Details
 
@@ -260,7 +260,7 @@ Sent ₹13,000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹3000.00 using Bank Account XXXXXX7358
+Sent ₹3000.00 using Bank Account XXXXXX0001
 
 14:16 • Details
 
@@ -270,7 +270,7 @@ Sent ₹3000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹14,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹14,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 10:52 • Details
 
@@ -280,7 +280,7 @@ Paid ₹14,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹970.00 using Bank Account XXXXXXXXXX0498
+Sent ₹970.00 using Bank Account XXXXXXXXXX0002
 
 21:10 • Details
 
@@ -290,7 +290,7 @@ Sent ₹970.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹99.00 to Google Play using Bank Account 653018XXXXXXXX61
+Paid ₹99.00 to Google Play using Bank Account 111111XXXXXXXX00
 
 10:00 • Details
 
@@ -300,7 +300,7 @@ Paid ₹99.00 to Google Play using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Sent ₹3500.00 using Bank Account XXXXXX7358
+Sent ₹3500.00 using Bank Account XXXXXX0001
 
 19:54 • Details
 
@@ -326,7 +326,7 @@ Paid ₹3.00 to Shop Z-2997
 
 Google Pay
 
-Paid ₹1444.43 to LAZYPAY REPAYMENT NBFC using Bank Account XXXXXX7358
+Paid ₹1444.43 to LAZYPAY REPAYMENT NBFC using Bank Account XXXXXX0001
 
 12:39 • Details
 
@@ -336,7 +336,7 @@ Paid ₹1444.43 to LAZYPAY REPAYMENT NBFC using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹36,572.76 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹36,572.76 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 10:46 • Details
 
@@ -356,7 +356,7 @@ Received ₹50.00
 
 Google Pay
 
-Paid ₹600.00 using Bank Account XXXXXX7358
+Paid ₹600.00 using Bank Account XXXXXX0001
 
 09:55 • Details
 
@@ -364,7 +364,7 @@ Paid ₹600.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹20,000.00 using Bank Account XXXXXX7358
+Paid ₹20,000.00 using Bank Account XXXXXX0001
 
 09:54 • Details
 
@@ -374,7 +374,7 @@ Paid ₹20,000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹1240.00 using Bank Account XXXXXXXXXX0498
+Sent ₹1240.00 using Bank Account XXXXXXXXXX0002
 
 13:48 • Details
 
@@ -384,7 +384,7 @@ Sent ₹1240.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹99,000.00 using Bank Account XXXXXX7358
+Paid ₹99,000.00 using Bank Account XXXXXX0001
 
 13:18 • Details
 
@@ -392,7 +392,7 @@ Paid ₹99,000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹15,000.00 using Bank Account XXXXXXXXXX0498
+Sent ₹15,000.00 using Bank Account XXXXXXXXXX0002
 
 13:16 • Details
 
@@ -400,7 +400,7 @@ Sent ₹15,000.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹15,000.00 using Bank Account XXXXXXXXXX0498
+Sent ₹15,000.00 using Bank Account XXXXXXXXXX0002
 
 13:16 • Details
 
@@ -408,7 +408,7 @@ Sent ₹15,000.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹1.00 using Bank Account XXXXXX7358
+Paid ₹1.00 using Bank Account XXXXXX0001
 
 13:08 • Details
 
@@ -418,7 +418,7 @@ Paid ₹1.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹1800.00 to HIMALI HOTELS AND RESORT PRIVATE LIMITED using Bank Account XXXXXXXXXX0498
+Paid ₹1800.00 to HIMALI HOTELS AND RESORT PRIVATE LIMITED using Bank Account XXXXXXXXXX0002
 
 11:37 • Details
 
@@ -426,7 +426,7 @@ Paid ₹1800.00 to HIMALI HOTELS AND RESORT PRIVATE LIMITED using Bank Account X
 
 Google Pay
 
-Paid ₹14,788.68 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹14,788.68 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 11:00 • Details
 
@@ -436,7 +436,7 @@ Paid ₹14,788.68 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹5000.00 to Bombay Stock Exchange using Bank Account XXXXXX7358
+Paid ₹5000.00 to Bombay Stock Exchange using Bank Account XXXXXX0001
 
 08:32 • Details
 
@@ -446,7 +446,7 @@ Paid ₹5000.00 to Bombay Stock Exchange using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹10,000.00 to IDFC FIRST Bank using Bank Account XXXXXX7358
+Paid ₹10,000.00 to IDFC FIRST Bank using Bank Account XXXXXX0001
 
 10:43 • Details
 
@@ -466,7 +466,7 @@ Received ₹300.00
 
 Google Pay
 
-Paid ₹284.00 to Blinkit using Bank Account 653018XXXXXXXX61
+Paid ₹284.00 to Blinkit using Bank Account 111111XXXXXXXX00
 
 01:18 • Details
 
@@ -476,7 +476,7 @@ Paid ₹284.00 to Blinkit using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹20,000.00 to ZERODHA MUTUAL using Bank Account XXXXXX7358
+Paid ₹20,000.00 to ZERODHA MUTUAL using Bank Account XXXXXX0001
 
 21:57 • Details
 
@@ -484,7 +484,7 @@ Paid ₹20,000.00 to ZERODHA MUTUAL using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹5000.00 to ZERODHA MUTUAL using Bank Account XXXXXX7358
+Paid ₹5000.00 to ZERODHA MUTUAL using Bank Account XXXXXX0001
 
 21:55 • Details
 
@@ -494,7 +494,7 @@ Paid ₹5000.00 to ZERODHA MUTUAL using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹14,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹14,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 18:31 • Details
 
@@ -504,7 +504,7 @@ Paid ₹14,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹191.00 to Blinkit using Bank Account 653018XXXXXXXX61
+Paid ₹191.00 to Blinkit using Bank Account 111111XXXXXXXX00
 
 09:57 • Details
 
@@ -522,7 +522,7 @@ Received ₹6.00 from Google
 
 Google Pay
 
-Paid ₹1.00 to Brokentusk Technologies Private Limited using Bank Account XXXXXX7358
+Paid ₹1.00 to Brokentusk Technologies Private Limited using Bank Account XXXXXX0001
 
 16:30 • Details
 
@@ -540,7 +540,7 @@ Received ₹22,000.00
 
 Google Pay
 
-Paid ₹6000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹6000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 19:45 • Details
 
@@ -550,7 +550,7 @@ Paid ₹6000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹13,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹13,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 15:33 • Details
 
@@ -558,7 +558,7 @@ Paid ₹13,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹12,300.00 using Bank Account XXXXXX7358
+Paid ₹12,300.00 using Bank Account XXXXXX0001
 
 15:32 • Details
 
@@ -568,7 +568,7 @@ Paid ₹12,300.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹20,000.00 using Bank Account XXXXXX7358
+Paid ₹20,000.00 using Bank Account XXXXXX0001
 
 09:59 • Details
 
@@ -578,7 +578,7 @@ Paid ₹20,000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹12,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹12,000.00 to CHEQ DIGITAL PRIVATE LIMITED using Bank Account XXXXXX0001
 
 13:26 • Details
 
@@ -596,7 +596,7 @@ Received ₹100.00
 
 Google Pay
 
-Sent ₹100.00 using Bank Account XXXXXXXXXX0498
+Sent ₹100.00 using Bank Account XXXXXXXXXX0002
 
 21:09 • Details
 
@@ -614,7 +614,7 @@ Received ₹100.00
 
 Google Pay
 
-Sent ₹500.00 using Bank Account XXXXXXXXXX0498
+Sent ₹500.00 using Bank Account XXXXXXXXXX0002
 
 21:56 • Details
 
@@ -624,7 +624,7 @@ Sent ₹500.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹100,000.00 to ZERODHA MUTUAL using Bank Account XXXXXX7358
+Paid ₹100,000.00 to ZERODHA MUTUAL using Bank Account XXXXXX0001
 
 18:34 • Details
 
@@ -634,7 +634,7 @@ Paid ₹100,000.00 to ZERODHA MUTUAL using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹12,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
+Paid ₹12,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX0001
 
 17:27 • Details
 
@@ -642,7 +642,7 @@ Paid ₹12,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹12,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
+Paid ₹12,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX0001
 
 17:26 • Details
 
@@ -662,7 +662,7 @@ Received ₹280.00
 
 Google Pay
 
-Paid ₹17,761.00 to VINEETH NAIR using Bank Account XXXXXX7358
+Paid ₹17,761.00 to TEST ACCOUNT using Bank Account XXXXXX0001
 
 21:31 • Details
 
@@ -672,7 +672,7 @@ Paid ₹17,761.00 to VINEETH NAIR using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹72.00 using Bank Account XXXXXXXXXX0498
+Sent ₹72.00 using Bank Account XXXXXXXXXX0002
 
 09:39 • Details
 
@@ -682,7 +682,7 @@ Sent ₹72.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹560.00 to Panchlal cycle store using Bank Account 653018XXXXXXXX61
+Paid ₹560.00 to Panchlal cycle store using Bank Account 111111XXXXXXXX00
 
 19:24 • Details
 
@@ -690,7 +690,7 @@ Paid ₹560.00 to Panchlal cycle store using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹15,000.00 to IDFC FIRST Bank using Bank Account XXXXXX7358
+Paid ₹15,000.00 to IDFC FIRST Bank using Bank Account XXXXXX0001
 
 13:11 • Details
 
@@ -698,7 +698,7 @@ Paid ₹15,000.00 to IDFC FIRST Bank using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹1.00 using Bank Account XXXXXX7358
+Sent ₹1.00 using Bank Account XXXXXX0001
 
 13:11 • Details
 
@@ -706,7 +706,7 @@ Sent ₹1.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹15,000.00 using Bank Account XXXXXX7358
+Sent ₹15,000.00 using Bank Account XXXXXX0001
 
 13:09 • Details
 
@@ -714,7 +714,7 @@ Sent ₹15,000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹15,000.00 to IDFC FIRST Bank using Bank Account XXXXXX7358
+Paid ₹15,000.00 to IDFC FIRST Bank using Bank Account XXXXXX0001
 
 13:08 • Details
 
@@ -722,7 +722,7 @@ Paid ₹15,000.00 to IDFC FIRST Bank using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹10,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
+Paid ₹10,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX0001
 
 10:13 • Details
 
@@ -732,7 +732,7 @@ Paid ₹10,000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹60.00 to HARLEEN CARZ using Bank Account 653018XXXXXXXX61
+Paid ₹60.00 to HARLEEN CARZ using Bank Account 111111XXXXXXXX00
 
 19:03 • Details
 
@@ -742,7 +742,7 @@ Paid ₹60.00 to HARLEEN CARZ using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹670.00 to Blue Tokai Coffee Roasters Goregaon West using Bank Account 653018XXXXXXXX61
+Paid ₹670.00 to Blue Tokai Coffee Roasters Goregaon West using Bank Account 111111XXXXXXXX00
 
 15:52 • Details
 
@@ -750,7 +750,7 @@ Paid ₹670.00 to Blue Tokai Coffee Roasters Goregaon West using Bank Account 65
 
 Google Pay
 
-Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
+Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 111111XXXXXXXX00
 
 13:21 • Details
 
@@ -758,7 +758,7 @@ Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹470.00 to LAZYPAY REPAYMENT NB using Bank Account XXXXXXXXXX0498
+Paid ₹470.00 to LAZYPAY REPAYMENT NB using Bank Account XXXXXXXXXX0002
 
 09:58 • Details
 
@@ -768,7 +768,7 @@ Paid ₹470.00 to LAZYPAY REPAYMENT NB using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹120.00 to Ramesh Dabeli using Bank Account 653018XXXXXXXX61
+Paid ₹120.00 to Ramesh Dabeli using Bank Account 111111XXXXXXXX00
 
 18:33 • Details
 
@@ -778,7 +778,7 @@ Paid ₹120.00 to Ramesh Dabeli using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹40.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
+Paid ₹40.00 to PRAVIN LAXMAN POOJARY using Bank Account 111111XXXXXXXX00
 
 16:39 • Details
 
@@ -786,7 +786,7 @@ Paid ₹40.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹5.00 using Bank Account XXXXXXXXXX0498
+Paid ₹5.00 using Bank Account XXXXXXXXXX0002
 
 09:37 • Details
 
@@ -796,7 +796,7 @@ Paid ₹5.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹300.00 using Bank Account XXXXXXXXXX0498
+Paid ₹300.00 using Bank Account XXXXXXXXXX0002
 
 21:19 • Details
 
@@ -806,7 +806,7 @@ Paid ₹300.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
+Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 111111XXXXXXXX00
 
 16:22 • Details
 
@@ -814,7 +814,7 @@ Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
+Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 111111XXXXXXXX00
 
 14:10 • Details
 
@@ -832,7 +832,7 @@ Received ₹1480.00
 
 Google Pay
 
-Paid ₹3650.00 to MAHA AMBE BRASS COLLECTION using Bank Account 653018XXXXXXXX61
+Paid ₹3650.00 to MAHA AMBE BRASS COLLECTION using Bank Account 111111XXXXXXXX00
 
 12:26 • Details
 
@@ -842,7 +842,7 @@ Paid ₹3650.00 to MAHA AMBE BRASS COLLECTION using Bank Account 653018XXXXXXXX6
 
 Google Pay
 
-Paid ₹150.00 to Thakhur Fast Food Corner using Bank Account 653018XXXXXXXX61
+Paid ₹150.00 to Thakhur Fast Food Corner using Bank Account 111111XXXXXXXX00
 
 19:31 • Details
 
@@ -850,7 +850,7 @@ Paid ₹150.00 to Thakhur Fast Food Corner using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
+Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 111111XXXXXXXX00
 
 13:25 • Details
 
@@ -858,7 +858,7 @@ Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹1340.00 to MAHA AMBE BRASS COLLECTION using Bank Account 653018XXXXXXXX61
+Paid ₹1340.00 to MAHA AMBE BRASS COLLECTION using Bank Account 111111XXXXXXXX00
 
 11:47 • Details
 
@@ -868,7 +868,7 @@ Paid ₹1340.00 to MAHA AMBE BRASS COLLECTION using Bank Account 653018XXXXXXXX6
 
 Google Pay
 
-Paid ₹60.00 to HARLEEN CARZ using Bank Account 653018XXXXXXXX61
+Paid ₹60.00 to HARLEEN CARZ using Bank Account 111111XXXXXXXX00
 
 19:00 • Details
 
@@ -876,7 +876,7 @@ Paid ₹60.00 to HARLEEN CARZ using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹20.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
+Paid ₹20.00 to PRAVIN LAXMAN POOJARY using Bank Account 111111XXXXXXXX00
 
 18:40 • Details
 
@@ -884,7 +884,7 @@ Paid ₹20.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Sent ₹500.00 using Bank Account XXXXXXXXXX0498
+Sent ₹500.00 using Bank Account XXXXXXXXXX0002
 
 16:38 • Details
 
@@ -892,7 +892,7 @@ Sent ₹500.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹115.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
+Paid ₹115.00 to PRAVIN LAXMAN POOJARY using Bank Account 111111XXXXXXXX00
 
 13:21 • Details
 
@@ -902,7 +902,7 @@ Paid ₹115.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹15,454.82 to CRED Club using Bank Account XXXXXX7358
+Paid ₹15,454.82 to CRED Club using Bank Account XXXXXX0001
 
 17:23 • Details
 
@@ -910,7 +910,7 @@ Paid ₹15,454.82 to CRED Club using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹70.00 to NAVKAR ENTERPRISES using Bank Account XXXXXXXXXX0498
+Paid ₹70.00 to NAVKAR ENTERPRISES using Bank Account XXXXXXXXXX0002
 
 16:39 • Details
 
@@ -918,7 +918,7 @@ Paid ₹70.00 to NAVKAR ENTERPRISES using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹570.00 to MAHA AMBE BRASS COLLECTION using Bank Account 653018XXXXXXXX61
+Paid ₹570.00 to MAHA AMBE BRASS COLLECTION using Bank Account 111111XXXXXXXX00
 
 16:05 • Details
 
@@ -926,7 +926,7 @@ Paid ₹570.00 to MAHA AMBE BRASS COLLECTION using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹360.00 to JAI SANTOSHI TRADERS using Bank Account 653018XXXXXXXX61
+Paid ₹360.00 to JAI SANTOSHI TRADERS using Bank Account 111111XXXXXXXX00
 
 10:09 • Details
 
@@ -936,7 +936,7 @@ Paid ₹360.00 to JAI SANTOSHI TRADERS using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹60.00 to HARLEEN CARZ using Bank Account 653018XXXXXXXX61
+Paid ₹60.00 to HARLEEN CARZ using Bank Account 111111XXXXXXXX00
 
 19:07 • Details
 
@@ -946,7 +946,7 @@ Paid ₹60.00 to HARLEEN CARZ using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹149.00 to MC DONALDS using Bank Account 653018XXXXXXXX61
+Paid ₹149.00 to MC DONALDS using Bank Account 111111XXXXXXXX00
 
 15:49 • Details
 
@@ -954,7 +954,7 @@ Paid ₹149.00 to MC DONALDS using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹10.00 to MANISH KHETARAM CHOUDHARY using Bank Account 653018XXXXXXXX61
+Paid ₹10.00 to MANISH KHETARAM CHOUDHARY using Bank Account 111111XXXXXXXX00
 
 09:15 • Details
 
@@ -964,7 +964,7 @@ Paid ₹10.00 to MANISH KHETARAM CHOUDHARY using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹480.00 to Janta Stores using Bank Account 653018XXXXXXXX61
+Paid ₹480.00 to Janta Stores using Bank Account 111111XXXXXXXX00
 
 14:01 • Details
 
@@ -974,7 +974,7 @@ Paid ₹480.00 to Janta Stores using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹50.00 to CHUNNILAL NAGDA LLP using Bank Account 653018XXXXXXXX61
+Paid ₹50.00 to CHUNNILAL NAGDA LLP using Bank Account 111111XXXXXXXX00
 
 12:50 • Details
 
@@ -984,7 +984,7 @@ Paid ₹50.00 to CHUNNILAL NAGDA LLP using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹50.00 to HARLEEN CARZ using Bank Account 653018XXXXXXXX61
+Paid ₹50.00 to HARLEEN CARZ using Bank Account 111111XXXXXXXX00
 
 18:37 • Details
 
@@ -992,7 +992,7 @@ Paid ₹50.00 to HARLEEN CARZ using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Sent ₹450.00 using Bank Account XXXXXXXXXX0498
+Sent ₹450.00 using Bank Account XXXXXXXXXX0002
 
 16:50 • Details
 
@@ -1000,7 +1000,7 @@ Sent ₹450.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹340.00 to MAHA AMBE BRASS COLLECTION using Bank Account 653018XXXXXXXX61
+Paid ₹340.00 to MAHA AMBE BRASS COLLECTION using Bank Account 111111XXXXXXXX00
 
 15:52 • Details
 
@@ -1008,7 +1008,7 @@ Paid ₹340.00 to MAHA AMBE BRASS COLLECTION using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹50.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
+Paid ₹50.00 to PRAVIN LAXMAN POOJARY using Bank Account 111111XXXXXXXX00
 
 15:11 • Details
 
@@ -1018,7 +1018,7 @@ Paid ₹50.00 to PRAVIN LAXMAN POOJARY using Bank Account 653018XXXXXXXX61
 
 Google Pay
 
-Paid ₹156.00 to Dinesh Egg House using Bank Account XXXXXXXXXX0498
+Paid ₹156.00 to Dinesh Egg House using Bank Account XXXXXXXXXX0002
 
 20:54 • Details
 
@@ -1026,7 +1026,7 @@ Paid ₹156.00 to Dinesh Egg House using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹20,000.00 to IDFC FIRST Bank using Bank Account XXXXXX7358
+Paid ₹20,000.00 to IDFC FIRST Bank using Bank Account XXXXXX0001
 
 15:20 • Details
 
@@ -1034,7 +1034,7 @@ Paid ₹20,000.00 to IDFC FIRST Bank using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹110.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0498
+Paid ₹110.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0002
 
 13:17 • Details
 
@@ -1044,7 +1044,7 @@ Paid ₹110.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹10.00 to MISTHAAN CULTURE using Bank Account XXXXXXXXXX0498
+Paid ₹10.00 to MISTHAAN CULTURE using Bank Account XXXXXXXXXX0002
 
 19:30 • Details
 
@@ -1052,7 +1052,7 @@ Paid ₹10.00 to MISTHAAN CULTURE using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹30.00 to Ramesh Dabeli using Bank Account XXXXXXXXXX0498
+Paid ₹30.00 to Ramesh Dabeli using Bank Account XXXXXXXXXX0002
 
 19:24 • Details
 
@@ -1062,7 +1062,7 @@ Paid ₹30.00 to Ramesh Dabeli using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹5000.00 using Bank Account XXXXXX7358
+Sent ₹5000.00 using Bank Account XXXXXX0001
 
 19:20 • Details
 
@@ -1072,7 +1072,7 @@ Sent ₹5000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹35.00 to SHIVAM DIGITAL PRINT using Bank Account XXXXXXXXXX0498
+Paid ₹35.00 to SHIVAM DIGITAL PRINT using Bank Account XXXXXXXXXX0002
 
 21:18 • Details
 
@@ -1080,7 +1080,7 @@ Paid ₹35.00 to SHIVAM DIGITAL PRINT using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹59.00 to Hanif Store using Bank Account XXXXXXXXXX0498
+Paid ₹59.00 to Hanif Store using Bank Account XXXXXXXXXX0002
 
 21:06 • Details
 
@@ -1096,7 +1096,7 @@ Paid ₹58.00 to Hanif Store
 
 Google Pay
 
-Sent ₹240.00 using Bank Account XXXXXXXXXX0498
+Sent ₹240.00 using Bank Account XXXXXXXXXX0002
 
 12:51 • Details
 
@@ -1104,7 +1104,7 @@ Sent ₹240.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹2099.00 to Silifarm Technologies Private Limited using Bank Account XXXXXXXXXX0498
+Paid ₹2099.00 to Silifarm Technologies Private Limited using Bank Account XXXXXXXXXX0002
 
 00:47 • Details
 
@@ -1114,7 +1114,7 @@ Paid ₹2099.00 to Silifarm Technologies Private Limited using Bank Account XXXX
 
 Google Pay
 
-Paid ₹1509.00 to KAVALRY TECHNOLOGIES PRIVATE LIMITED using Bank Account XXXXXXXXXX0498
+Paid ₹1509.00 to KAVALRY TECHNOLOGIES PRIVATE LIMITED using Bank Account XXXXXXXXXX0002
 
 16:24 • Details
 
@@ -1124,7 +1124,7 @@ Paid ₹1509.00 to KAVALRY TECHNOLOGIES PRIVATE LIMITED using Bank Account XXXXX
 
 Google Pay
 
-Paid ₹30.00 to Ramesh Dabeli using Bank Account XXXXXXXXXX0498
+Paid ₹30.00 to Ramesh Dabeli using Bank Account XXXXXXXXXX0002
 
 18:26 • Details
 
@@ -1132,7 +1132,7 @@ Paid ₹30.00 to Ramesh Dabeli using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0498
+Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0002
 
 14:44 • Details
 
@@ -1140,7 +1140,7 @@ Paid ₹70.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹874.00 using Bank Account XXXXXX7358
+Sent ₹874.00 using Bank Account XXXXXX0001
 
 00:40 • Details
 
@@ -1150,7 +1150,7 @@ Sent ₹874.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹80.00 using Bank Account XXXXXXXXXX0498
+Sent ₹80.00 using Bank Account XXXXXXXXXX0002
 
 18:15 • Details
 
@@ -1158,7 +1158,7 @@ Sent ₹80.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹226.00 to BIANCO VENTURES using Bank Account XXXXXXXXXX0498
+Paid ₹226.00 to BIANCO VENTURES using Bank Account XXXXXXXXXX0002
 
 18:13 • Details
 
@@ -1174,7 +1174,7 @@ Paid ₹226.00 to BIANCO VENTURES
 
 Google Pay
 
-Paid ₹1286.70 to LAZYPAY PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹1286.70 to LAZYPAY PRIVATE LIMITED using Bank Account XXXXXX0001
 
 18:12 • Details
 
@@ -1184,7 +1184,7 @@ Paid ₹1286.70 to LAZYPAY PRIVATE LIMITED using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹170.00 to MAA SHYAMA TRADERS using Bank Account XXXXXXXXXX0498
+Paid ₹170.00 to MAA SHYAMA TRADERS using Bank Account XXXXXXXXXX0002
 
 22:47 • Details
 
@@ -1192,7 +1192,7 @@ Paid ₹170.00 to MAA SHYAMA TRADERS using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹100.00 to Sraban Handicrafts using Bank Account XXXXXXXXXX0498
+Paid ₹100.00 to Sraban Handicrafts using Bank Account XXXXXXXXXX0002
 
 13:11 • Details
 
@@ -1202,7 +1202,7 @@ Paid ₹100.00 to Sraban Handicrafts using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹156.00 to ADANI DIGITAL using Bank Account XXXXXXXXXX0498
+Paid ₹156.00 to ADANI DIGITAL using Bank Account XXXXXXXXXX0002
 
 16:29 • Details
 
@@ -1210,7 +1210,7 @@ Paid ₹156.00 to ADANI DIGITAL using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹281.00 using Bank Account XXXXXXXXXX0498
+Paid ₹281.00 using Bank Account XXXXXXXXXX0002
 
 15:53 • Details
 
@@ -1220,7 +1220,7 @@ Paid ₹281.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹100.00 to MIRZA A BAIG using Bank Account XXXXXXXXXX0498
+Paid ₹100.00 to MIRZA A BAIG using Bank Account XXXXXXXXXX0002
 
 21:21 • Details
 
@@ -1230,7 +1230,7 @@ Paid ₹100.00 to MIRZA A BAIG using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹10.00 to SHIVAM DIGITAL PRINT using Bank Account XXXXXXXXXX0498
+Paid ₹10.00 to SHIVAM DIGITAL PRINT using Bank Account XXXXXXXXXX0002
 
 22:10 • Details
 
@@ -1240,7 +1240,7 @@ Paid ₹10.00 to SHIVAM DIGITAL PRINT using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹1250.00 to LAPASA LUXURY TECHNOLOGY PRIVATE LIMITED using Bank Account XXXXXXXXXX0498
+Paid ₹1250.00 to LAPASA LUXURY TECHNOLOGY PRIVATE LIMITED using Bank Account XXXXXXXXXX0002
 
 07:58 • Details
 
@@ -1250,7 +1250,7 @@ Paid ₹1250.00 to LAPASA LUXURY TECHNOLOGY PRIVATE LIMITED using Bank Account X
 
 Google Pay
 
-Paid ₹4594.00 to Amazon Pay Gift Card using Bank Account XXXXXXXXXX0498
+Paid ₹4594.00 to Amazon Pay Gift Card using Bank Account XXXXXXXXXX0002
 
 23:31 • Details
 
@@ -1258,7 +1258,7 @@ Paid ₹4594.00 to Amazon Pay Gift Card using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹120.00 to GUPTA ASHOK KUMAR SHOBHNATH using Bank Account XXXXXXXXXX0498
+Paid ₹120.00 to GUPTA ASHOK KUMAR SHOBHNATH using Bank Account XXXXXXXXXX0002
 
 20:57 • Details
 
@@ -1266,7 +1266,7 @@ Paid ₹120.00 to GUPTA ASHOK KUMAR SHOBHNATH using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹180.00 to Dinesh Egg House using Bank Account XXXXXXXXXX0498
+Paid ₹180.00 to Dinesh Egg House using Bank Account XXXXXXXXXX0002
 
 20:52 • Details
 
@@ -1274,7 +1274,7 @@ Paid ₹180.00 to Dinesh Egg House using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹50.00 to HARLEEN CARZ using Bank Account XXXXXXXXXX0498
+Paid ₹50.00 to HARLEEN CARZ using Bank Account XXXXXXXXXX0002
 
 18:50 • Details
 
@@ -1284,7 +1284,7 @@ Paid ₹50.00 to HARLEEN CARZ using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹5820.00 using Bank Account XXXXXX7358
+Sent ₹5820.00 using Bank Account XXXXXX0001
 
 10:21 • Details
 
@@ -1294,7 +1294,7 @@ Sent ₹5820.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹1500.00 using Bank Account XXXXXXXXXX0498
+Sent ₹1500.00 using Bank Account XXXXXXXXXX0002
 
 21:34 • Details
 
@@ -1302,7 +1302,7 @@ Sent ₹1500.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹60.00 using Bank Account XXXXXXXXXX0498
+Sent ₹60.00 using Bank Account XXXXXXXXXX0002
 
 21:24 • Details
 
@@ -1312,7 +1312,7 @@ Sent ₹60.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹50.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0498
+Paid ₹50.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0002
 
 18:48 • Details
 
@@ -1322,7 +1322,7 @@ Paid ₹50.00 to PRAVIN LAXMAN POOJARY using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹20.00 to K G N CHEMIST AND GENERAL STORE using Bank Account XXXXXXXXXX0498
+Paid ₹20.00 to K G N CHEMIST AND GENERAL STORE using Bank Account XXXXXXXXXX0002
 
 21:53 • Details
 
@@ -1330,7 +1330,7 @@ Paid ₹20.00 to K G N CHEMIST AND GENERAL STORE using Bank Account XXXXXXXXXX04
 
 Google Pay
 
-Sent ₹3256.80 using Bank Account XXXXXX7358
+Sent ₹3256.80 using Bank Account XXXXXX0001
 
 16:53 • Details
 
@@ -1340,7 +1340,7 @@ Sent ₹3256.80 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹100.00 to IRCTC UTS using Bank Account XXXXXXXXXX0498
+Paid ₹100.00 to IRCTC UTS using Bank Account XXXXXXXXXX0002
 
 18:24 • Details
 
@@ -1348,7 +1348,7 @@ Paid ₹100.00 to IRCTC UTS using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹10.00 to Mr MEET KANTI KARIA using Bank Account XXXXXXXXXX0498
+Paid ₹10.00 to Mr MEET KANTI KARIA using Bank Account XXXXXXXXXX0002
 
 15:51 • Details
 
@@ -1358,7 +1358,7 @@ Paid ₹10.00 to Mr MEET KANTI KARIA using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹4000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
+Paid ₹4000.00 to Zerodha Broking Ltd using Bank Account XXXXXX0001
 
 16:03 • Details
 
@@ -1366,7 +1366,7 @@ Paid ₹4000.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹4000.00 to Upstox using Bank Account XXXXXX7358
+Paid ₹4000.00 to Upstox using Bank Account XXXXXX0001
 
 15:55 • Details
 
@@ -1374,7 +1374,7 @@ Paid ₹4000.00 to Upstox using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹2000.00 to Bombay Stock Exchange using Bank Account XXXXXX7358
+Paid ₹2000.00 to Bombay Stock Exchange using Bank Account XXXXXX0001
 
 15:12 • Details
 
@@ -1384,7 +1384,7 @@ Paid ₹2000.00 to Bombay Stock Exchange using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹460.00 to ribbons and balloons using Bank Account XXXXXXXXXX0498
+Paid ₹460.00 to ribbons and balloons using Bank Account XXXXXXXXXX0002
 
 20:40 • Details
 
@@ -1392,7 +1392,7 @@ Paid ₹460.00 to ribbons and balloons using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹4000.00 to SPORTS GURUKUL PVT LTD using Bank Account XXXXXXXXXX0498
+Paid ₹4000.00 to SPORTS GURUKUL PVT LTD using Bank Account XXXXXXXXXX0002
 
 20:16 • Details
 
@@ -1400,7 +1400,7 @@ Paid ₹4000.00 to SPORTS GURUKUL PVT LTD using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹273.00 to HAMLET CAFE AND FINE using Bank Account XXXXXXXXXX0498
+Paid ₹273.00 to HAMLET CAFE AND FINE using Bank Account XXXXXXXXXX0002
 
 13:52 • Details
 
@@ -1408,7 +1408,7 @@ Paid ₹273.00 to HAMLET CAFE AND FINE using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹1500.00 using Bank Account XXXXXX7358
+Sent ₹1500.00 using Bank Account XXXXXX0001
 
 12:14 • Details
 
@@ -1418,7 +1418,7 @@ Sent ₹1500.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹1340.00 to Panchlal cycle store using Bank Account XXXXXXXXXX0498
+Paid ₹1340.00 to Panchlal cycle store using Bank Account XXXXXXXXXX0002
 
 16:44 • Details
 
@@ -1434,7 +1434,7 @@ Paid ₹10.00 to IBRARRAMJANKHAN
 
 Google Pay
 
-Paid ₹20.00 to Mr MEET KANTI KARIA using Bank Account XXXXXXXXXX0498
+Paid ₹20.00 to Mr MEET KANTI KARIA using Bank Account XXXXXXXXXX0002
 
 12:55 • Details
 
@@ -1444,7 +1444,7 @@ Paid ₹20.00 to Mr MEET KANTI KARIA using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹150.00 to KULKARNI NURSING HOME using Bank Account XXXXXXXXXX0498
+Paid ₹150.00 to KULKARNI NURSING HOME using Bank Account XXXXXXXXXX0002
 
 19:02 • Details
 
@@ -1452,7 +1452,7 @@ Paid ₹150.00 to KULKARNI NURSING HOME using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹40.00 to CHHEDA SALES using Bank Account XXXXXXXXXX0498
+Paid ₹40.00 to CHHEDA SALES using Bank Account XXXXXXXXXX0002
 
 14:36 • Details
 
@@ -1462,7 +1462,7 @@ Paid ₹40.00 to CHHEDA SALES using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹250.00 using Bank Account XXXXXXXXXX0498
+Sent ₹250.00 using Bank Account XXXXXXXXXX0002
 
 21:03 • Details
 
@@ -1576,7 +1576,7 @@ Paid ₹180.00 to Dinesh Egg House
 
 Google Pay
 
-Paid ₹772.00 to Heisetasse Beverages Private Limited using Bank Account XXXXXXXXXX0498
+Paid ₹772.00 to Heisetasse Beverages Private Limited using Bank Account XXXXXXXXXX0002
 
 18:27 • Details
 
@@ -1584,7 +1584,7 @@ Paid ₹772.00 to Heisetasse Beverages Private Limited using Bank Account XXXXXX
 
 Google Pay
 
-Sent ₹10,000.00 using Bank Account XXXXXX7358
+Sent ₹10,000.00 using Bank Account XXXXXX0001
 
 18:26 • Details
 
@@ -1592,7 +1592,7 @@ Sent ₹10,000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹772.00 to Heisetasse Beverages Private Limited using Bank Account XXXXXXXXXX0498
+Paid ₹772.00 to Heisetasse Beverages Private Limited using Bank Account XXXXXXXXXX0002
 
 18:24 • Details
 
@@ -1602,7 +1602,7 @@ Paid ₹772.00 to Heisetasse Beverages Private Limited using Bank Account XXXXXX
 
 Google Pay
 
-Paid ₹720.00 to HEISETASSE BEVERAGES PV using Bank Account XXXXXXXXXX0498
+Paid ₹720.00 to HEISETASSE BEVERAGES PV using Bank Account XXXXXXXXXX0002
 
 19:37 • Details
 
@@ -1610,7 +1610,7 @@ Paid ₹720.00 to HEISETASSE BEVERAGES PV using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹1000.00 using Bank Account XXXXXXXXXX0498
+Sent ₹1000.00 using Bank Account XXXXXXXXXX0002
 
 19:36 • Details
 
@@ -1618,7 +1618,7 @@ Sent ₹1000.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹660.00 using Bank Account XXXXXX7358
+Sent ₹660.00 using Bank Account XXXXXX0001
 
 19:20 • Details
 
@@ -1654,7 +1654,7 @@ Paid ₹249.01 to MC DONALDS
 
 Google Pay
 
-Paid ₹8850.00 to SUPREME EDUCATION using Bank Account XXXXXX7358
+Paid ₹8850.00 to SUPREME EDUCATION using Bank Account XXXXXX0001
 
 11:56 • Details
 
@@ -1696,7 +1696,7 @@ Paid ₹60.00 to Ramesh Dabeli
 
 Google Pay
 
-Paid ₹650.00 to Jitendra stores using Bank Account XXXXXXXXXX0498
+Paid ₹650.00 to Jitendra stores using Bank Account XXXXXXXXXX0002
 
 09:42 • Details
 
@@ -1704,7 +1704,7 @@ Paid ₹650.00 to Jitendra stores using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹1000.00 using Bank Account XXXXXXXXXX0498
+Sent ₹1000.00 using Bank Account XXXXXXXXXX0002
 
 09:42 • Details
 
@@ -1712,7 +1712,7 @@ Sent ₹1000.00 using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Sent ₹3000.00 using Bank Account XXXXXX7358
+Sent ₹3000.00 using Bank Account XXXXXX0001
 
 09:41 • Details
 
@@ -1720,7 +1720,7 @@ Sent ₹3000.00 using Bank Account XXXXXX7358
 
 Google Pay
 
-Sent ₹1000.00 using Bank Account XXXXXXXXXX0498
+Sent ₹1000.00 using Bank Account XXXXXXXXXX0002
 
 09:41 • Details
 
@@ -1738,7 +1738,7 @@ Paid ₹65.00 to Jain Sweets And Farsan House
 
 Google Pay
 
-Paid ₹677.50 to Nat Habit using Bank Account XXXXXXXXXX0498
+Paid ₹677.50 to Nat Habit using Bank Account XXXXXXXXXX0002
 
 11:10 • Details
 
@@ -1748,7 +1748,7 @@ Paid ₹677.50 to Nat Habit using Bank Account XXXXXXXXXX0498
 
 Google Pay
 
-Paid ₹4526.23 to LAZYPAY PRIVATE LIMITED using Bank Account XXXXXX7358
+Paid ₹4526.23 to LAZYPAY PRIVATE LIMITED using Bank Account XXXXXX0001
 
 13:26 • Details
 
@@ -1776,7 +1776,7 @@ Paid ₹100.00 to PRAVIN LAXMAN POOJARY
 
 Google Pay
 
-Paid ₹2000.00 to Bombay Stock Exchange using Bank Account XXXXXX7358
+Paid ₹2000.00 to Bombay Stock Exchange using Bank Account XXXXXX0001
 
 17:35 • Details
 
@@ -1784,7 +1784,7 @@ Paid ₹2000.00 to Bombay Stock Exchange using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹1.00 to ICCLZR using Bank Account XXXXXX7358
+Paid ₹1.00 to ICCLZR using Bank Account XXXXXX0001
 
 17:34 • Details
 
@@ -1794,7 +1794,7 @@ Paid ₹1.00 to ICCLZR using Bank Account XXXXXX7358
 
 Google Pay
 
-Paid ₹1188.00 to Zomato using Bank Account XXXXXXXXXX0498
+Paid ₹1188.00 to Zomato using Bank Account XXXXXXXXXX0002
 
 22:21 • Details
 
@@ -1820,6 +1820,6 @@ Paid ₹35.00 to PRAVIN LAXMAN POOJARY
 
 Google Pay
 
-Paid ₹1.00 to Zerodha Broking Ltd using Bank Account XXXXXX7358
+Paid ₹1.00 to Zerodha Broking Ltd using Bank Account XXXXXX0001
 
 15:58 • Details

@@ -47,7 +47,7 @@ re-validates every category against the taxonomy, re-checks reconciliation, and 
 1. `cp .env.example .env.local` and fill NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY from the Supabase dashboard (Project Settings -> API).
 2. Apply the schema: in the Supabase SQL editor (or `supabase db push`), run supabase/migrations/0001_init.sql.
 3. `npm run dev`, open http://localhost:3000, create an account, then Accounts -> Set up my workspace.
-4. Import a statement. (Real statements stay out of git - fixtures/ is git-ignored.)
+4. Import a statement. (The committed `fixtures/` files are **synthetic, format-faithful** samples used by the gate — real statements should be kept locally and not committed.)
 
 Taxonomy/rule changes: edit the CSV/YAML in supabase/seed/, then `npm run data:generate`
 (regenerates src/lib/seed-data.ts used by the in-app bootstrap) and/or `npm run seed:generate`
@@ -69,7 +69,7 @@ src/lib/supabase/        server/browser/middleware/service clients (@supabase/ss
 src/lib/seed-data.ts     GENERATED taxonomy + rules + accounts for in-app bootstrap
 scripts/verify.ts        the gate - parsers + Halan math
 supabase/migrations/0001_init.sql   full schema with RLS, dedup unique index, reference seeds
-fixtures/                real statements (git-ignored)
+fixtures/                synthetic, format-faithful statement samples (committed; used by gate)
 ```
 
 ## Shipped in this sub-pass

@@ -79,7 +79,7 @@ export async function POST() {
     .map((g, i) => ({ key: String(i), sample: g.sample, txnIds: g.txnIds, txnCount: g.txnIds.length, suggestedCategory: byIndex.get(i) ?? "" }))
     .filter((s) => s.suggestedCategory && allowed.has(s.suggestedCategory) && s.suggestedCategory !== FALLBACK_CATEGORY);
 
-  console.log("[ai/suggest] model=%s groups=%d suggested=%d prompt:\n%s", result.model, groupList.length, suggestions.length, result.prompt);
+  if (process.env.DEBUG_AI_SUGGEST) console.log("[ai/suggest] model=%s groups=%d suggested=%d prompt:\n%s", result.model, groupList.length, suggestions.length, result.prompt);
 
   return NextResponse.json({
     disabled: false, model: result.model, prompt: result.prompt,

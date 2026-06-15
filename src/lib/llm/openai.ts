@@ -60,7 +60,7 @@ export function buildOpenAiRequestBody(prompt: string, model: string) {
  */
 export function parseOpenAiSuggestions(content: string, allowed: Set<string>): CategorySuggestion[] {
   let parsed: unknown;
-  try { parsed = JSON.parse(content); } catch { return []; }
+  try { parsed = JSON.parse(content); } catch (e) { if (process.env.DEBUG_AI_SUGGEST) console.debug("[openai] JSON parse failed:", (e as Error).message); return []; }
   const rows = (parsed as { suggestions?: unknown })?.suggestions;
   const out: CategorySuggestion[] = [];
   for (const r of Array.isArray(rows) ? rows : []) {

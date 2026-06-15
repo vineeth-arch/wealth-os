@@ -359,6 +359,21 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
   for (const [label, ok] of promptChecks) { if (!ok) failures++; console.log(`PROMPT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
+// ---- C-2: LLM boundary enforcement — DB select in ai/suggest route must be description-level only ----
+{
+  const routeSrc = readFileSync("src/app/api/ai/suggest/route.ts", "utf8");
+  // Match the transactions select specifically (the one whose columns feed the LLM)
+  const txnSelectMatch = routeSrc.match(/from\("transactions"\)[^;]*?\.select\("([^"]+)"\)/s);
+  const selectCols = txnSelectMatch?.[1] ?? "";
+  const llmBoundaryChecks: Array<[string, boolean]> = [
+    ["ai/suggest transactions select contains description_raw (description-level field present)",
+      selectCols.includes("description_raw")],
+    ["ai/suggest transactions select omits amount/balance/account_id (no money to LLM)",
+      !!selectCols && !/amount|balance|account_id/.test(selectCols)],
+  ];
+  for (const [label, ok] of llmBoundaryChecks) { if (!ok) failures++; console.log(`LLM-BOUNDARY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 // ---- OpenAI adapter (Prompt 05): request carries description-only, JSON parsed, invalid → fallback ----
 {
   const desc = "UPI/DR/512282836511/LAZYPAY/AIRP · LazyPay";
@@ -526,6 +541,9 @@ for (const r of z.rows) console.log(`  ${r.assetClass.padEnd(12)} ${r.symbol.pad
 const taxonomy = loadTaxonomy(readFileSync("supabase/seed/taxonomy_master_from_sure.csv", "utf8"));
 const parents = [...taxonomy.values()].filter((c) => !c.parent).length;
 console.log(`\nTAXONOMY: ${taxonomy.size} names (${parents} parents, ${taxonomy.size - parents} leaves)`);
+// C-1: gate-assert the load-bearing 276 = 15 + 261 contract so a CSV edit can't silently break it
+if (taxonomy.size !== 276 || parents !== 15) failures++;
+console.log(`TAXONOMY ${taxonomy.size === 276 && parents === 15 ? "PASS" : "FAIL"}: 276 names = 15 parents + 261 leaves`);
 const rules = loadRules(readFileSync("supabase/seed/vendor_to_category_starter.yaml", "utf8"), taxonomy);
 console.log(`RULES: ${rules.length} loaded — all categories validated, Leakage/Review guards enforced at load`);
 
@@ -626,7 +644,7 @@ assert("account balance respects anchor date", bal.netWorthPaise, 1000000 + 1850
 console.log("\n" + "-".repeat(78));
 assert("LLM connected when key present", deriveLlmStatus(true) === "connected" ? 1 : 0, 1);
 assert("LLM not_connected when key absent", deriveLlmStatus(false) === "not_connected" ? 1 : 0, 1);
-assert("anthropic is a known LLM provider (default)", isLlmProvider(DEFAULT_LLM_PROVIDER) ? 1 : 0, 1);
+assert("gemini is a known LLM provider (default)", isLlmProvider(DEFAULT_LLM_PROVIDER) ? 1 : 0, 1);
 assert("unknown LLM provider rejected", isLlmProvider("totally-made-up") ? 1 : 0, 0);
 
 // ---- Price layer: pure parse + source selection (no network, no yahoo-finance2 in the gate) ----

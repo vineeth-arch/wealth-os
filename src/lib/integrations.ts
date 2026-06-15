@@ -19,15 +19,15 @@ export interface LlmProvider {
   models: string[];
 }
 
-/** Anthropic is the default. Gemini models drive the AI category-suggest pass; the first is the default. */
+/** Gemini is the default — the only adapters wired in ai/suggest are gemini + openai. Anthropic/OpenRouter are in the catalog for future use but have no adapter yet. */
 export const LLM_PROVIDERS: readonly LlmProvider[] = [
-  { id: "anthropic", label: "Anthropic (Claude)", envVar: "ANTHROPIC_API_KEY", models: ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"] },
-  { id: "openai", label: "OpenAI", envVar: "OPENAI_API_KEY", models: ["gpt-4o-mini", "gpt-4o"] },
   { id: "gemini", label: "Google Gemini", envVar: "GEMINI_API_KEY", models: ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.1-flash-lite"] },
+  { id: "openai", label: "OpenAI", envVar: "OPENAI_API_KEY", models: ["gpt-4o-mini", "gpt-4o"] },
+  { id: "anthropic", label: "Anthropic (Claude)", envVar: "ANTHROPIC_API_KEY", models: ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"] },
   { id: "openrouter", label: "OpenRouter", envVar: "OPENROUTER_API_KEY", models: ["auto"] },
 ];
 
-export const DEFAULT_LLM_PROVIDER = "anthropic";
+export const DEFAULT_LLM_PROVIDER = "gemini";
 
 export function isLlmProvider(id: string): boolean {
   return LLM_PROVIDERS.some((p) => p.id === id);

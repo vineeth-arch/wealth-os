@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { AppShell } from "@/components/app-shell";
 import { BusyProvider } from "@/components/busy-provider";
+import { PassphraseProvider } from "@/components/passphrase-provider";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createSupabaseServer();
@@ -9,7 +10,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
   return (
     <BusyProvider>
-      <AppShell email={user.email ?? "signed in"}>{children}</AppShell>
+      <PassphraseProvider>
+        <AppShell email={user.email ?? "signed in"}>{children}</AppShell>
+      </PassphraseProvider>
     </BusyProvider>
   );
 }

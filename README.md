@@ -81,6 +81,7 @@ fixtures/                synthetic, format-faithful statement samples (committed
 - Calculators (`/calculators`) - old vs new tax regime (salaried, v1); FY 2025-26 / AY 2026-27 slabs verified by web search and asserted in the gate.
 - Money Manager enrichment (`/transactions` → Review) - a household `.xlsx` export is matched to already-imported bank/credit-card transactions by direction + exact amount within ±3 days. Matched rows get her richer merchant note (`merchant` improved, never overwriting `description_raw`), a replaceable `MM:` line in `notes`, and the mapped Halan category **only** over an Uncategorized-Review row (else surfaced as a suggestion). Provenance (`enrichment_source`, `mm_row_ref`) makes re-uploads idempotent. ENRICHMENT ONLY — unmatched entries are shown read-only, never inserted.
 - Google Pay statement enrichment (`/transactions` → Review) - the official Google Pay "Transaction statement" (PDF→markdown), a SECOND enrichment format. Parser reconciles paise-exact against the statement's stated Sent/Received totals. The matcher routes by funding-account last-4 and uses the 12-digit UPI Transaction ID as a primary match key when it appears in the bank narration, else exact amount + direction + date window. Self / family-account (spouse-token) transfers map to a neutral parent-10 transfer; a replaceable `GPay:` `notes` line + `enrichment_ref` provenance keep re-uploads idempotent. ENRICHMENT ONLY.
+- In-app statement conversion + saved passwords (`/transactions` → Import; `/settings` → Statement passwords) - the import wizard takes raw source files. Excel/CSV/HTML/TXT/XML/JSON convert **in the browser** via Pyodide (`src/lib/convert/*`); **PDFs** convert server-side via the PyMuPDF4LLM service in `services/convert/` behind `/api/convert/pdf` (requires `CONVERT_SERVICE_URL`) — the only engine that reproduces the PDF fixtures. Both paths emit markdown that flows through the UNCHANGED `/api/import`. Statement-PDF passwords are saved **browser-encrypted** in `bank_profiles` (PBKDF2→AES-GCM, master passphrase; migration `0010` adds `filename_match_pattern`) and auto-suggested by filename glob. Pin the converters to the versions that generated `fixtures/` and run the Step-0 byte-diff before trusting real imports.
 
 ### Integrations strategy (scope boundary)
 
@@ -91,7 +92,7 @@ fixtures/                synthetic, format-faithful statement samples (committed
 ## Deferred to a later sub-pass (cleanly separable)
 
 - AI assist - `description_clean` cleanup + category *suggestions* only; amounts/dates/balances never sent to an LLM. This is what consumes the integrations LLM selection.
-- Server-encrypted LLM key entry from the UI (into `integrations.encrypted_secret`), and browser-encrypted statement passwords (`bank_profiles`).
+- Server-encrypted LLM key entry from the UI (into `integrations.encrypted_secret`). (Browser-encrypted statement passwords in `bank_profiles` are now **done** — see the import-conversion item above.)
 - Physical/digital gold ingestion (`manual_ibja`) + an `asset_snapshot` account. Demat-held SGBs are already covered via the Zerodha + Yahoo path.
 - §87A marginal relief (and the new-regime special marginal-relief band); more calculators.
 - BHIM UPI merchant enrichment surfacing.

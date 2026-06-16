@@ -1,0 +1,7 @@
+# PIN these to match your Private Markdown Converter venv (run `pip freeze` there), so this service's
+# PyMuPDF4LLM output byte-matches the committed fixtures. Confirm with the Step-0 offline byte-diff.
+PyMuPDF==1.24.10
+pymupdf4llm==0.0.17
+fastapi==0.115.2
+uvicorn[standard]==0.30.6
+python-multipart==0.0.12

@@ -40,6 +40,8 @@ import { pvAnnuity, hlvIncomeReplacement, hlvExpenseLiability } from "../src/lib
 import { sipFutureValue, goalCorpus, requiredMonthlySip } from "../src/lib/calc/sip.js";
 import { computeCapitalGainsTax, projectCapitalGainsTax } from "../src/lib/calc/capital-gains.js";
 import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
+import { detectSourceKind, isMarkdown, isPdf, needsPyodide, ACCEPT_ATTR } from "../src/lib/convert/types.js";
+import { globMatches, matchProfileByFilename } from "../src/lib/convert/glob.js";
 import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "../src/lib/ingest/types.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
@@ -1466,6 +1468,43 @@ console.log("\n" + "-".repeat(78));
     [`panel is mounted in the transactions Review section`, page.includes("<GooglePayStatementPanel />")],
   ];
   for (const [label, ok] of uiChecks) { if (!ok) failures++; console.log(`GPAY-UI ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- In-app converter: pure helpers + the markdown contract each engine must reproduce + migration 0010 ----
+// Gate-safe: pure helpers only (no Pyodide/browser). The fixture-quirk checks pin the byte-signatures the
+// converters must hit; actual converter fidelity is proven by the offline Step-0 byte-diff (see plan).
+{
+  const mig10 = readFileSync("supabase/migrations/0010_bank_profile_filename_match.sql", "utf8");
+  const sbi = F("AccountStatement_27052026_133757.md");
+  const fed = F("Federalbank-2026-05-27.md");
+  const hdfc = F("HDFC_statement.md");
+  const profiles = [
+    { id: "1", name: "HDFC", filenameMatchPattern: "*HDFC*statement*" },
+    { id: "2", name: "Federal", filenameMatchPattern: null },
+  ];
+
+  const checks: Array<[string, boolean]> = [
+    [`detectSourceKind classifies by extension (pdf/xlsx/md/csv; unknown otherwise)`,
+      detectSourceKind("a.PDF") === "pdf" && detectSourceKind("b.xlsx") === "xlsx" &&
+      detectSourceKind("c.md") === "markdown" && detectSourceKind("d.csv") === "csv" && detectSourceKind("e.zip") === "unknown"],
+    [`routing: markdown/txt skip conversion, pdf is server-side, xlsx needs Pyodide`,
+      isMarkdown("markdown") && isMarkdown("txt") && isPdf("pdf") && needsPyodide("xlsx") && !needsPyodide("pdf")],
+    [`accept attr covers pdf + xlsx + json`, ACCEPT_ATTR.includes(".pdf") && ACCEPT_ATTR.includes(".xlsx") && ACCEPT_ATTR.includes(".json")],
+    [`glob *HDFC*statement* matches HDFC_statement.pdf, case-insensitively`,
+      globMatches("HDFC_statement.pdf", "*HDFC*statement*") && globMatches("my-hdfc-STATEMENT.pdf", "*HDFC*statement*")],
+    [`glob non-match is false; '?' is exactly one char`,
+      !globMatches("federal.pdf", "*HDFC*") && globMatches("a1.pdf", "a?.pdf") && !globMatches("a12.pdf", "a?.pdf")],
+    [`matchProfileByFilename picks HDFC, skips a null-glob profile`,
+      matchProfileByFilename("HDFC_statement.pdf", profiles)?.name === "HDFC" && matchProfileByFilename("federal.md", profiles) === null],
+    [`SBI fixture keeps the MarkItDown/pandas signature (## sheet, Unnamed, NaN)`,
+      sbi.includes("## sheet") && sbi.includes("| Unnamed: 0 |") && sbi.includes("NaN")],
+    [`Federal fixture keeps the PyMuPDF4LLM signature (--- start, pipe-table, doubled glyphs)`,
+      fed.trimStart().startsWith("---") && fed.includes("| --- |") && fed.includes("AAccccoouunntt")],
+    [`HDFC fixture is plain fixed-width text (no markdown pipe-tables)`, !hdfc.includes("| --- |")],
+    [`migration 0010 adds filename_match_pattern to bank_profiles`,
+      mig10.includes("filename_match_pattern") && mig10.includes("bank_profiles")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CONVERT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 console.log("\n" + "=".repeat(78));

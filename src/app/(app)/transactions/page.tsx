@@ -39,11 +39,23 @@ async function ImportSection() {
   const supabase = await createSupabaseServer();
   const { data: accounts } = await supabase.from("accounts").select("id,name,institution,kind").order("name");
   const { data: cats } = await supabase.from("categories").select("id,name,parent_id");
+  const { data: profileRows } = await supabase
+    .from("bank_profiles")
+    .select("id,name,filename_match_pattern,password_ciphertext,kdf_salt,kdf_iterations");
 
   const byId = new Map((cats ?? []).map((c) => [c.id as string, c.name as string]));
   const categories = (cats ?? []).map((c) => ({
     name: c.name as string,
     parent: c.parent_id ? byId.get(c.parent_id as string) ?? null : null,
+  }));
+  // Saved statement-password profiles for filename auto-suggest. Ciphertext only — decrypted in-browser.
+  const profiles = (profileRows ?? []).map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+    filenameMatchPattern: (r.filename_match_pattern as string | null) ?? null,
+    passwordCiphertext: r.password_ciphertext as string,
+    kdfSalt: r.kdf_salt as string,
+    kdfIterations: r.kdf_iterations as number,
   }));
 
   if (!accounts || accounts.length === 0) {
@@ -58,7 +70,7 @@ async function ImportSection() {
     );
   }
 
-  return <ImportWizard accounts={accounts} categories={categories} />;
+  return <ImportWizard accounts={accounts} categories={categories} profiles={profiles} />;
 }
 
 async function ReviewSection({ accountFilter }: { accountFilter: string }) {

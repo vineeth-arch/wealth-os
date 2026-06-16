@@ -39,7 +39,8 @@ the bucket math. 30 PASS reports + "ALL GATES PASSED" = good. Anything else = no
 - **DONE — integrations/price/holdings/calculators sub-pass:** `/integrations` (LLM provider select — keys are SERVER env vars, not browser-encrypted; price-source status), `src/lib/prices/*` adapters + a single daily Vercel cron (keepalive + weekly refresh), `/holdings` (Zerodha → instruments/holdings_snapshots with ISIN auto-mapping) + dashboard present value, `/calculators` (tax-regime, gate-verified slabs). AI assist remains deferred (`README.md`).
 - **DONE — Money Manager enrichment:** household `.xlsx` matched to imported bank/CC txns (direction + exact paise within ±3 days) → improves `merchant`, appends one replaceable `MM:` `notes` line, applies the mapped Halan leaf only over an Uncategorized-Review row (else suggests). ENRICHMENT ONLY — never inserts (unmatched = deferred cash). Provenance via `enrichment_source`/`mm_row_ref` (migration `0007`). `src/lib/ingest/money-manager*.ts`, `/api/enrich/money-manager`, `/transactions` Review panel.
 - **DONE — Google Pay statement enrichment:** the official GPay "Transaction statement" (PDF→markdown) as a SECOND enrichment format. Parser reconciles paise-exact to the stated Sent/Received totals; matcher routes by funding last-4 + UPI-ID-when-present (else amount+direction+window); self/family-token transfers → neutral parent-10. Replaceable `GPay:` notes line + generic `enrichment_ref` provenance (migration `0008`). `src/lib/ingest/parsers/google-pay-statement.ts`, `google-pay-category-map.ts`, `/api/enrich/google-pay-statement`, `/transactions` Review panel.
-- **NEXT sub-pass:** AI assist (description cleanup + category suggestions; no money to LLM), statement-password browser encryption (`bank_profiles`), physical gold ingestion, §87A marginal relief. Anything beyond the current sub-pass goes in `README.md` "Deferred", not into code.
+- **DONE — in-app statement conversion + saved passwords:** the import wizard accepts raw source files, not just `.md`. Non-PDF (xlsx/csv/html/txt/xml/json) convert **in the browser** via Pyodide (`src/lib/convert/*`, replicating MarkItDown's output); **PDFs convert server-side** via a PyMuPDF4LLM FastAPI service (`services/convert/`) behind the authenticated proxy `/api/convert/pdf` (set `CONVERT_SERVICE_URL`) — the only engine that reproduces the PDF fixtures. Both paths produce markdown then hit the UNCHANGED `/api/import`. Statement-PDF passwords are saved **browser-encrypted** in `bank_profiles` (PBKDF2→AES-GCM, master passphrase; migration `0010` adds `filename_match_pattern`) and auto-suggested by filename glob; Settings → "Statement passwords". **Fidelity caveat:** pin the convert service + Pyodide to the versions that made `fixtures/` and run the Step-0 byte-diff before trusting real imports (the gate does NOT exercise the converters).
+- **NEXT sub-pass:** AI assist (description cleanup + category suggestions; no money to LLM), physical gold ingestion, §87A marginal relief. Anything beyond the current sub-pass goes in `README.md` "Deferred", not into code.
 - **Option B build spec (Budgets · Reports · Dashboard · Balance Sheet):** see `docs/sure-reference/` — clean-room formulas reverse-engineered from Sure (`we-promise/sure`, AGPL-3.0) in wealth-os terms, **not Sure source**. Read `99_INDEX.md` + `00_PORTING_GUIDE.md` first. A post-Option-B backlog (Quick-Categorize & rules, splits, recurring, bulk-edit/search, import-revert, privacy-blur) is in `06_TRANSACTIONS.md` + `07_RECURRING.md`.
 
 ## Confirmed facts (hard-won — do not re-derive or "fix")
@@ -93,6 +94,12 @@ npm run seed:generate   # regenerate supabase/seed/seed.sql (validated)
 Next.js 15 (App Router, webpack), React 19, TypeScript (strict, bundler resolution), Tailwind v3 +
 CSS-variable theming, vendored shadcn-style primitives, Recharts, Framer Motion, `@supabase/ssr`,
 Supabase (Postgres/Auth/RLS). Pure-logic deps: cheerio, xlsx, yaml. Nothing else without a reason.
+
+Converter additions (justified by the in-app import-conversion feature): **Pyodide** — a client-only,
+lazily/CDN-loaded Python→WASM runtime used solely in `src/lib/convert/*` for in-browser xlsx/text
+conversion (never bundled, never in the gate or `next build` execution); and `services/convert/` — a
+small out-of-tree FastAPI service (PyMuPDF4LLM) for server-side PDF→markdown, the only engine that
+reproduces the PDF fixtures (PyMuPDF has no working Pyodide build).
 
 ## Gotchas
 

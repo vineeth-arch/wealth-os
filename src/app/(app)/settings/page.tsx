@@ -1,6 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { LLM_PROVIDERS } from "@/lib/integrations";
 import { IntegrationsPanel } from "@/components/integrations-panel";
+import { BankProfilesPanel } from "@/components/bank-profiles-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function SettingsPage() {
         integrations={(integrations ?? []) as IntegrationRow[]}
         priceSources={(priceSources ?? []) as PriceSourceRow[]}
       />
+      <BankProfilesPanel />
     </div>
   );
 }

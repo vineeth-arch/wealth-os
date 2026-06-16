@@ -12,7 +12,7 @@ Your private, import-only wealth dashboard. You feed it bank / card / broker sta
 
 ## The monthly ritual (the whole point — about 10 minutes)
 
-1. **Export** last month's statements (bank, credit card) as **markdown (.md)**. PDFs are converted to markdown *outside* the app first (e.g. MarkItDown). See the Statement Intake SOP for the per-institution steps.
+1. **Export** last month's statements (bank, credit card) in whatever format your bank gives — **PDF, Excel (.xlsx), CSV, or HTML**. The app converts them to markdown for you on import; password-protected PDFs are handled too. (Pre-converted `.md`/`.txt` still works.)
 2. **Transactions → Import** → pick the matching account → drop the file → **Parse & reconcile**.
 3. Confirm the green **Reconciled** banner (opening + Σ transactions = closing).
 4. **Categorize.** Most rows are pre-filled — first by your **vendor rules**, then you run **AI-suggest** for the rest (it proposes a category from the description; you confirm). Hand-fix the long tail. Tag impulse/regret spends as **leakage**. Anything you're unsure of stays **Uncategorized Review**.
@@ -77,7 +77,7 @@ The Machine pushes "save more"; the Mirror asks "are you actually living a life 
 
 ## What you CANNOT do (yet, or by design)
 - **No live bank/broker pull** — you import statements yourself (deliberate: keeps data reconciled and owned).
-- **No in-app PDF parsing** — convert to markdown first.
+- **Scanned / image-only PDFs aren't supported** — only text/table PDFs and Excel/CSV/HTML convert.
 - **No per-trade buy/sell ledger from Upstox** — holdings + dividends + realized gains only; the true trade book is a separate export, deferred.
 - **No physical/digital gold, PF/PPF/FD, or CAS/eCAS feeds yet** — only demat holdings via Zerodha + Upstox.
 - **No full-ledger export screen** — Review shows recent rows; use the Supabase Table Editor for everything.
@@ -116,7 +116,7 @@ No — it's a valid category. Commit is safe; fix later in Review. Until fixed, 
 No. It's idempotent by content hash — re-import the same file and 0 rows are inserted.
 
 **My statement is a PDF.**
-Convert it to markdown first (MarkItDown or similar), then import the .md. The app doesn't parse PDFs by design.
+Just upload it — the app converts PDFs to markdown on import. If it's password-protected, type the password, or save it once under **Settings → Statement passwords** and it'll be suggested by filename next month. Excel/CSV/HTML convert entirely in your browser; PDFs use a small conversion service.
 
 **Where do I see ALL my data, not just recent rows?**
 Supabase dashboard → Table Editor, or the SQL Editor for any query. The in-app Review is capped on purpose.

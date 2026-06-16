@@ -2,18 +2,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useBusy } from "@/components/busy-provider";
+import { usePassphrase } from "@/components/passphrase-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatINR, formatDate } from "@/lib/format";
 import type { ImportResponse, WireStatement, CommitRequest } from "@/lib/ingest/wire";
-import { CheckCircle2, AlertTriangle, FileUp, Loader2 } from "lucide-react";
+import { ACCEPT_ATTR, ConvertError, convertErrorMessage, detectSourceKind, isMarkdown, isPdf } from "@/lib/convert/types";
+import { matchProfileByFilename } from "@/lib/convert/glob";
+import { convertNonPdf } from "@/lib/convert/markitdown";
+import { convertPdf } from "@/lib/convert/pdf";
+import { decryptPassword } from "@/lib/convert/crypto";
+import { CheckCircle2, AlertTriangle, FileUp, Loader2, KeyRound } from "lucide-react";
 
 type Account = { id: string; name: string; institution: string; kind: string };
 type Category = { name: string; parent: string | null };
+type Profile = { id: string; name: string; filenameMatchPattern: string | null; passwordCiphertext: string; kdfSalt: string; kdfIterations: number };
 
 interface RowState { categoryName: string; tags: string[]; included: boolean; }
 interface StmtState { stmt: WireStatement; rows: RowState[]; }
@@ -64,27 +72,71 @@ function CategorySelect({ value, options, onChange }: { value: string; options: 
   );
 }
 
-export function ImportWizard({ accounts, categories }: { accounts: Account[]; categories: Category[] }) {
+export function ImportWizard({ accounts, categories, profiles }: { accounts: Account[]; categories: Category[]; profiles: Profile[] }) {
   const router = useRouter();
   const { begin, end } = useBusy();
+  const { requestPassphrase } = usePassphrase();
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [fileName, setFileName] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [convertStage, setConvertStage] = useState<string | null>(null);
+  const [manualPassword, setManualPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [statements, setStatements] = useState<StmtState[] | null>(null);
   const [committing, setCommitting] = useState(false);
   const [result, setResult] = useState<{ inserted: number; duplicate: number; statements: number } | null>(null);
 
+  // Source kind + (for PDFs) the saved-password profile auto-suggested by filename glob.
+  const kind = useMemo(() => (file ? detectSourceKind(file.name) : "unknown"), [file]);
+  const matchedProfile = useMemo(
+    () => (file && isPdf(kind) ? matchProfileByFilename(file.name, profiles) : null),
+    [file, kind, profiles],
+  );
+
+  /** Resolve the plaintext PDF password (manual entry wins; else decrypt the matched profile; else none). */
+  async function resolvePdfPassword(): Promise<string | undefined> {
+    if (manualPassword) return manualPassword;
+    if (matchedProfile) {
+      const passphrase = await requestPassphrase();
+      return decryptPassword(
+        { ciphertext: matchedProfile.passwordCiphertext, salt: matchedProfile.kdfSalt, iterations: matchedProfile.kdfIterations },
+        passphrase,
+      );
+    }
+    return undefined; // server reports password_required if the PDF turns out to be encrypted
+  }
+
   async function parse() {
     if (!file || !accountId) { setError("Pick an account and a file."); return; }
+    const account = accounts.find((a) => a.id === accountId);
+    if (!account) { setError("Account not found."); return; }
+    if (kind === "unknown") { setError(convertErrorMessage("unsupported_type")); return; }
+
     const id = begin("Import");
     setParsing(true); setError(null); setResult(null); setStatements(null);
     try {
+      // 1) Obtain markdown — convert client-side (xlsx/text) or via the server PDF service. Markdown/txt
+      //    skip conversion entirely (today's manual flow). Raw bytes/passwords never go to /api/import.
+      let markdown: string;
+      if (isMarkdown(kind)) {
+        markdown = await file.text();
+      } else if (isPdf(kind)) {
+        setConvertStage("Converting PDF…");
+        markdown = (await convertPdf(file, account.institution, await resolvePdfPassword())).markdown;
+      } else {
+        setConvertStage("Loading converter (first time only)…");
+        markdown = (await convertNonPdf(file, kind)).markdown;
+      }
+      if (!mounted.current) return;
+      setConvertStage(null);
+
+      // 2) Upload the markdown to the UNCHANGED import route, keeping the original filename for provenance.
+      const mdFile = new File([markdown], file.name.replace(/\.[^.]+$/, "") + ".md", { type: "text/markdown" });
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", mdFile);
       fd.append("accountId", accountId);
       const res = await fetch("/api/import", { method: "POST", body: fd });
       const json = await res.json();
@@ -96,9 +148,12 @@ export function ImportWizard({ accounts, categories }: { accounts: Account[]; ca
         rows: s.transactions.map((t) => ({ categoryName: t.suggestedCategory, tags: [], included: true })),
       })));
     } catch (e) {
-      if (mounted.current) setError((e as Error).message);
+      if (mounted.current) {
+        const err = e as Error;
+        setError(err instanceof ConvertError ? convertErrorMessage(err.code) : err.message);
+      }
     } finally {
-      if (mounted.current) setParsing(false);
+      if (mounted.current) { setParsing(false); setConvertStage(null); }
       end(id);
     }
   }
@@ -175,17 +230,36 @@ export function ImportWizard({ accounts, categories }: { accounts: Account[]; ca
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Statement file (.md)</label>
+              <label className="text-sm font-medium">Statement file</label>
               <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-dashed border-input px-3 text-sm text-muted-foreground hover:bg-accent">
                 <FileUp className="h-4 w-4" />
-                <span className="truncate">{fileName || "Choose a markdown file"}</span>
-                <input type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setFileName(f?.name ?? ""); }} />
+                <span className="truncate">{fileName || "Choose a statement (PDF, Excel, CSV, HTML, …)"}</span>
+                <input type="file" accept={ACCEPT_ATTR} className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setFileName(f?.name ?? ""); setManualPassword(""); setError(null); }} />
               </label>
             </div>
           </div>
+
+          {file && isPdf(kind) && (
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
+              {matchedProfile ? (
+                <p className="flex items-center gap-1.5 text-muted-foreground">
+                  <KeyRound className="h-4 w-4" /> Using saved password
+                  <span className="font-medium text-foreground">{matchedProfile.name}</span>
+                  — you&apos;ll be asked for your master passphrase. Enter one below to override.
+                </p>
+              ) : (
+                <p className="flex items-center gap-1.5 text-muted-foreground">
+                  <KeyRound className="h-4 w-4" /> If this PDF is password-protected, enter its password (or save one in Settings → Statement passwords).
+                </p>
+              )}
+              <Input type="password" value={manualPassword} onChange={(e) => setManualPassword(e.target.value)}
+                placeholder="PDF password (optional)" autoComplete="off" className="max-w-xs" />
+            </div>
+          )}
+
           <Button onClick={parse} disabled={parsing || !file}>
-            {parsing ? <><Loader2 className="h-4 w-4 animate-spin" /> Parsing…</> : "Parse & reconcile"}
+            {parsing ? <><Loader2 className="h-4 w-4 animate-spin" /> {convertStage ?? "Parsing…"}</> : "Parse & reconcile"}
           </Button>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>

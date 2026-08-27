@@ -57,7 +57,7 @@ the bucket math. 30 PASS reports + "ALL GATES PASSED" = good. Anything else = no
 - **The verified parsers in `src/lib/ingest/parsers/` are precious.** They reconcile to the paisa. Do not "tidy" their imports. `next.config.mjs` carries a `webpack.extensionAlias` specifically so webpack follows their `.js`->`.ts` specifiers without editing them. Leave both alone.
 - **RLS isolation:** every user-data table has `user_id` and an owner policy. Reference tables (`instruments`, `prices`, `price_sources`) are read-only to authenticated users, written by service role only.
 - **Reporting is by transaction date + calendar month.** Statement periods exist for reconciliation only. Net-worth anchor per account = opening balance of its earliest imported statement (set automatically at commit).
-- **Commit re-validates server-side.** `/api/commit` re-derives content hashes, re-checks categories against the taxonomy, and re-checks reconciliation. The client may only edit category/tags/include. Keep that boundary.
+- **Commit re-validates server-side — categories and hashes, not amounts.** `/api/commit` re-derives content hashes/occurrence and re-checks every category against the taxonomy; but amounts/dates/descriptions are echoed from the client (not re-parsed from the source), and `reconciled` is computed from client-supplied numbers and stored, not enforced. The intended client only edits category/tags/include. Don't weaken what IS checked; making amounts server-authoritative (re-parse on commit) is a recorded follow-up (AUDIT FA-5).
 - **Pydantic-equivalent discipline:** the `wire.ts` shapes are the client/server contract; don't pass loose objects across `/api/*`.
 
 ## Architecture

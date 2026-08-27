@@ -6,11 +6,17 @@ import type { CommitRequest } from "@/lib/ingest/wire";
 export const runtime = "nodejs";
 
 /**
- * Persists reviewed transactions. Trust boundary: amounts/dates come from the server-side
- * parse (the client only edits category + tags + include). Here the server RE-DERIVES the
- * content hash from immutable fields (client cannot set it), RE-VALIDATES every category
- * against the taxonomy, and RE-CHECKS reconciliation. Dedup is enforced by a unique index
- * on (account_id, content_hash), so re-importing an overlapping period inserts nothing.
+ * Persists reviewed transactions. Trust boundary — stated precisely (audit FA-5):
+ * - Server-authoritative: every category is re-validated against the user's taxonomy; the
+ *   content hash + occurrence are re-derived here (the client cannot set them); dedup is a
+ *   DB unique index on (account_id, content_hash), so re-importing overlap inserts nothing.
+ * - Client-trusted: amountPaise/txnDate/descriptionRaw are ECHOED BACK from the client's
+ *   CommitRequest, not re-parsed from the source file — the hash is derived over client
+ *   values. `reconciled` compares two client-supplied numbers (Σ rows vs expectedDelta) and
+ *   is STORED on the imports row, not enforced; a non-reconciling statement still commits.
+ * In the intended flow the client forwards /api/import output untouched, so these hold in
+ * practice — but a tampered request commits what it sends. Re-parsing the source server-side
+ * (making the documented boundary real) is a recorded follow-up, not current behavior.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServer();

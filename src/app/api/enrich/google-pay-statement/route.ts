@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/paginate";
+import { runBounded, DEFAULT_WRITE_CONCURRENCY } from "@/lib/supabase/batch";
 import {
   parseGooglePayStatement, matchGooglePayStatement, planGooglePayWrites,
   type GpayMatchableTxn, type GpayMatchableAccount, type GpayTxnState, type GpayWrite,
@@ -116,14 +117,14 @@ export async function POST(request: NextRequest) {
 
   if (mode === "preview") return NextResponse.json(result);
 
-  // mode === apply: write only the changed rows (each row's notes/merchant/category differ → per-row).
-  let applied = 0;
-  for (const w of plan) {
-    if (!w.changed) continue;
+  // mode === apply: write only the changed rows. Each row's notes/ref/category differ, so
+  // .in() grouping degenerates — keep per-row statements but run them boundedly parallel (FA-7).
+  const toApply = plan.filter((w) => w.changed);
+  const { done: applied, error: applyErr } = await runBounded(toApply, DEFAULT_WRITE_CONCURRENCY, async (w) => {
     const { error } = await supabase.from("transactions").update(buildUpdate(w)).eq("id", w.id).eq("user_id", user.id);
-    if (error) return NextResponse.json({ error: `apply ${w.id}: ${error.message}` }, { status: 500 });
-    applied++;
-  }
+    return error ? `apply ${w.id}: ${error.message}` : null;
+  });
+  if (applyErr) return NextResponse.json({ error: applyErr }, { status: 500 });
   return NextResponse.json({ ...result, applied });
 }
 

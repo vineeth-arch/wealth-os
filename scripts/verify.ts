@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fetchAllRows } from "../src/lib/supabase/paginate.js";
+import { runBounded } from "../src/lib/supabase/batch.js";
 import { safeNextPath, DEFAULT_NEXT_PATH } from "../src/lib/auth/next-path.js";
 import { parseSbi } from "../src/lib/ingest/parsers/sbi.js";
 import { parseIdfcBank } from "../src/lib/ingest/parsers/idfc-bank.js";
@@ -1556,8 +1557,41 @@ async function verifyPaginate(): Promise<void> {
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`NEXTPATH ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
+// ---- runBounded: bounded-concurrency per-row writer (audit FA-7) ----
+async function verifyBatch(): Promise<void> {
+  // All succeed: every item done, no error, and the concurrency ceiling is actually reached
+  // (each worker bumps inFlight synchronously before its first await, so max hits the limit).
+  let inFlight = 0, maxInFlight = 0, calls = 0;
+  const ok = await runBounded(Array.from({ length: 10 }, (_, i) => i), 3, async () => {
+    calls++; inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+    await Promise.resolve(); await Promise.resolve();
+    inFlight--; return null;
+  });
+
+  // Sequential (limit 1) with an error on the third item: exactly 2 succeed, exactly 3 run,
+  // the error surfaces verbatim — the semantics of the loops this replaces.
+  let seqCalls = 0;
+  const seqErr = await runBounded([0, 1, 2, 3, 4], 1, async (i) => {
+    seqCalls++;
+    return i === 2 ? "boom" : null;
+  });
+
+  // Empty input: no task runs, clean result.
+  let emptyCalls = 0;
+  const empty = await runBounded([], 5, async () => { emptyCalls++; return null; });
+
+  const checks: Array<[string, boolean]> = [
+    [`all-success: 10/10 done, no error, every item ran once`, ok.done === 10 && ok.error === null && calls === 10],
+    [`concurrency is bounded AND used (maxInFlight === limit 3)`, maxInFlight === 3],
+    [`first error stops scheduling: 2 done, 3 ran, "boom" surfaced`, seqErr.done === 2 && seqErr.error === "boom" && seqCalls === 3],
+    [`empty input → 0 done, 0 calls, no error`, empty.done === 0 && empty.error === null && emptyCalls === 0],
+  ];
+  for (const [label, ok2] of checks) { if (!ok2) failures++; console.log(`BATCH ${ok2 ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 (async () => {
   await verifyPaginate();
+  await verifyBatch();
 
   console.log("\n" + "=".repeat(78));
   console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { FALLBACK_CATEGORY, REAPPLY_SOURCES, selectActiveRules, reapplyRules,
   type ReapplyRule, type ReapplyTxn } from "@/lib/ingest/rules";
 
@@ -34,24 +35,19 @@ export async function POST() {
   );
 
   // Every eligible transaction across all accounts (paginated — Supabase caps a select at 1000 rows).
-  const txns: ReapplyTxn[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from("transactions")
+  const { rows: page, error: txnErr } = await fetchAllRows<{ id: string; description_raw: string; merchant: string | null; category_source: string; category: { name: string } | null }>(
+    (from, to) => supabase.from("transactions")
       .select("id,description_raw,merchant,category_source,category:categories(name)")
       .eq("user_id", user.id).in("category_source", [...REAPPLY_SOURCES])
-      .order("id").range(from, from + 999);
-    if (error) return NextResponse.json({ error: `apply: ${error.message}` }, { status: 500 });
-    const page = (data ?? []) as unknown as Array<{ id: string; description_raw: string; merchant: string | null; category_source: string; category: { name: string } | null }>;
-    for (const t of page) {
-      txns.push({
-        id: t.id,
-        text: t.description_raw + " " + (t.merchant ?? ""),
-        categorySource: t.category_source,
-        categoryName: t.category?.name ?? FALLBACK_CATEGORY,
-      });
-    }
-    if (page.length < 1000) break;
-  }
+      .order("id").range(from, to) as unknown as Promise<{ data: Array<{ id: string; description_raw: string; merchant: string | null; category_source: string; category: { name: string } | null }> | null; error: { message: string } | null }>,
+  );
+  if (txnErr) return NextResponse.json({ error: `apply: ${txnErr}` }, { status: 500 });
+  const txns: ReapplyTxn[] = page.map((t) => ({
+    id: t.id,
+    text: t.description_raw + " " + (t.merchant ?? ""),
+    categorySource: t.category_source,
+    categoryName: t.category?.name ?? FALLBACK_CATEGORY,
+  }));
 
   const out = reapplyRules(txns, rules);
 

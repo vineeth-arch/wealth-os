@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,16 +32,30 @@ function Tile({ label, value, sub, tone, href }: { label: string; value: string;
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServer();
-  const [{ data: accountsRaw }, { data: txnsRaw }, { data: catsRaw }, { data: snapsRaw }, { data: pricesRaw }] = await Promise.all([
+  const [{ data: accountsRaw }, { rows: txnsRaw, error: txnErr }, { data: catsRaw }, { rows: snapsRaw, error: snapErr }, { rows: pricesRaw, error: priceErr }] = await Promise.all([
     supabase.from("accounts").select("id,name,kind,anchor_balance_paise,anchor_date"),
-    supabase.from("transactions").select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source"),
+    fetchAllRows<{ id: string; txn_date: string; amount_paise: number; tags: string[] | null; account_id: string | null; category_id: string | null; description_raw: string | null; merchant: string | null; category_source: string | null }>(
+      (from, to) => supabase.from("transactions")
+        .select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source")
+        .order("id").range(from, to),
+    ),
     supabase.from("categories").select("id,name,parent_id"),
-    supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise").order("as_of", { ascending: false }),
-    supabase.from("prices").select("isin,price_paise,price_date"),
+    fetchAllRows<{ account_id: string; as_of: string; isin: string; qty: number; last_price_paise: number }>(
+      (from, to) => supabase.from("holdings_snapshots")
+        .select("account_id,as_of,isin,qty,last_price_paise")
+        .order("as_of", { ascending: false }).range(from, to),
+    ),
+    fetchAllRows<{ isin: string; price_paise: number; price_date: string }>(
+      (from, to) => supabase.from("prices").select("isin,price_paise,price_date").order("isin").range(from, to),
+    ),
   ]);
+  // Every total on this page is derived from these three reads — a silent truncation at PostgREST's
+  // 1000-row cap would quietly under-report net worth (audit FA-1), so a load error throws rather
+  // than rendering a plausible-looking but wrong dashboard.
+  if (txnErr || snapErr || priceErr) throw new Error(`dashboard load: ${txnErr || snapErr || priceErr}`);
 
   const accounts = accountsRaw ?? [];
-  const txns = txnsRaw ?? [];
+  const txns = txnsRaw;
   const cats = catsRaw ?? [];
 
   // Investments: current holdings (latest snapshot per account) valued at latest prices, last-known fallback.

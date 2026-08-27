@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { normalizeDesc } from "@/lib/ingest/util";
 import { FALLBACK_CATEGORY } from "@/lib/ingest/rules";
 import { resolveLlmDispatch } from "@/lib/integrations";
@@ -33,10 +34,14 @@ export async function POST() {
   const { providerId, model } = decision;
   const suggest = ADAPTERS[providerId];
 
-  // Committed transactions still on the default fallback.
-  const { data: txnRows } = await supabase.from("transactions")
-    .select("id,description_raw,merchant").eq("user_id", user.id).eq("category_source", "default");
-  const txns = (txnRows ?? []) as Array<{ id: string; description_raw: string; merchant: string | null }>;
+  // Committed transactions still on the default fallback (paginated — a messy ledger can easily
+  // pass 1000 uncategorized rows, and a plain .select() would silently drop the rest, audit FA-1).
+  const { rows: txns, error: txnErr } = await fetchAllRows<{ id: string; description_raw: string; merchant: string | null }>(
+    (from, to) => supabase.from("transactions")
+      .select("id,description_raw,merchant").eq("user_id", user.id).eq("category_source", "default")
+      .order("id").range(from, to),
+  );
+  if (txnErr) return NextResponse.json({ error: `transactions: ${txnErr}` }, { status: 500 });
 
   // Dedup by normalized description → one suggestion per distinct vendor string. Fold in the
   // UPI-enriched counterpart name when present (description-level text, like description_raw — never

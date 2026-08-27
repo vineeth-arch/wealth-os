@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { parseBhimUpi, parseGooglePay } from "@/lib/ingest/parsers/market";
 import { matchEnrichment, mergeMerchant, type MatchableTxn, type MatchableAccount } from "@/lib/ingest/enrich";
 import type { UpiEnrichmentRow } from "@/lib/ingest/types";
@@ -40,27 +41,17 @@ export async function POST(request: NextRequest) {
 
   // Load every committed transaction (paginate past Supabase's 1000-row cap) + accounts for resolution.
   // Keep each txn's CURRENT merchant too, so enrichment LAYERS onto it instead of overwriting a prior source.
+  const { rows: txnRows, error: txnErr } = await fetchAllRows<{ id: string; account_id: string; txn_date: string; amount_paise: number; merchant: string | null }>(
+    (from, to) => supabase.from("transactions")
+      .select("id,account_id,txn_date,amount_paise,merchant")
+      .eq("user_id", user.id).order("id").range(from, to),
+  );
+  if (txnErr) return NextResponse.json({ error: `transactions: ${txnErr}` }, { status: 500 });
   const txns: MatchableTxn[] = [];
   const currentMerchant = new Map<string, string | null>();
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase.from("transactions")
-      .select("id,account_id,txn_date,amount_paise,merchant")
-      .eq("user_id", user.id)
-      .order("id")
-      .range(from, from + PAGE - 1);
-    if (error) return NextResponse.json({ error: `transactions: ${error.message}` }, { status: 500 });
-    const page = data ?? [];
-    for (const t of page) {
-      txns.push({
-        id: t.id as string,
-        accountId: t.account_id as string,
-        txnDate: t.txn_date as string,
-        amountPaise: t.amount_paise as number,
-      });
-      currentMerchant.set(t.id as string, (t.merchant as string | null) ?? null);
-    }
-    if (page.length < PAGE) break;
+  for (const t of txnRows) {
+    txns.push({ id: t.id, accountId: t.account_id, txnDate: t.txn_date, amountPaise: t.amount_paise });
+    currentMerchant.set(t.id, t.merchant ?? null);
   }
 
   const { data: acctRows } = await supabase.from("accounts")

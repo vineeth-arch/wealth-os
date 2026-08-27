@@ -1,4 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { type DrillTxn } from "@/lib/drilldown";
 import { type CategoryOption } from "@/components/category-select";
 
@@ -25,11 +26,18 @@ export interface DrillData {
  */
 export async function loadDrillData(): Promise<DrillData> {
   const supabase = await createSupabaseServer();
-  const [{ data: accountsRaw }, { data: txnsRaw }, { data: catsRaw }] = await Promise.all([
+  const [{ data: accountsRaw }, { rows: txnsRaw, error: txnErr }, { data: catsRaw }] = await Promise.all([
     supabase.from("accounts").select("id,name,kind,anchor_balance_paise,anchor_date"),
-    supabase.from("transactions").select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source"),
+    fetchAllRows<{ id: string; txn_date: string; amount_paise: number; tags: string[] | null; account_id: string | null; category_id: string | null; description_raw: string | null; merchant: string | null; category_source: string | null }>(
+      (from, to) => supabase.from("transactions")
+        .select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source")
+        .order("id").range(from, to),
+    ),
     supabase.from("categories").select("id,name,parent_id"),
   ]);
+  // Money totals must never silently truncate at PostgREST's 1000-row cap (audit FA-1) — a page
+  // load throwing on a real DB error is preferable to a dashboard quietly under-reporting net worth.
+  if (txnErr) throw new Error(`transactions: ${txnErr}`);
 
   const accounts: DrillAccount[] = (accountsRaw ?? []).map((a) => ({
     id: a.id as string, name: a.name as string, kind: a.kind as string,

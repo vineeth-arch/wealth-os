@@ -7,6 +7,7 @@ import { ReflectionChecklist } from "@/components/compass/reflection-checklist";
 import { LensToggle } from "@/components/compass/lens-toggle";
 import { loadDrillData } from "@/lib/server/load-drill";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { accountBalances } from "@/lib/halan";
 import {
   type CompassTxn, type HoldingValue, type CompassProfile, type Band, computeWindow,
@@ -25,12 +26,20 @@ export default async function CompassPage({ searchParams }: { searchParams: Prom
   const lens = (await searchParams).lens === "business" ? "business" : "personal";
   const { drillTxns, accounts } = await loadDrillData();
   const supabase = await createSupabaseServer();
-  const [{ data: snapsRaw }, { data: pricesRaw }, { data: userData }, { data: profileRow }] = await Promise.all([
-    supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise,instruments(name,asset_class)").order("as_of", { ascending: false }),
-    supabase.from("prices").select("isin,price_paise,price_date"),
+  const [{ rows: snapsRaw, error: snapErr }, { rows: pricesRaw, error: priceErr }, { data: userData }, { data: profileRow }] = await Promise.all([
+    fetchAllRows<{ account_id: string; as_of: string; isin: string; qty: number; last_price_paise: number; instruments: InstrumentJoin }>(
+      (from, to) => supabase.from("holdings_snapshots")
+        .select("account_id,as_of,isin,qty,last_price_paise,instruments(name,asset_class)")
+        .order("as_of", { ascending: false }).range(from, to) as unknown as Promise<{ data: Array<{ account_id: string; as_of: string; isin: string; qty: number; last_price_paise: number; instruments: InstrumentJoin }> | null; error: { message: string } | null }>,
+    ),
+    fetchAllRows<{ isin: string; price_paise: number; price_date: string }>(
+      (from, to) => supabase.from("prices").select("isin,price_paise,price_date").order("isin").range(from, to),
+    ),
     supabase.auth.getUser(),
     supabase.from("profile").select("data").maybeSingle(),
   ]);
+  // Same silent-truncation risk as the dashboard (audit FA-1): holdings/prices feed net worth here too.
+  if (snapErr || priceErr) throw new Error(`compass load: ${snapErr || priceErr}`);
   const userId = userData.user?.id ?? "";
   const savedProfile = (profileRow?.data as CompassProfile | undefined) ?? null;
 

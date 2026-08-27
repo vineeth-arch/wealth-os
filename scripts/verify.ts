@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { fetchAllRows } from "../src/lib/supabase/paginate.js";
 import { parseSbi } from "../src/lib/ingest/parsers/sbi.js";
 import { parseIdfcBank } from "../src/lib/ingest/parsers/idfc-bank.js";
 import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
@@ -1468,6 +1469,79 @@ console.log("\n" + "-".repeat(78));
   for (const [label, ok] of uiChecks) { if (!ok) failures++; console.log(`GPAY-UI ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
-console.log("\n" + "=".repeat(78));
-console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+// ---- fetchAllRows: drains a query past PostgREST's 1000-row cap (audit FA-1) ----
+async function verifyPaginate(): Promise<void> {
+  function mockPager<T>(all: T[], opts: { pageSize: number; errorAtFrom?: number }) {
+    let calls = 0;
+    const pager = async (from: number, to: number) => {
+      calls++;
+      if (opts.errorAtFrom !== undefined && from === opts.errorAtFrom) return { data: null, error: { message: "boom" } };
+      return { data: all.slice(from, to + 1), error: null };
+    };
+    return { pager, callCount: () => calls };
+  }
+
+  {
+    const all = Array.from({ length: 2500 }, (_, i) => i);
+    const { pager, callCount } = mockPager(all, { pageSize: 1000 });
+    const { rows, error } = await fetchAllRows(pager, 1000);
+    const ok = error === null && rows.length === 2500 && rows[0] === 0 && rows[2499] === 2499 && callCount() === 3;
+    if (!ok) failures++;
+    console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: drains multiple pages (2500 rows / pageSize 1000 → 3 queries, all rows, in order)`);
+  }
+  {
+    const all = Array.from({ length: 2000 }, (_, i) => i);
+    const { pager, callCount } = mockPager(all, { pageSize: 1000 });
+    const { rows, error } = await fetchAllRows(pager, 1000);
+    const ok = error === null && rows.length === 2000 && callCount() === 3;
+    if (!ok) failures++;
+    console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: exact-multiple boundary (2000 rows / pageSize 1000 → a 3rd empty page confirms the drain, no off-by-one)`);
+  }
+  {
+    const { pager, callCount } = mockPager<number>([], { pageSize: 1000 });
+    const { rows, error } = await fetchAllRows(pager, 1000);
+    const ok = error === null && rows.length === 0 && callCount() === 1;
+    if (!ok) failures++;
+    console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: empty table → 1 query, 0 rows, no error`);
+  }
+  {
+    const all = [1, 2, 3, 4, 5];
+    const { pager, callCount } = mockPager(all, { pageSize: 1000 });
+    const { rows, error } = await fetchAllRows(pager, 1000);
+    const ok = error === null && rows.length === 5 && callCount() === 1;
+    if (!ok) failures++;
+    console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: a single page under the limit needs exactly 1 query`);
+  }
+  {
+    const all = Array.from({ length: 5 }, (_, i) => i);
+    const { pager } = mockPager(all, { pageSize: 1000, errorAtFrom: 0 });
+    const { rows, error } = await fetchAllRows(pager, 1000);
+    const ok = error === "boom" && rows.length === 0;
+    if (!ok) failures++;
+    console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: an error on the FIRST page surfaces the error, 0 rows`);
+  }
+  {
+    const all = Array.from({ length: 2500 }, (_, i) => i);
+    const { pager } = mockPager(all, { pageSize: 1000, errorAtFrom: 2000 });
+    const { rows, error } = await fetchAllRows(pager, 1000);
+    const ok = error === "boom" && rows.length === 0;
+    if (!ok) failures++;
+    console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: a mid-drain error fails the WHOLE read (no partial rows leak out)`);
+  }
+  {
+    const all = Array.from({ length: 25 }, (_, i) => i);
+    const { pager, callCount } = mockPager(all, { pageSize: 10 });
+    const { rows, error } = await fetchAllRows(pager, 10);
+    const ok = error === null && rows.length === 25 && callCount() === 3;
+    if (!ok) failures++;
+    console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: page size is caller-configurable, not hardcoded to 1000`);
+  }
+}
+
+(async () => {
+  await verifyPaginate();
+
+  console.log("\n" + "=".repeat(78));
+  console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
+  process.exit(failures === 0 ? 0 : 1);
+})();

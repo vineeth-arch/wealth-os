@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fetchAllRows } from "../src/lib/supabase/paginate.js";
+import { safeNextPath, DEFAULT_NEXT_PATH } from "../src/lib/auth/next-path.js";
 import { parseSbi } from "../src/lib/ingest/parsers/sbi.js";
 import { parseIdfcBank } from "../src/lib/ingest/parsers/idfc-bank.js";
 import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
@@ -1536,6 +1537,23 @@ async function verifyPaginate(): Promise<void> {
     if (!ok) failures++;
     console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: page size is caller-configurable, not hardcoded to 1000`);
   }
+}
+
+// ---- safeNextPath: auth-callback redirect filter (audit FA-6) ----
+{
+  const checks: Array<[string, boolean]> = [
+    [`null/empty → default`, safeNextPath(null) === DEFAULT_NEXT_PATH && safeNextPath("") === DEFAULT_NEXT_PATH && safeNextPath(undefined) === DEFAULT_NEXT_PATH],
+    [`plain app path passes through`, safeNextPath("/transactions?tab=import") === "/transactions?tab=import"],
+    [`nested path + hash passes through`, safeNextPath("/buckets/04#top") === "/buckets/04#top"],
+    [`hyphens/dots/tildes in a path survive (filter must not over-reject)`, safeNextPath("/insights/net-worth.v2~x") === "/insights/net-worth.v2~x"],
+    [`userinfo trick "@evil.com" → default (the FA-6 exploit)`, safeNextPath("@evil.com") === DEFAULT_NEXT_PATH],
+    [`absolute URL → default`, safeNextPath("https://evil.com/x") === DEFAULT_NEXT_PATH],
+    [`protocol-relative "//evil.com" → default`, safeNextPath("//evil.com") === DEFAULT_NEXT_PATH],
+    [`backslash escape "/\\evil.com" → default`, safeNextPath("/\\evil.com") === DEFAULT_NEXT_PATH],
+    [`javascript: scheme → default`, safeNextPath("javascript:alert(1)") === DEFAULT_NEXT_PATH],
+    [`embedded whitespace/control chars → default`, safeNextPath("/a b") === DEFAULT_NEXT_PATH && safeNextPath("/a\tb") === DEFAULT_NEXT_PATH && safeNextPath("/a" + String.fromCharCode(0) + "b") === DEFAULT_NEXT_PATH],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`NEXTPATH ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 (async () => {

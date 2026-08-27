@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fetchAllRows } from "../src/lib/supabase/paginate.js";
 import { runBounded } from "../src/lib/supabase/batch.js";
 import { safeNextPath, DEFAULT_NEXT_PATH } from "../src/lib/auth/next-path.js";
+import { constantTimeEqual } from "../src/lib/auth/constant-time-equal.js";
 import { parseSbi } from "../src/lib/ingest/parsers/sbi.js";
 import { parseIdfcBank } from "../src/lib/ingest/parsers/idfc-bank.js";
 import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
@@ -1599,6 +1600,19 @@ async function verifyBatch(): Promise<void> {
     [`empty input → 0 done, 0 calls, no error`, empty.done === 0 && empty.error === null && emptyCalls === 0],
   ];
   for (const [label, ok2] of checks) { if (!ok2) failures++; console.log(`BATCH ${ok2 ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- constantTimeEqual: hash-then-compare secret check (audit FA-14) ----
+{
+  const checks: Array<[string, boolean]> = [
+    [`identical strings match`, constantTimeEqual("Bearer abc123", "Bearer abc123") === true],
+    [`different strings of the SAME length don't match`, constantTimeEqual("Bearer abc123", "Bearer abc124") === false],
+    [`different LENGTHS don't match (and don't throw)`, constantTimeEqual("Bearer abc", "Bearer abc123") === false],
+    [`empty vs empty match`, constantTimeEqual("", "") === true],
+    [`empty vs non-empty don't match`, constantTimeEqual("", "Bearer x") === false],
+    [`case-sensitive`, constantTimeEqual("Bearer ABC", "Bearer abc") === false],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CONSTTIME ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 (async () => {

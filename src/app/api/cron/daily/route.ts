@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseService } from "@/lib/supabase/service";
 import { refreshPrices } from "@/lib/prices";
+import { constantTimeEqual } from "@/lib/auth/constant-time-equal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ const REFRESH_DOW = 0; // Sunday (UTC). Flip the day here without touching the c
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  if (!secret || !constantTimeEqual(authHeader, `Bearer ${secret}`)) {
     return new NextResponse("unauthorized", { status: 401 });
   }
 

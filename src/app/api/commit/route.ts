@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: account } = await supabase.from("accounts")
-    .select("id,name,anchor_balance_paise,anchor_date").eq("id", body.accountId).single();
+    .select("id,name,anchor_balance_paise,anchor_date").eq("id", body.accountId).eq("user_id", user.id).single();
   if (!account) return NextResponse.json({ error: "account not found" }, { status: 404 });
 
   const { data: cats } = await supabase.from("categories").select("id,name").eq("user_id", user.id);

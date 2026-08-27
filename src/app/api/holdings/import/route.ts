@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: account } = await supabase.from("accounts")
-    .select("id,name,institution,kind").eq("id", accountId).single();
+    .select("id,name,institution,kind").eq("id", accountId).eq("user_id", user.id).single();
   if (!account) return NextResponse.json({ error: "account not found" }, { status: 404 });
   if (!HOLDINGS_BROKERS.includes(account.institution)) {
     return NextResponse.json({ error: `holdings import expects a broker account (Zerodha/Upstox), got ${account.institution}` }, { status: 400 });

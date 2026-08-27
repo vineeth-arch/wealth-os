@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: account } = await supabase.from("accounts")
-    .select("id,name,institution,kind").eq("id", accountId).single();
+    .select("id,name,institution,kind").eq("id", accountId).eq("user_id", user.id).single();
   if (!account) return NextResponse.json({ error: "account not found" }, { status: 404 });
   if (!isTxnInstitution(account.institution)) {
     return NextResponse.json({ error: `${account.institution} accounts don't use this importer — import broker holdings (Zerodha/Upstox) on the Holdings page, and UPI exports via the Enrich panel. This importer handles bank & credit-card statements.` }, { status: 400 });

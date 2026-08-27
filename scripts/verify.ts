@@ -3,6 +3,7 @@ import { fetchAllRows } from "../src/lib/supabase/paginate.js";
 import { runBounded } from "../src/lib/supabase/batch.js";
 import { safeNextPath, DEFAULT_NEXT_PATH } from "../src/lib/auth/next-path.js";
 import { constantTimeEqual } from "../src/lib/auth/constant-time-equal.js";
+import { isUniqueViolation } from "../src/lib/supabase/db-errors.js";
 import { parseSbi } from "../src/lib/ingest/parsers/sbi.js";
 import { parseIdfcBank } from "../src/lib/ingest/parsers/idfc-bank.js";
 import { parseFederal } from "../src/lib/ingest/parsers/federal.js";
@@ -1613,6 +1614,18 @@ async function verifyBatch(): Promise<void> {
     [`case-sensitive`, constantTimeEqual("Bearer ABC", "Bearer abc") === false],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CONSTTIME ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- isUniqueViolation: distinguish a benign seed-race loss from a real DB error (audit FA-8) ----
+{
+  const checks: Array<[string, boolean]> = [
+    [`Postgres 23505 (unique_violation) → true`, isUniqueViolation({ code: "23505" }) === true],
+    [`a different Postgres code → false`, isUniqueViolation({ code: "23503" }) === false],
+    [`no error (null) → false`, isUniqueViolation(null) === false],
+    [`no error (undefined) → false`, isUniqueViolation(undefined) === false],
+    [`error object with no code → false`, isUniqueViolation({}) === false],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`DBERR ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 (async () => {

@@ -1,5 +1,6 @@
-wealth-os — npm run verify output (regenerated after the integrations/price/holdings/calculators sub-pass)
-Date: 2026-06-13T07:27:34Z
+wealth-os — npm run verify output (regenerated after the Fable audit PII re-scrub)
+Date: 2026-08-27T20:11:24Z
+
 
 
 > wealth-os@0.1.0 verify
@@ -21,30 +22,30 @@ WEALTH-OS PARSER VERIFICATION — real fixtures, hard reconciliation gates
   txns: 34   opening: ₹14,435.41   closing: ₹165.66
   expected Δ: -₹14,269.75   parsed Σ: -₹14,269.75
   debits 3867875 == stated 3867875; credits 2440900 == stated 2440900; balance chain enforced per row
-    2026-04-01       ₹2,200.00  UPI/CR/120894612315/NIRMITI /HDFC/nirmiti/UPI
+    2026-04-01       ₹2,200.00  UPI/CR/120894612315/SMPLUSR /HDFC/smplusr/UPI
     2026-04-01     -₹15,945.21  IFT-OPT/IFT/20260914959765/01042 6/6873
-    2026-04-01      ₹13,500.00  UPI/CR/120934561771/NIRMITI /HDFC/nirmiti/UPI
+    2026-04-01      ₹13,500.00  UPI/CR/120934561771/SMPLUSR /HDFC/smplusr/UPI
 
 [PASS] FEDERAL  Federal Bank Savings  2025-04-01 → 2025-04-30
   txns: 2   opening: ₹299.20   closing: ₹79.20
   expected Δ: -₹220.00   parsed Σ: -₹220.00
   balance-chain + rounded-summary cross-check
-    2025-04-15         ₹280.00  UPI IN/103232444256/nirmiti26mehta@okhdfcban/ 0000
-    2025-04-30        -₹500.00  UPIOUT/548628778825/nirmiti26mehta@okhdfcba n/0000
+    2025-04-15         ₹280.00  UPI IN/103232444256/smplusr00@okhdfcban/ 0000
+    2025-04-30        -₹500.00  UPIOUT/548628778825/smplusr00@okhdfcba n/0000
 
 [PASS] FEDERAL  Federal Bank Savings  2025-05-01 → 2025-05-31
   txns: 4   opening: ₹79.20   closing: ₹479.20
   expected Δ: ₹400.00   parsed Σ: ₹400.00
   balance-chain + rounded-summary cross-check
-    2025-05-01         ₹100.00  UPI IN/104104793629/nirmiti26mehta@okhdfcban/ 0000
-    2025-05-01        -₹100.00  UPIOUT/512119153807/nirmiti26mehta@okhdfcban/ 0000 UPI
+    2025-05-01         ₹100.00  UPI IN/104104793629/smplusr00@okhdfcban/ 0000
+    2025-05-01        -₹100.00  UPIOUT/512119153807/smplusr00@okhdfcban/ 0000 UPI
     2025-05-01         ₹100.00  UPI
 
 [PASS] FEDERAL  Federal Bank Savings  2025-06-01 → 2025-06-30
   txns: 17   opening: ₹479.20   closing: ₹7,514.72
   expected Δ: ₹7,035.52   parsed Σ: ₹7,035.52
   balance-chain + rounded-summary cross-check
-    2025-06-01      ₹30,000.00  UPI IN/515245751010/vineethnair-1@fifederal//000 0
+    2025-06-01      ₹30,000.00  UPI IN/515245751010/testaccuser-1@fifederal//000 0
     2025-06-01      -₹1,797.00  UPIOUT/515227825111/rzpzncapexadvertisers@ye/ 5691
     2025-06-01        -₹830.14  TO ECM/515272060874/DOMESTIKA *INC \\DOME STI
 
@@ -68,9 +69,9 @@ WEALTH-OS PARSER VERIFICATION — real fixtures, hard reconciliation gates
   txns: 36   opening: ₹1,345.90   closing: ₹11,363.28
   expected Δ: ₹10,017.38   parsed Σ: ₹10,017.38
   balance-chain + rounded-summary cross-check
-    2025-09-01      ₹13,000.00  UPI IN/524455755039/vineethnair98@oksbi/UPI/00 00
+    2025-09-01      ₹13,000.00  UPI IN/524455755039/testaccuser0@oksbi/UPI/00 00
     2025-09-01     -₹12,764.28  UPIOUT/561025708082/cred.club@axisb/payment /5413
-    2025-09-03          -₹1.00  UPIOUT/561223064956/nirmiti26mehta@okhdfcba n/0000
+    2025-09-03          -₹1.00  UPIOUT/561223064956/smplusr00@okhdfcba n/0000
 
 [PASS] FEDERAL  Federal Bank Savings  2025-10-01 → 2025-10-31
   txns: 24   opening: ₹11,363.28   closing: ₹415.04
@@ -84,9 +85,9 @@ WEALTH-OS PARSER VERIFICATION — real fixtures, hard reconciliation gates
   txns: 36   opening: ₹415.04   closing: ₹20,268.18
   expected Δ: ₹19,853.14   parsed Σ: ₹19,853.14
   balance-chain + rounded-summary cross-check
-    2025-11-07       ₹2,000.00  UPI IN/567726582743/8655482753@yescred/Paid /0000
+    2025-11-07       ₹2,000.00  UPI IN/567726582743/9000000001@yescred/Paid /0000
     2025-11-07        -₹295.00  UPIOUT/567729584147/saharastarfrontoffic.423/70 11
-    2025-11-07       ₹1,000.00  UPI IN/567754739671/nirmiti26mehta@okaxis/UP/0 000
+    2025-11-07       ₹1,000.00  UPI IN/567754739671/smplusr00@okaxis/UP/0 000
 
 [PASS] FEDERAL  Federal Bank Savings  2025-12-01 → 2025-12-31
   txns: 36   opening: ₹20,268.18   closing: ₹3,882.19
@@ -116,7 +117,7 @@ WEALTH-OS PARSER VERIFICATION — real fixtures, hard reconciliation gates
   txns: 4   opening: ₹3,160.17   closing: ₹1,268.17
   expected Δ: -₹1,892.00   parsed Σ: -₹1,892.00
   balance-chain + rounded-summary cross-check
-    2026-03-01      -₹2,000.00  UPIOUT/235350833495/vineeth9@upi/NO REMAR KS/0000
+    2026-03-01      -₹2,000.00  UPIOUT/235350833495/testuser@upi/NO REMAR KS/0000
     2026-03-26          ₹60.00  UPI IN/120606832983/tonianazareth@okhdfcbank/ 0000
     2026-03-27          ₹18.00  ACHCR/IOCL/30234991/FIO/:44032457
 
@@ -275,15 +276,75 @@ WEALTH-OS PARSER VERIFICATION — real fixtures, hard reconciliation gates
     2026-04-16          -₹8.00  PRAVIN LAXMAN POOJARY
     2026-04-16      -₹1,760.00  NARMADA CHANDRESH PRAJAPATI
 
+[PASS] HDFC  HDFC — Sample  2026-03-01 → 2026-05-31
+  txns: 325   opening: ₹97,220.86   closing: ₹49,927.54
+  expected Δ: -₹47,293.32   parsed Σ: -₹47,293.32
+  summary reconciled: 283 Dr / 42 Cr, balance chain verified on every row
+    2026-03-01      ₹15,000.00  UPI-SAMPLE PAYEE OWNER-TESTPAYEE000001@OKHDFCBANK-SMPL000000
+    2026-03-01        -₹308.75  UPI-ZOMATO-PAYZOMATO@HDFCBANK-HDFC0MERUPI-119323021380-UPI
+    2026-03-01     -₹15,084.00  ACH D- KOTAKMAHPRIMELTKKBK-RC4-120608574
+
 ------------------------------------------------------------------------------
 COUNT PASS: SBI txns = 183 (expected 183)
 COUNT PASS: IDFC bank txns = 34 (expected 34)
 COUNT PASS: Federal statements = 12 (expected 12)
 COUNT PASS: IDFC CC statements = 10 (expected 10)
 COUNT PASS: Suryoday statements = 6 (expected 6)
+COUNT PASS: HDFC txns = 325 (expected 325)
 
 ------------------------------------------------------------------------------
-DEDUP: 1053 unique txns; cross-statement hash collisions: 0; re-import inserts: 0 (PASS — idempotent)
+DEDUP: 1378 unique txns; cross-statement hash collisions: 0; re-import inserts: 0 (PASS — idempotent)
+HDFC PASS: reconciliation ok (summary reconciled: 283 Dr / 42 Cr, balance chain verified on every row)
+HDFC PASS: Dr count = 283 (expected 283)
+HDFC PASS: Cr count = 42 (expected 42)
+HDFC PASS: Σ withdrawals = 31996148 (expected 31996148)
+HDFC PASS: Σ deposits = 27266816 (expected 27266816)
+HDFC PASS: opening = 9722086 (expected 9722086)
+HDFC PASS: closing = 4992754 (expected 4992754)
+HDFC PASS: row[0] date = 2026-03-01 (expected 2026-03-01)
+HDFC PASS: row[0] amount = 1500000 (expected +1500000)
+HDFC PASS: row[0] closing = 11222086 (expected 11222086)
+HDFC PASS: row[0] wrapped narration joined correctly
+HDFC PASS: salary 29/05/26 SALARY MAY 2026 = +5462900
+HDFC PASS: all amounts integer paise
+HDFC-LOAN PASS: reconciliation ok (schedule reconciled: 48 installments, Σprincipal == amount financed, chain → 0)
+HDFC-LOAN PASS: rows = 48 (expected 48)
+HDFC-LOAN PASS: agreement no = 000000001 (expected 000000001)
+HDFC-LOAN PASS: loan type = PERSONAL LOAN (expected PERSONAL LOAN)
+HDFC-LOAN PASS: amount financed = 57000000 (expected 57000000)
+HDFC-LOAN PASS: tenure = 48 (expected 48)
+HDFC-LOAN PASS: first due = 2026-04-07 (expected 2026-04-07)
+HDFC-LOAN PASS: Σprincipal = 57000000 (expected 57000000)
+HDFC-LOAN PASS: Σinterest = 13835600 (expected 13835600)
+HDFC-LOAN PASS: Σinstl = 70835600 (expected 70835600)
+HDFC-LOAN PASS: instl 1 = 1595100 (expected 1595100 = 950700 + 644400)
+HDFC-LOAN PASS: instl 48 = 1473300 (expected 1473300), o/s = 0 (expected 0)
+AI-SUGGEST PASS: description cell wraps (whitespace-normal break-words around {s.sample})
+AI-SUGGEST PASS: no `truncate` class remains in the AI-suggest panel
+FEDERAL PASS: 12 monthly statements parsed
+FEDERAL PASS: every Federal statement reconciles
+FEDERAL PASS: aggregate parsed txns = 230 (expected 230)
+LLM-DISPATCH PASS: active openai + key → dispatch openai
+LLM-DISPATCH PASS: active openai picks the chosen model gpt-4o
+LLM-DISPATCH PASS: active openai + NO key → not ok, providerId stays openai (no gemini fallback)
+LLM-DISPATCH PASS: openai missing-key reason names OPENAI_API_KEY
+LLM-DISPATCH PASS: active gemini + key → dispatch gemini
+LLM-DISPATCH PASS: none active → default gemini
+LLM-DISPATCH PASS: active anthropic (no adapter) → not ok
+LLM-DISPATCH PASS: gemini and openai adapters are distinct functions
+BUSY PASS: begin → busy, count 1, label set
+BUSY PASS: end → idle, count 0
+BUSY PASS: two begins then one end → still busy, label = remaining op
+BUSY PASS: extra end clamps at 0 (never negative)
+BUSY PASS: idle initial state is not busy
+SEED-ACCOUNTS PASS: SBI Savings (bank) institution=SBI → isTxnInstitution
+SEED-ACCOUNTS PASS: Federal Bank Savings (bank) institution=FEDERAL → isTxnInstitution
+SEED-ACCOUNTS PASS: IDFC FIRST Savings (bank) institution=IDFC_BANK → isTxnInstitution
+SEED-ACCOUNTS PASS: IDFC FIRST Credit Card (credit_card) institution=IDFC_CC → isTxnInstitution
+SEED-ACCOUNTS PASS: Suryoday Credit Card (credit_card) institution=SURYODAY_CC → isTxnInstitution
+SEED-ACCOUNTS PASS: HDFC — Sample (bank) institution=HDFC → isTxnInstitution
+SEED-ACCOUNTS PASS: Zerodha (broker) institution=ZERODHA ∈ {ZERODHA,UPSTOX}
+SEED-ACCOUNTS PASS: Upstox (broker) institution=UPSTOX ∈ {ZERODHA,UPSTOX}
 
 BHIM UPI: 784 SUCCESS rows (80 non-success skipped)
    464  SURYODAY SMALL FINANCE BANK CREDIT CARD
@@ -292,6 +353,52 @@ BHIM UPI: 784 SUCCESS rows (80 non-success skipped)
     28  State Bank Of India
     98  FEDERAL BANK
   enrichment match-rate vs IDFC bank statement period: 54/56 UPI rows matched by (date, amount)
+BHIM PASS: rows = 784 (expected 784)
+BHIM PASS: skipped = 80 (expected 80)
+BHIM PASS: row[0] date = 2026-06-12 (expected 2026-06-12)
+BHIM PASS: row[0] amount = -4500 (expected -4500, ₹45 DR → outflow)
+BHIM PASS: row[0] carries a counterpart name/VPA
+ENRICH PASS: unique match sets counterparty (A → ZOMATO)
+ENRICH PASS: update payload keys are exactly {id, merchant}
+ENRICH PASS: same-date+amount pair reported ambiguous (not guessed)
+MERGE PASS: null existing → incoming = "ZOMATO" (expected "ZOMATO")
+MERGE PASS: case-insensitive contains → unchanged = "ZOMATO" (expected "ZOMATO")
+MERGE PASS: distinct → appended = "ZOMATO · SWIGGY" (expected "ZOMATO · SWIGGY")
+MERGE PASS: empty incoming → never blanked = "ZOMATO" (expected "ZOMATO")
+GPAY PASS: rows = 200 (expected 200)
+GPAY PASS: parse-completeness: rows == 200 activity lines
+GPAY PASS: named = 143 (expected 143)
+GPAY PASS: distinct masks = 3 (expected 3: ...0001, ...0002, 111111...00)
+GPAY PASS: date range 2024-12-30 → 2026-06-07 (expected 2024-12-30 → 2026-06-07)
+GPAY PASS: unparseable date headers = 0 (expected 0 — proves "Sept" handled)
+PROMPT PASS: groups each leaf under its parent bucket
+PROMPT PASS: carries India-specific few-shot examples
+PROMPT PASS: instructs bucket-first + Uncategorized Review fallback
+LLM-BOUNDARY PASS: ai/suggest transactions select contains description_raw (description-level field present)
+LLM-BOUNDARY PASS: ai/suggest transactions select omits amount/balance/account_id (no money to LLM)
+OPENAI PASS: request payload carries only the description prompt (no extra fields)
+OPENAI PASS: payload omits money/date/account fields, temperature deterministic
+OPENAI PASS: parses a well-formed JSON response into the suggestion shape
+OPENAI PASS: coerces an unknown/invalid category to Uncategorized Review
+DRILL PASS: income breakdown sums to headline ₹2,05,000 over 2 accounts = 20500000
+DRILL PASS: spend breakdown sums to headline, transfers excluded = 1210000
+DRILL PASS: top-5 capped & ordered by |amount| desc = s2,s4,s6,s1,s3
+DRILL PASS: empty month → empty breakdown + empty top-list
+DRILL PASS: net = income − spend − invest, transfers excluded = 19290000
+DRILL PASS: accountPeriodFlow A1: in 18500000 out 2710000 (raw flow, transfers incl)
+DRILL PASS: accountPeriodFlow A2: in 2000000 out 500000
+BUCKET PASS: returns exactly the parent's txns (a,b,c,e — not d) = a,b,c,e
+BUCKET PASS: leaf subtotals sum to the bucket total = 500000
+BUCKET PASS: leaf groups by category; inflow excluded from outflow (Food Delivery = ₹2,000 over 3 rows)
+BUCKET PASS: inflow tracked + net = inflow − outflow (in 50000, out 500000, net -450000)
+BUCKET PASS: Food Delivery net folds the refund (in 50000 − out 200000 = -150000)
+RECAT PASS: re-categorize writes category_source='user'
+RECAT PASS: known category accepted; non-taxonomy + empty rejected
+RECAT PASS: add-as-rule row shape {match_text(normalized), category_id, active} = "UPI/DR/512282836511/ZOMATO ZOMATO"
+ACCT PASS: migration 0002 declares all 6 columns
+ACCT PASS: fully-populated account → expected lines in order
+ACCT PASS: {holder, number, ifsc} only → exactly 3 lines, no blanks, no "·"
+ACCT PASS: empty account → ""
 
 ZERODHA: 7 holdings (as of 2026-06-13)  invested ₹46,866.69  present ₹47,653.53  reconcile: PASS
   equity       ATHERENERG                   INE0LEZ01016  qty 6
@@ -302,17 +409,65 @@ ZERODHA: 7 holdings (as of 2026-06-13)  invested ₹46,866.69  present ₹47,653
   mutual_fund  ADITYA BIRLA SUN LIFE LIQUID INF209K01VA3  qty 0.168
   mutual_fund  ICICI PRUDENTIAL NIFTY NEXT  INF109K01Y80  qty 21.094
 
+UPSTOX HOLDINGS: 16 holdings (as of 2026-06-12)  present ₹65,556.30  reconcile: PASS
+UPSTOX-HOLD PASS: rows = 16 (expected 16)
+UPSTOX-HOLD PASS: reconciles (Σ valuation = Σ qty×rate)
+UPSTOX-HOLD PASS: asOf = 2026-06-12 (expected 2026-06-12)
+UPSTOX-HOLD PASS: ETERNAL qty = 85 (expected 85)
+UPSTOX-HOLD PASS: ETERNAL value = 2072300 paise (expected 2072300)
+UPSTOX-HOLD PASS: cost basis null for all (Upstox file has none)
+UPSTOX-HOLD PASS: money is integer paise
+UPSTOX-HOLD PASS: no preamble/footer/TOTAL leaked (every row a valid ISIN)
+
 TAXONOMY: 276 names (15 parents, 261 leaves)
+TAXONOMY PASS: 276 names = 15 parents + 261 leaves
 RULES: 110 loaded — all categories validated, Leakage/Review guards enforced at load
-AUTO-CATEGORIZATION: 137/1053 matched a rule; 916 → Uncategorized Review
-    24×  "AMAZON" → Shopping Personal
+
+UPSTOX DIVIDENDS: 17 events  Σ ₹222.95  stated ₹222.95  reconcile: PASS  → Dividend Income (parent 01 Income)
+UPSTOX-DIV PASS: rows = 17 (expected 17)
+UPSTOX-DIV PASS: Σ = 22295 = stated total 22295 (expected 22295)
+UPSTOX-DIV PASS: all rows +inflow integer paise
+UPSTOX-DIV PASS: row[0] date = 2025-05-16 (expected 2025-05-16)
+UPSTOX-DIV PASS: row[0] amount = 600 (expected 600)
+UPSTOX-DIV PASS: row[0] desc = Dividend · IEX · Final
+UPSTOX-DIV PASS: category "Dividend Income" exists in taxonomy with parent "01 Income"
+
+UPSTOX TAX (FY 2526): equities 2 lots  gross ₹55.65  net ₹21.74  charges ₹33.91  reconcile: PASS
+UPSTOX-TAX PASS: reconciles (Σ lotPL = gross, net = gross−charges, = Summary)
+UPSTOX-TAX PASS: financial year = 2526 (expected 2526)
+UPSTOX-TAX PASS: equities closed lots = 2 (expected 2)
+UPSTOX-TAX PASS: equities gross = 5565 (expected 5565)
+UPSTOX-TAX PASS: equities short-term = 0 (expected 0)
+UPSTOX-TAX PASS: equities long-term = 5565 (expected 5565)
+UPSTOX-TAX PASS: equities charges = 3391 (expected 3391)
+UPSTOX-TAX PASS: equities net = 2174 (expected 2174 = 5565−3391)
+UPSTOX-TAX PASS: Σ lot PL = 5565 (expected 5565)
+UPSTOX-TAX PASS: lot[0] buy/sell dates ISO
+UPSTOX-TAX PASS: F&O/Commodities/Currencies empty (0 lots each)
+UPSTOX-TAX PASS: all money integer paise
+AUTO-CATEGORIZATION: 181/1378 matched a rule; 1197 → Uncategorized Review
+    26×  "AMAZON" → Shopping Personal
     20×  "CASHBACK" → Refunds Received
-    14×  "BLINKIT" → Groceries
+    18×  "SWIGGY" → Food Delivery
+    16×  "ZOMATO" → Food Delivery
+    15×  "BLINKIT" → Groceries
     12×  "ZERODHA" → Investment Funding Transfer
+    12×  "EMI" → Personal Loan EMI
      9×  "JIO" → Mobile Phone
-     9×  "ZOMATO" → Food Delivery
-     9×  "ZEPTO" → Groceries
-     8×  "EMI" → Personal Loan EMI
+RULESREPO PASS: loadRules refuses a rule targeting a parent-14 (Leakage) category
+RULESREPO PASS: selectActiveRules drops disabled + sorts by priority (r-zomFood,r-amazon)
+RULESREPO PASS: first-match-wins by priority → ZOMATO = Food Delivery; disabled rule skipped
+RULESREPO PASS: account-agnostic: identical text on different accounts → same category
+RULESREPO PASS: re-run preserves user-set ('user') row
+RULESREPO PASS: re-run re-evaluates ai_suggested + money_manager + google_pay_statement rows
+RULESREPO PASS: re-run skips an already rule-settled no-op row
+RULESREPO PASS: isReapplyTarget: default/rule/ai_suggested/money_manager/google_pay_statement=true, user=false
+RULESREPO PASS: per-rule matched tally == total matched (6)
+RULESREPO PASS: rows newly categorized this run (changed) = 5
+RULESREPO PASS: re-run is idempotent (2nd pass changes 0; 1st changed 5)
+RULESREPO PASS: remaining = eligible still on fallback = 1
+RULESREPO PASS: moveInOrder swaps adjacent up/down; boundary is a no-op
+RULESREPO PASS: migration 0009 declares last_hit_count + last_run_at
 
 ------------------------------------------------------------------------------
 HALAN PASS: classify 14→leakage_watch = 1 (expected 1)
@@ -327,7 +482,7 @@ HALAN PASS: account balance respects anchor date = 19050000 (expected 19050000)
 ------------------------------------------------------------------------------
 HALAN PASS: LLM connected when key present = 1 (expected 1)
 HALAN PASS: LLM not_connected when key absent = 1 (expected 1)
-HALAN PASS: anthropic is a known LLM provider (default) = 1 (expected 1)
+HALAN PASS: gemini is a known LLM provider (default) = 1 (expected 1)
 HALAN PASS: unknown LLM provider rejected = 0 (expected 0)
 
 ------------------------------------------------------------------------------
@@ -362,6 +517,236 @@ HALAN PASS: new regime ₹12L taxable → ₹0 = 0 (expected 0)
 HALAN PASS: new regime ₹12.75L gross salaried → ₹0 = 0 (expected 0)
 HALAN PASS: new regime ₹20L taxable → ₹2,08,000 = 20800000 (expected 20800000)
 HALAN PASS: old regime ₹10L taxable → ₹1,17,000 = 11700000 (expected 11700000)
+
+------------------------------------------------------------------------------
+HALAN PASS: EMI ₹10L @ 9% / 120mo = ₹12,667.58 = 1266758 (expected 1266758)
+HALAN PASS: schedule length = tenure = 120 (expected 120)
+HALAN PASS: closing balance ends exactly 0 = 0 (expected 0)
+HALAN PASS: Σ principal = principal = 100000000 (expected 100000000)
+HALAN PASS: zero-rate EMI = P/n = 10000000 (expected 10000000)
+HALAN PASS: zero-rate closes to 0 = 0 (expected 0)
+HALAN PASS: zero-rate has no interest = 0 (expected 0)
+HALAN PASS: reduce_tenure saves interest (>0) = 1 (expected 1)
+HALAN PASS: reduce_tenure shortens loan (monthsSaved>0) = 1 (expected 1)
+HALAN PASS: reduce_tenure reports newTenure < 120 = 1 (expected 1)
+HALAN PASS: reduce_emi keeps tenure (monthsSaved=0) = 0 (expected 0)
+HALAN PASS: reduce_emi lowers EMI below base = 1 (expected 1)
+HALAN PASS: reduce_emi also saves interest (>0) = 1 (expected 1)
+HALAN PASS: reduce_tenure saves more than reduce_emi = 1 (expected 1)
+
+------------------------------------------------------------------------------
+HALAN PASS: EF 6-month target = 36000000 (expected 36000000)
+HALAN PASS: EF 6-month gap (target − liquid) = 6000000 (expected 6000000)
+HALAN PASS: EF 12-month target = 72000000 (expected 72000000)
+HALAN PASS: EF gap clamps at 0 when over-funded = 0 (expected 0)
+
+------------------------------------------------------------------------------
+HALAN PASS: FIRE future annual expense = 192428128 (expected 192428128)
+HALAN PASS: FIRE target corpus (expense / SWR) = 4810703200 (expected 4810703200)
+HALAN PASS: FIRE freedom ratio = 1 when current = target = 1000 (expected 1000)
+HALAN PASS: SWP flat depletes in year 10 = 10 (expected 10)
+HALAN PASS: SWP flat years lasted = 10 = 10 (expected 10)
+HALAN PASS: SWP with growth survives 30 yrs = 1 (expected 1)
+
+------------------------------------------------------------------------------
+HALAN PASS: pvAnnuity 0% = amount × years = 1400000000 (expected 1400000000)
+HALAN PASS: HLV income-replacement (0% discount) = ₹14Cr = 1400000000 (expected 1400000000)
+HALAN PASS: HLV income-replacement (8% discount) = 687270319 (expected 687270319)
+HALAN PASS: HLV gap = need − existing cover = 487270319 (expected 487270319)
+HALAN PASS: HLV expense+liabilities need = 1700000000 (expected 1700000000)
+HALAN PASS: HLV expense+liabilities gap = 1200000000 (expected 1200000000)
+
+------------------------------------------------------------------------------
+HALAN PASS: SIP plain FV (₹10k, 12%, 120mo) = 232339076 (expected 232339076)
+HALAN PASS: SIP step-up FV (10%) exceeds plain = 1 (expected 1)
+HALAN PASS: SIP step-up FV value = 337432626 (expected 337432626)
+HALAN PASS: SIP 0% return = months × monthly = 12000000 (expected 12000000)
+HALAN PASS: goal corpus (₹25L, 8%, 15yr) = 793042279 (expected 793042279)
+HALAN PASS: required SIP reaches the target = 1 (expected 1)
+HALAN PASS: required SIP not wildly over (within one month's SIP) = 1 (expected 1)
+
+------------------------------------------------------------------------------
+HALAN PASS: equity STCG tax (20%) = 4000000 (expected 4000000)
+HALAN PASS: LTCG exemption used (₹1.25L) = 12500000 (expected 12500000)
+HALAN PASS: LTCG taxable after exemption = 17500000 (expected 17500000)
+HALAN PASS: equity LTCG tax (12.5%) = 2187500 (expected 2187500)
+HALAN PASS: total CG tax = 6187500 (expected 6187500)
+HALAN PASS: non-equity ST surfaced separately, untaxed here = 5000000 (expected 5000000)
+HALAN PASS: LT below exemption → ₹0 tax = 0 (expected 0)
+HALAN PASS: LT below exemption → exemption used = LT = 10000000 (expected 10000000)
+HALAN PASS: net STCG loss → ₹0 tax = 0 (expected 0)
+HALAN PASS: projection grows tax with positive growth = 1 (expected 1)
+
+------------------------------------------------------------------------------
+COMPASS PASS: business revenue = 20000000 (expected 20000000)
+COMPASS PASS: dividend is otherIncome, NOT businessRevenue (other 500000)
+COMPASS PASS: business costs (parent 11) = 1500000 (expected 1500000)
+COMPASS PASS: tax (parent 12) = 2000000 (expected 2000000)
+COMPASS PASS: businessProfitAfterTax = 16500000 (expected 16500000)
+COMPASS PASS: personalIncome = 17000000 (expected 17000000)
+COMPASS PASS: personalSpend follows category not account = 1730000 (expected 1730000)
+COMPASS PASS: EMI (parent 05) tracked for the ratio = 1200000 (expected 1200000)
+COMPASS PASS: personalSavings = invest 08 + protect 04 = 5300000 (expected 5300000)
+COMPASS PASS: parent-10 transfer touches NEITHER lens (out 8000000, not in income/spend/savings)
+COMPASS PASS: identity personalIncome == businessProfitAfterTax + otherIncome
+COMPASS PASS: reconciliation closes (no double-count): leftover 9970000 == recomputed 9970000
+COMPASS PASS: leftover = personalIncome − spend − savings = 9970000 (expected 9970000)
+COMPASS PASS: Protect counted ONCE (savings only, not in spend): spend excludes the ₹3,000 premium
+COMPASS PASS: all 5 business-income leaves are recognized
+COMPASS-WINDOW PASS: window covers the 3 months present (<6 handled) = 3
+COMPASS-WINDOW PASS: window totals income = 30000000 (expected 30000000)
+COMPASS-WINDOW PASS: per-month average income = 10000000 (expected 10000000)
+COMPASS-WINDOW PASS: perMonth series length = months covered
+COMPASS-BAND PASS: bandHigher: ≥green→green, ≥amber→amber, else red
+COMPASS-BAND PASS: bandLower: ≤green→green, ≤amber→amber, else red
+COMPASS-MACHINE PASS: H1 save rate 25% → green (pct 25.0)
+COMPASS-MACHINE PASS: H1 EMI 20% → green
+COMPASS-MACHINE PASS: H1 living cost 45% → green
+COMPASS-MACHINE PASS: H1 zero income → null band (categorize first)
+COMPASS-MACHINE PASS: H2 6.67 months → green, gap 0
+COMPASS-MACHINE PASS: H2 2 months → red, gap = 6×spend − liquid = 18000000
+COMPASS-MACHINE PASS: H2 no spend → null band
+COMPASS-H3 PASS: H3 term premium → present + green
+COMPASS-H3 PASS: H3 health premium → present + green
+COMPASS-H3 PASS: H3 no protection outflow → red
+COMPASS-H4 PASS: H4 every month + green save-rate → green (invested 3/3)
+COMPASS-H4 PASS: H4 every month but save-rate amber → amber
+COMPASS-H4 PASS: H4 skipped a month → amber, skipped=1
+COMPASS-H4 PASS: H4 never invested → red
+COMPASS-H5 PASS: H5 largest 60% → red (top BigCo 60%)
+COMPASS-H5 PASS: H5 byClass split is honest & sums to 100%
+COMPASS-H5 PASS: H5 evenly spread (16.7% each) → green
+COMPASS-H5 PASS: H5 no holdings → null band
+COMPASS-H6 PASS: H6 leakage 5% → amber (pct 5.0, total 200000)
+COMPASS-H6 PASS: H6 leakage byParent surfaces the wants leak
+COMPASS-H6 PASS: H6 net-worth rising across 3 months → green, +₹10,000 (Jan-end ₹15k → Mar-end ₹25k)
+COMPASS-H6 PASS: H6 month-end accumulates (Jan 15,000 → Mar 25,000)
+COMPASS-H6 PASS: H6 <2 months → null band (needs more history)
+COMPASS-MIRROR PASS: Freedom ratio includes investments = 60 months (expected 60)
+COMPASS-MIRROR PASS: Freedom ratio null when no spend
+COMPASS-MIRROR PASS: Lifestyle creep: spend +100% vs income 0% → red (creep 100%)
+COMPASS-MIRROR PASS: Lifestyle creep: income up, spend flat → green
+COMPASS-MIRROR PASS: Lifestyle creep null with <2 months
+COMPASS-MIRROR PASS: Enjoyment floor: save 50% + wants 2% → triggered
+COMPASS-MIRROR PASS: Enjoyment floor: balanced saver → not triggered
+COMPASS-PROFILE PASS: exactly 7 reflections with stable unique keys
+COMPASS-PROFILE PASS: emptyProfile has empty checklist + default goal-return
+COMPASS-PROFILE PASS: migration 0006 creates profile with RLS owner policy + jsonb data + unique user_id
+COMPASS-SUMMARY PASS: counts: 1 red, 2 amber, 2 green, 1 na
+COMPASS-SUMMARY PASS: top action is the RED check (before amber)
+COMPASS-SUMMARY PASS: worstBand prefers red > amber > green, ignores null
+COMPASS-SUMMARY PASS: all green → no top action (steady)
+
+------------------------------------------------------------------------------
+
+MONEY MANAGER: 8 entries parsed from the redacted fixture (0 warnings)
+MM PASS: rows = 8 (expected 8)
+MM PASS: Income row → positive paise (Salary 5000000, expected +5000000)
+MM PASS: Exp. row → negative paise (Transport -12000, expected -12000)
+MM PASS: emoji stripped from category ("🚖 Transport" → "Transport", "🧘🏼 Health" → "Health")
+MM PASS: stripEmojiPrefix leaves a plain category untouched ("Other")
+MM PASS: merchantText falls back to note when description empty (Transport → "To office")
+MM PASS: merchantText prefers description when present (Personal → "Cafe Coffee Day")
+MM PASS: redundant Amount col (99999) ignored — uses INR (Personal = -25000)
+MM PASS: rowRef is a stable 64-hex sha256
+MM-MAP PASS: all 11 map targets exist in the taxonomy
+MM-MAP PASS: no map target is a Leakage(14)/Review(15) leaf
+MM-MAP PASS: CC → "Credit Card Bill Payment Transfer" (Transfer, parent 10)
+MM-MAP PASS: SIP → "SIP Mutual Fund" (Invest, parent 08)
+MM-MAP PASS: Transport → "Taxi / Cab / Auto" (parent 02)
+MM-MAP PASS: Salary → "Salary" (parent 01), is an override
+MM-MAP PASS: Personal / Other → null (not forced — left for rules + AI)
+MM-MAP PASS: note "Vinnie" → family-account transfer override "Own Account Transfer" (parent 10), regardless of category
+MM-MATCH PASS: exact same-day match enriches (t1, exact-day)
+MM-MATCH PASS: match within window (gap 2 ≤ 3) → within-window
+MM-MATCH PASS: amount off by 1 paise → no match (unmatched)
+MM-MATCH PASS: direction differs (same magnitude) → no match
+MM-MATCH PASS: outside window (gap 4 > 3) → no match
+MM-MATCH PASS: same-amount same-day pair → ambiguous, neither matched
+MM-MATCH PASS: greedy picks the closest date (→ "near", not "far")
+MM-MATCH PASS: match payload carries {txnId, mmRowRef} for provenance
+MM-PLAN PASS: merchant improves, not overwrites ("UPI/DR/…/ZOMATO · Zomato Booking")
+MM-PLAN PASS: payload never carries description_raw / description_clean
+MM-PLAN PASS: notes append one "MM: …" line
+MM-PLAN PASS: category APPLIED over Uncategorized Review (categoryId set, source money_manager)
+MM-PLAN PASS: category NOT applied over an already-categorized row → suggestion only
+MM-PLAN PASS: refused (14/15) mapping is neither applied nor suggested
+MM-PLAN PASS: first run changes the row
+MM-PLAN PASS: re-run is a no-op (changed=false) — no duplicate write
+MM-PLAN PASS: re-run keeps exactly one MM note line (no duplication)
+MM-NOTE PASS: null + "MM: a" → "MM: a"
+MM-NOTE PASS: replaces a prior MM line ("MM: a" + "MM: b" → "MM: b")
+MM-NOTE PASS: preserves a foreign note ("hi" + "MM: a" → "hi\nMM: a")
+MM-NOTE PASS: idempotent ("hi\nMM: a" + "MM: a" → unchanged)
+MM-NOTE PASS: mmNoteLine builds "MM: <cat> / <note> · <desc>"
+MM-UI PASS: panel previews before writing (Scan & preview → mode=preview)
+MM-UI PASS: panel has a separate confirm step that applies (mode=apply)
+MM-UI PASS: panel honors the busy/nav-guard pattern (useBusy + begin/end)
+MM-UI PASS: unmatched shown read-only with the deferred-cash note, NO insert offered
+MM-UI PASS: route is enrichment-only: never inserts into transactions
+MM-UI PASS: route guards categories via guardCategory (no 14/15 auto-assign)
+MM-UI PASS: panel is mounted in the transactions Review section
+
+------------------------------------------------------------------------------
+
+GOOGLE PAY STATEMENT: 10 entries (paid 7 / received 2 / self 1); 0 warnings; reconcile PASS
+GPAY-STMT PASS: entries = 10 (expected 10)
+GPAY-STMT PASS: Paid to → negative paise (ACME -125000, expected -125000)
+GPAY-STMT PASS: Received from → positive paise (CLIENTACME 200000, expected +200000)
+GPAY-STMT PASS: Self transfer flagged kind=self_transfer
+GPAY-STMT PASS: verb prefix stripped from party ("PaidtoACMEGROCERS" → "ACMEGROCERS")
+GPAY-STMT PASS: funding bank name + last-4 parsed (ACME → HDFC Bank / 0789)
+GPAY-STMT PASS: Canara routed to last-4 8593
+GPAY-STMT PASS: upiTxnId captured (ACME = 111111111111, = rowRef)
+GPAY-STMT PASS: paise amount parsed exactly (₹300.90 → -30090)
+GPAY-STMT PASS: date ISO from "02Dec,2025"
+GPAY-STMT PASS: header/footer/summary excluded (no entry party starts with "Transaction"/"Note"/"Page")
+GPAY-STMT PASS: reconcile-or-show: Σpaid == Sent 875590 (Δ 0), Σreceived == Received 200200 (Δ 0)
+GPAY-MAP PASS: all 4 hint targets exist in the taxonomy, none Leakage/Review
+GPAY-MAP PASS: self-transfer → "Own Account Transfer" (override)
+GPAY-MAP PASS: family name "TESTSPOUSENAME" → "Own Account Transfer" (override, space-insensitive)
+GPAY-MAP PASS: JioPrepaid → "Mobile Phone"
+GPAY-MAP PASS: Netflix → "OTT / Entertainment"
+GPAY-MAP PASS: GooglePlay → "Apps & Digital Subscriptions"
+GPAY-MAP PASS: unknown merchant → null (left for rules + AI)
+GPAY-MATCH PASS: account routing picks the right account by last-4 (→ HDFC t1, not SBI t2)
+GPAY-MATCH PASS: UPI-ID match is primary — matches even outside the date window (confidence "id")
+GPAY-MATCH PASS: amount off by 1 paise → no match
+GPAY-MATCH PASS: self-transfer matched + flagged isTransfer
+GPAY-MATCH PASS: family-name transfer matched + flagged isTransfer
+GPAY-MATCH PASS: same-amount same-day within one account → ambiguous, neither matched
+GPAY-MATCH PASS: unknown last-4 falls back to all bank/cc accounts
+GPAY-MATCH PASS: byBank breakdown counts matched/total per funding last-4
+GPAY-PLAN PASS: merchant improves, not overwrites ("UPI/DR/511/CHAI · ChaiPoint")
+GPAY-PLAN PASS: payload never carries description_raw / description_clean
+GPAY-PLAN PASS: notes append one "GPay: …" line
+GPAY-PLAN PASS: self-transfer category APPLIED over Uncategorized Review (source google_pay_statement)
+GPAY-PLAN PASS: NOT applied over an already-categorized row → suggestion only
+GPAY-PLAN PASS: refused (14/15) mapping neither applied nor suggested
+GPAY-PLAN PASS: first run changes the row
+GPAY-PLAN PASS: re-run is a no-op (changed=false)
+GPAY-PLAN PASS: re-run keeps exactly one GPay note line
+GPAY-NOTE PASS: mergeSourceNote: null + "GPay: a" → "GPay: a"
+GPAY-NOTE PASS: coexists with an MM line ("MM: x" + GPay → both kept)
+GPAY-NOTE PASS: replaces a prior GPay line ("GPay: a" + "GPay: b" → "GPay: b")
+GPAY-NOTE PASS: gpayNoteLine builds "GPay: <party> (via <bank> <last4>)"
+GPAY-NOTE PASS: gpayNoteLine handles a blank payee
+GPAY-UI PASS: the two Google Pay entry points are format-disambiguated (My Activity vs official Transaction statement)
+GPAY-UI PASS: panel previews before writing (Scan & preview → mode=preview)
+GPAY-UI PASS: panel has a separate confirm step that applies (mode=apply)
+GPAY-UI PASS: panel shows reconciliation deltas + per-funding-bank breakdown
+GPAY-UI PASS: panel honors the busy/nav-guard pattern (useBusy + begin/end)
+GPAY-UI PASS: unmatched shown read-only, NO insert offered
+GPAY-UI PASS: route is enrichment-only: never inserts into transactions
+GPAY-UI PASS: route guards categories via guardCategory (no 14/15 auto-assign)
+GPAY-UI PASS: panel is mounted in the transactions Review section
+PAGINATE PASS: drains multiple pages (2500 rows / pageSize 1000 → 3 queries, all rows, in order)
+PAGINATE PASS: exact-multiple boundary (2000 rows / pageSize 1000 → a 3rd empty page confirms the drain, no off-by-one)
+PAGINATE PASS: empty table → 1 query, 0 rows, no error
+PAGINATE PASS: a single page under the limit needs exactly 1 query
+PAGINATE PASS: an error on the FIRST page surfaces the error, 0 rows
+PAGINATE PASS: a mid-drain error fails the WHOLE read (no partial rows leak out)
+PAGINATE PASS: page size is caller-configurable, not hardcoded to 1000
 
 ==============================================================================
 ALL GATES PASSED

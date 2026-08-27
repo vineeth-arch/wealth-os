@@ -42,12 +42,12 @@ export const MM_CATEGORY_MAP: Record<string, string | null> = {
  * transfers to a family member's account, which otherwise inflate BOTH income and spend. Token match
  * is case-insensitive, whole-word-ish (substring on the normalized note). Editable per household.
  */
-export const SPOUSE_NAME_TOKENS = ["Vinnie", "Vineeth Vinod Nair", "Vineeth Nair"]; // family-account transfer counterpart name(s)
+export const SPOUSE_NAME_TOKENS = ["Vinnie", "Test Spouse Name"]; // family-account transfer counterpart name(s)
 export const SPOUSE_TRANSFER_CATEGORY = "Own Account Transfer"; // neutral family/household transfer (parent 10)
 
 /** Normalize a name for matching: drop everything but letters/digits, lowercase. Makes the compare
- *  space-insensitive so the Google Pay statement's space-stripped "VINEETHVINODNAIR" matches the
- *  spaced "Vineeth Vinod Nair" token. */
+ *  space-insensitive so the Google Pay statement's space-stripped "TESTSPOUSENAME" matches the
+ *  spaced "Test Spouse Name" token. */
 export function normalizeNameKey(s: string): string {
   return s.replace(/[^a-z0-9]/gi, "").toLowerCase();
 }

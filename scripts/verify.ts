@@ -501,14 +501,14 @@ console.log(`  enrichment match-rate vs IDFC bank statement period: ${matched}/$
   const cols = ["account_holder_name", "account_number", "ifsc", "branch", "account_type", "upi_id"];
 
   const full = formatAccountDetails({
-    accountHolderName: "Vineeth Nair", institution: "SBI", accountType: "Savings",
-    accountNumber: "1234567890", ifsc: "SBIN0001234", branch: "MG Road", upiId: "vineeth@oksbi",
+    accountHolderName: "Test Account Holder", institution: "SBI", accountType: "Savings",
+    accountNumber: "1234567890", ifsc: "SBIN0001234", branch: "MG Road", upiId: "testholder@oksbi",
   });
-  const fullExpected = ["Vineeth Nair", "State Bank of India · Savings", "A/c No: 1234567890", "IFSC: SBIN0001234", "Branch: MG Road", "UPI: vineeth@oksbi"].join("\n");
+  const fullExpected = ["Test Account Holder", "State Bank of India · Savings", "A/c No: 1234567890", "IFSC: SBIN0001234", "Branch: MG Road", "UPI: testholder@oksbi"].join("\n");
 
-  const partial = formatAccountDetails({ accountHolderName: "Vineeth Nair", accountNumber: "1234567890", ifsc: "SBIN0001234" });
+  const partial = formatAccountDetails({ accountHolderName: "Test Account Holder", accountNumber: "1234567890", ifsc: "SBIN0001234" });
   const partialLines = partial.split("\n");
-  const partialOk = partial === "Vineeth Nair\nA/c No: 1234567890\nIFSC: SBIN0001234"
+  const partialOk = partial === "Test Account Holder\nA/c No: 1234567890\nIFSC: SBIN0001234"
     && partialLines.length === 3 && !partial.includes("·") && !partialLines.some((l) => l.trim() === "");
 
   const acctChecks: Array<[string, boolean]> = [
@@ -1352,8 +1352,8 @@ console.log("\n" + "-".repeat(78));
   const mapChecks: Array<[string, boolean]> = [
     [`all ${targets.length} hint targets exist in the taxonomy, none Leakage/Review`, allExist && noneForbidden],
     [`self-transfer → "Own Account Transfer" (override)`, resolveGpayCategory(gpe({ kind: "self_transfer", party: "StateBankofIndia4358" })).categoryName === "Own Account Transfer"],
-    [`family name "VINEETHVINODNAIR" → "Own Account Transfer" (override, space-insensitive)`,
-      isGpayTransfer(gpe({ party: "VINEETHVINODNAIR" })) && resolveGpayCategory(gpe({ party: "VINEETHVINODNAIR" })).categoryName === "Own Account Transfer"],
+    [`family name "TESTSPOUSENAME" → "Own Account Transfer" (override, space-insensitive)`,
+      isGpayTransfer(gpe({ party: "TESTSPOUSENAME" })) && resolveGpayCategory(gpe({ party: "TESTSPOUSENAME" })).categoryName === "Own Account Transfer"],
     [`JioPrepaid → "Mobile Phone"`, resolveGpayCategory(gpe({ party: "JioPrepaid" })).categoryName === "Mobile Phone"],
     [`Netflix → "OTT / Entertainment"`, resolveGpayCategory(gpe({ party: "NetflixEntertainmentServicesIndiaLLP" })).categoryName === "OTT / Entertainment"],
     [`GooglePlay → "Apps & Digital Subscriptions"`, resolveGpayCategory(gpe({ party: "GooglePlay" })).categoryName === "Apps & Digital Subscriptions"],
@@ -1374,7 +1374,7 @@ console.log("\n" + "-".repeat(78));
   const noMatch = matchGooglePayStatement([gpe({ amountPaise: -777 })], [T("t1", "hdfc", "2025-12-02", -778, "x")], accts);
   // self/spouse flagged isTransfer
   const selfM = matchGooglePayStatement([gpe({ kind: "self_transfer", party: "StateBankofIndia4358" })], [T("t1", "hdfc", "2025-12-02", -125000, "x")], accts);
-  const spouseM = matchGooglePayStatement([gpe({ party: "VINEETHVINODNAIR" })], [T("t1", "hdfc", "2025-12-02", -125000, "x")], accts);
+  const spouseM = matchGooglePayStatement([gpe({ party: "TESTSPOUSENAME" })], [T("t1", "hdfc", "2025-12-02", -125000, "x")], accts);
   // same-amount same-day within one account → ambiguous
   const amb = matchGooglePayStatement([gpe({ amountPaise: -8000, txnDate: "2025-12-06" })],
     [T("a", "hdfc", "2025-12-06", -8000, "x"), T("b", "hdfc", "2025-12-06", -8000, "x")], accts);

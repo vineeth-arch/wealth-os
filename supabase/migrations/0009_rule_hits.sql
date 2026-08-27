@@ -1,4 +1,4 @@
--- wealth-os 0008_rule_hits
+-- wealth-os 0009_rule_hits
 -- Vendor rules are already a user-global, editable repository (0001: no account_id, just user_id + RLS,
 -- with `priority` for first-match-wins order and `active` to enable/disable). This migration only adds
 -- per-rule re-run telemetry so the Rules tab can show a "hit count" that survives a page reload.

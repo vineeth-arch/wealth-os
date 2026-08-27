@@ -783,6 +783,18 @@ assert("uses latest price date as as-of", val.asOfDate === "2026-06-10" ? 1 : 0,
 assert("priced count", val.pricedCount, 1);
 assert("fallback to last-known count", val.fallbackCount, 1);
 
+// Rounding must happen ONCE on the total, not per-holding (audit FA-11): two fractional-unit
+// holdings whose exact products both land on a half-paisa would drift +1 paisa if rounded
+// separately (Math.round(50.5)+Math.round(50.5)=102) versus rounding the summed total (101).
+const roundOnce = holdingsValue(
+  [
+    { isin: "X", qty: 0.5, lastPricePaise: 101, asOf: "2026-06-01" },
+    { isin: "Y", qty: 0.5, lastPricePaise: 101, asOf: "2026-06-01" },
+  ],
+  [],
+);
+assert("present value rounds the TOTAL once (no per-holding drift)", roundOnce.valuePaise, 101);
+
 // ---- Tax regime calculator (Pass F): slabs verified by web search, asserted at build time ----
 console.log("\n" + "-".repeat(78));
 const P = 100; // paise per rupee

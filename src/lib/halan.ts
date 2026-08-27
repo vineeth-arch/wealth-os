@@ -147,6 +147,10 @@ export interface HoldingsValuation {
  * Present value of holdings = Σ qty × latest price. Price source is the most recent `prices` row per
  * ISIN; when none exists (refresh hasn't run, or fetch failed) it falls back to the snapshot's own
  * last price — it NEVER blanks. Returns the as-of date actually used so the UI can label staleness.
+ *
+ * Rounds ONCE, on the total (audit FA-11): `qty` is a float MF unit count, so rounding each holding's
+ * product to paise before summing accumulates independent rounding error across holdings — the total
+ * can drift by several paise from the true sum. Summing unrounded and rounding once eliminates that.
  */
 export function holdingsValue(holdings: HoldingLike[], prices: PriceLike[]): HoldingsValuation {
   const latestPrice = new Map<string, PriceLike>();
@@ -154,15 +158,15 @@ export function holdingsValue(holdings: HoldingLike[], prices: PriceLike[]): Hol
     const cur = latestPrice.get(p.isin);
     if (!cur || p.priceDate > cur.priceDate) latestPrice.set(p.isin, p);
   }
-  let valuePaise = 0, pricedCount = 0, fallbackCount = 0;
+  let exactValue = 0, pricedCount = 0, fallbackCount = 0;
   let asOfDate: string | null = null;
   for (const h of holdings) {
     const p = latestPrice.get(h.isin);
     const unit = p ? p.pricePaise : h.lastPricePaise;
     const usedDate = p ? p.priceDate : h.asOf;
     if (p) pricedCount++; else fallbackCount++;
-    valuePaise += Math.round(h.qty * unit);
+    exactValue += h.qty * unit;
     if (usedDate && (asOfDate === null || usedDate > asOfDate)) asOfDate = usedDate;
   }
-  return { valuePaise, asOfDate, pricedCount, fallbackCount };
+  return { valuePaise: Math.round(exactValue), asOfDate, pricedCount, fallbackCount };
 }

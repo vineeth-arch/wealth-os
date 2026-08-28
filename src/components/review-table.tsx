@@ -6,7 +6,8 @@ import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CategorySelect, type CategoryOption } from "@/components/category-select";
+import { type CategoryOption } from "@/components/category-select";
+import { CategoryPicker } from "@/components/category-picker";
 import { updateTxnCategory } from "@/lib/client/category-write";
 import { cn } from "@/lib/utils";
 import { formatINR, formatDate } from "@/lib/format";
@@ -46,7 +47,6 @@ export function ReviewTable({ transactions, categories, reviewCategoryId, review
   const [categoryFilter, setCategoryFilter] = useState("");
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [editing, setEditing] = useState<string | null>(null);
   const [limit, setLimit] = useState(INITIAL_LIMIT);
   const [delta, setDelta] = useState(0);
 
@@ -118,7 +118,6 @@ export function ReviewTable({ transactions, categories, reviewCategoryId, review
   }
 
   async function setCategory(id: string, categoryId: string) {
-    setEditing(null);
     await commitPatch(id, { categoryId, categorySource: "user", tags: rows.find((r) => r.id === id)?.tags ?? [] },
       () => updateTxnCategory(id, categoryId, validIds));
   }
@@ -204,15 +203,8 @@ export function ReviewTable({ transactions, categories, reviewCategoryId, review
                     </TableCell>
                     <TableCell className="align-top">
                       <div className="flex items-center gap-1">
-                        {editing === r.id ? (
-                          <CategorySelect value={r.categoryId} categories={categories}
-                            onChange={(cid) => setCategory(r.id, cid)} />
-                        ) : (
-                          <button type="button" onClick={() => setEditing(r.id)}
-                            className="h-8 w-full max-w-[14rem] truncate rounded-md border border-input bg-background px-2 text-left text-xs hover:bg-accent/40 focus:outline-none focus:ring-2 focus:ring-ring">
-                            {categories.find((c) => c.id === r.categoryId)?.name ?? "Select category…"}
-                          </button>
-                        )}
+                        <CategoryPicker value={r.categoryId} categories={categories}
+                          onChange={(cid) => setCategory(r.id, cid)} />
                         {saved[r.id] && <Check className="h-3.5 w-3.5 shrink-0 text-income" />}
                       </div>
                       {SOURCE_BADGE[r.categorySource] && <Badge variant="secondary" className="mt-1 text-[10px]">{SOURCE_BADGE[r.categorySource]}</Badge>}

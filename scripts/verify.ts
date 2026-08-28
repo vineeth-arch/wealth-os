@@ -46,6 +46,7 @@ import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "
 import { fetchAllRows, type PageResult } from "../src/lib/supabase/paginate.js";
 import { safeNextPath } from "../src/lib/safe-path.js";
 import { runBounded } from "../src/lib/concurrency.js";
+import { filterCategoryOptions } from "../src/lib/category-filter.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1528,6 +1529,41 @@ console.log("\n" + "-".repeat(78));
     [`commit route guards JSON parsing with .catch(() => null)`, commitRoute.includes("request.json().catch(() => null)")],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`SAFE-NEXT-PATH ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 2: category picker search/grouping (pure) + migration to the shared component ----
+{
+  const sample = [
+    { id: "p1", name: "01 Income", parent: null },
+    { id: "p2", name: "02 Spend-it Needs", parent: null },
+    { id: "p3", name: "08 Invest-it", parent: null },
+    { id: "l1", name: "Groceries", parent: "02 Spend-it Needs" },
+    { id: "l2", name: "Salary", parent: "01 Income" },
+    { id: "l3", name: "SIP Mutual Fund", parent: "08 Invest-it" },
+    { id: "l4", name: "Stocks / Direct Equity", parent: "08 Invest-it" },
+  ];
+  const reviewTable = readFileSync("src/components/review-table.tsx", "utf8");
+  const drillTxnRow = readFileSync("src/components/dashboard/drill-txn-row.tsx", "utf8");
+  const pickerSrc = readFileSync("src/components/category-picker.tsx", "utf8");
+
+  const emptyQuery = filterCategoryOptions(sample, "");
+  const emptyQueryFlat = emptyQuery.flatMap((g) => g.options);
+  const leafMatch = filterCategoryOptions(sample, "grocer").flatMap((g) => g.options);
+  const leafMatchSpaced = filterCategoryOptions(sample, "  GROCER  ").flatMap((g) => g.options);
+  const parentMatch = filterCategoryOptions(sample, "invest").flatMap((g) => g.options);
+
+  const checks: Array<[string, boolean]> = [
+    [`parent rows (parent===null) are always excluded from results`, emptyQueryFlat.every((o) => o.id !== "p1" && o.id !== "p2" && o.id !== "p3")],
+    [`empty query returns every leaf`, emptyQueryFlat.length === 4],
+    [`a leaf-name fragment matches ("grocer" → Groceries)`, leafMatch.length === 1 && leafMatch[0].id === "l1"],
+    [`matching is case/whitespace-insensitive`, leafMatchSpaced.length === 1 && leafMatchSpaced[0].id === "l1"],
+    [`a parent-bucket term returns every leaf under it ("invest" → SIP + Stocks)`, parentMatch.map((o) => o.id).sort().join(",") === "l3,l4"],
+    [`groups and options are sorted by name`, emptyQuery.map((g) => g.parent).join("|") === "01 Income|02 Spend-it Needs|08 Invest-it"],
+    [`review-table migrated to the shared CategoryPicker`, reviewTable.includes("CategoryPicker")],
+    [`drill-txn-row migrated to the shared CategoryPicker`, drillTxnRow.includes("CategoryPicker")],
+    [`the picker component is built on the pure category-filter module`, pickerSrc.includes("@/lib/category-filter")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CATPICKER ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- FA-1 / FA-7: fetchAllRows + runBounded (both need `await`) ----

@@ -1,7 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CategorySelect, type CategoryOption } from "@/components/category-select";
+import { type CategoryOption } from "@/components/category-select";
+import { CategoryPicker } from "@/components/category-picker";
 import { updateTxnCategory } from "@/lib/client/category-write";
 import { formatINR, formatDate } from "@/lib/format";
 import type { DrillTxn } from "@/lib/drilldown";
@@ -47,7 +48,7 @@ export function DrillTxnRow({ t, categories }: { t: DrillTxn; categories: Catego
         <span className={`shrink-0 whitespace-nowrap font-medium ${t.amountPaise < 0 ? "text-destructive" : "text-income"}`}>{formatINR(t.amountPaise, { sign: true })}</span>
       </div>
       <div className="mt-1.5 flex items-center gap-2">
-        <CategorySelect value={t.categoryId} categories={categories} onChange={onChange} disabled={busy} />
+        <CategoryPicker value={t.categoryId} categories={categories} onChange={onChange} disabled={busy} />
         <button onClick={addRule} disabled={busy || !t.categoryId}
           className="shrink-0 rounded-md border border-input px-2 py-1 text-[11px] hover:bg-accent disabled:opacity-50">Add rule</button>
       </div>

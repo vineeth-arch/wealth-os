@@ -34,7 +34,8 @@ export interface ImportResponse {
   results: WireStatement[];
 }
 
-/** Commit payload — one entry per statement; the server re-derives hashes and re-checks reconciliation. */
+/** Commit payload — one entry per statement; the server re-derives hashes and re-validates category
+ *  names, but does NOT re-parse amounts/dates or enforce reconciliation (see AUDIT.md FA-5). */
 export interface CommitRow {
   txnDate: string;
   amountPaise: number;

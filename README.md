@@ -38,9 +38,11 @@ transaction date + calendar month). The Halan bucket math (src/lib/halan.ts) is 
 inside `npm run verify` (income/spend/invest/leakage splits, transfer exclusion, anchor-aware
 balances).
 
-Trust boundary (commit): amounts and dates come only from the server-side parse; the client
-edits category + tags + include. /api/commit re-derives the content hash from immutable fields,
-re-validates every category against the taxonomy, re-checks reconciliation, and dedupes at the DB.
+Trust boundary (commit) — partial today: /api/commit re-derives the content hash from the row
+fields it receives and re-validates every category name against the taxonomy, then dedupes at the
+DB. It does NOT re-parse amounts/dates/balances server-side (there is no server-side re-parse; the
+client submits them directly) and reconciliation is only recorded from client-supplied numbers, never
+enforced. See AUDIT.md FA-5 for the gap and the planned fix (a real server-side re-parse).
 
 ## Running it locally
 

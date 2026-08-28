@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const body = (await request.json()) as CommitRequest;
+  const body = (await request.json().catch(() => null)) as CommitRequest | null;
   if (!body?.accountId || !Array.isArray(body.statements)) {
     return NextResponse.json({ error: "accountId and statements are required" }, { status: 400 });
   }

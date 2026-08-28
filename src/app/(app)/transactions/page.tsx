@@ -113,6 +113,7 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
     categoryId: (t.category_id as string) ?? "",
     categorySource: (t.category_source as string) ?? "default",
     accountName: t.account_id ? acctById.get(t.account_id as string) ?? "" : "",
+    accountId: (t.account_id as string) ?? "",
   }));
 
   const filterName = accountFilter ? acctById.get(accountFilter) ?? "" : "";

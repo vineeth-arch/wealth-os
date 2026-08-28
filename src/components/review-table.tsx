@@ -8,13 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { type CategoryOption } from "@/components/category-select";
 import { CategoryPicker } from "@/components/category-picker";
+import { TxnContext } from "@/components/txn-context";
 import { updateTxnCategory } from "@/lib/client/category-write";
 import { cn } from "@/lib/utils";
 import { formatINR, formatDate } from "@/lib/format";
-import { Check } from "lucide-react";
+import { Check, CalendarSearch } from "lucide-react";
 
 export type ReviewCategory = CategoryOption;
-export interface ReviewTxn { id: string; date: string; amountPaise: number; description: string; merchant: string; tags: string[]; categoryId: string; categorySource: string; accountName: string }
+export interface ReviewTxn { id: string; date: string; amountPaise: number; description: string; merchant: string; tags: string[]; categoryId: string; categorySource: string; accountName: string; accountId: string }
 
 const LEAKAGE = "leakage";
 
@@ -48,6 +49,7 @@ export function ReviewTable({ transactions, categories, reviewCategoryId, review
   const [saved, setSaved] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [limit, setLimit] = useState(INITIAL_LIMIT);
+  const [contextOpen, setContextOpen] = useState<string | null>(null);
   const [delta, setDelta] = useState(0);
 
   // Optimistic edits in flight, keyed by txn id. Overlaid onto fresh server props so a concurrent
@@ -192,7 +194,21 @@ export function ReviewTable({ transactions, categories, reviewCategoryId, review
                 const leak = r.tags.includes(LEAKAGE);
                 return (
                   <TableRow key={r.id} data-index={vi.index} ref={virtualizer.measureElement}>
-                    <TableCell className="whitespace-nowrap align-top text-xs text-muted-foreground">{formatDate(r.date)}</TableCell>
+                    <TableCell className="relative whitespace-nowrap align-top text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        {formatDate(r.date)}
+                        <button type="button" title="Show same-day transactions on this account"
+                          onClick={() => setContextOpen((c) => (c === r.id ? null : r.id))}
+                          className={cn("rounded p-0.5 hover:bg-accent", contextOpen === r.id && "bg-accent")}>
+                          <CalendarSearch className="h-3 w-3" />
+                        </button>
+                      </div>
+                      {contextOpen === r.id && (
+                        <div className="absolute left-0 top-full z-20 mt-1 w-80 rounded-md border bg-background shadow-md">
+                          <TxnContext txnId={r.id} accountId={r.accountId} date={r.date} />
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="truncate align-top text-xs text-muted-foreground">{r.accountName}</TableCell>
                     <TableCell className="max-w-[20rem] align-top text-xs">
                       <div className="whitespace-normal break-words">{r.description}</div>

@@ -47,6 +47,7 @@ import { fetchAllRows, type PageResult } from "../src/lib/supabase/paginate.js";
 import { safeNextPath } from "../src/lib/safe-path.js";
 import { runBounded } from "../src/lib/concurrency.js";
 import { filterCategoryOptions } from "../src/lib/category-filter.js";
+import { addDaysISO } from "../src/lib/dates.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1564,6 +1565,22 @@ console.log("\n" + "-".repeat(78));
     [`the picker component is built on the pure category-filter module`, pickerSrc.includes("@/lib/category-filter")],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CATPICKER ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 3: same-day transaction context (bounded date-window read) ----
+{
+  const txnContext = readFileSync("src/components/txn-context.tsx", "utf8");
+  const reviewTable2 = readFileSync("src/components/review-table.tsx", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`addDaysISO steps a plain day forward/back`, addDaysISO("2026-03-15", 2) === "2026-03-17" && addDaysISO("2026-03-15", -2) === "2026-03-13"],
+    [`addDaysISO crosses a month boundary`, addDaysISO("2026-03-01", -2) === "2026-02-27"],
+    [`addDaysISO crosses a year boundary`, addDaysISO("2026-12-30", 2) === "2027-01-01"],
+    [`addDaysISO handles a Feb leap day correctly (2028 is a leap year)`, addDaysISO("2028-02-28", 1) === "2028-02-29"],
+    [`TxnContext bounds its read to a bank/account + date window + row cap (never a whole-ledger fetch)`,
+      txnContext.includes('.eq("account_id"') && txnContext.includes('.gte("txn_date"') && txnContext.includes('.lte("txn_date"') && txnContext.includes(".limit(")],
+    [`review-table wires TxnContext per row`, reviewTable2.includes("TxnContext")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`TXN-CONTEXT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- FA-1 / FA-7: fetchAllRows + runBounded (both need `await`) ----

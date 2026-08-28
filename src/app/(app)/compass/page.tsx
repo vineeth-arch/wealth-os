@@ -16,6 +16,7 @@ import {
 } from "@/lib/compass";
 import { formatINR, formatPct, formatMonth } from "@/lib/format";
 import { Gauge, Sparkles, ArrowUpRight, ArrowDownRight, ArrowRight } from "lucide-react";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,15 @@ export default async function CompassPage({ searchParams }: { searchParams: Prom
   const lens = (await searchParams).lens === "business" ? "business" : "personal";
   const { drillTxns, accounts } = await loadDrillData();
   const supabase = await createSupabaseServer();
-  const [{ data: snapsRaw }, { data: pricesRaw }, { data: userData }, { data: profileRow }] = await Promise.all([
-    supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise,instruments(name,asset_class)").order("as_of", { ascending: false }),
-    supabase.from("prices").select("isin,price_paise,price_date"),
+  type RawSnap = { account_id: string; as_of: string; isin: string; qty: number; last_price_paise: number; instruments: unknown };
+  type RawPrice = { isin: string; price_paise: number; price_date: string };
+  // Snapshots and prices can exceed Supabase's 1000-row cap — drain every page.
+  const [snapsRaw, pricesRaw, { data: userData }, { data: profileRow }] = await Promise.all([
+    fetchAllRows<RawSnap>((from, to) =>
+      supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise,instruments(name,asset_class)")
+        .order("as_of", { ascending: false }).order("account_id").range(from, to)),
+    fetchAllRows<RawPrice>((from, to) =>
+      supabase.from("prices").select("isin,price_paise,price_date").order("isin").range(from, to)),
     supabase.auth.getUser(),
     supabase.from("profile").select("data").maybeSingle(),
   ]);

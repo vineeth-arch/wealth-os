@@ -9,6 +9,7 @@ import { resolveMmCategory } from "@/lib/ingest/money-manager-category-map";
 import { categoryIndex, guardCategory } from "@/lib/server/rules";
 import type { MatchableTxn } from "@/lib/ingest/enrich";
 import type { MoneyManagerEntry } from "@/lib/ingest/types";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 
@@ -57,28 +58,28 @@ export async function POST(request: NextRequest) {
   const matchable: MatchableTxn[] = [];
   const txnStates = new Map<string, MmTxnState>();
   const descById = new Map<string, string>();
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase.from("transactions")
-      .select("id,account_id,txn_date,amount_paise,description_raw,merchant,notes,category_source,mm_row_ref")
-      .eq("user_id", user.id).order("id").range(from, from + PAGE - 1);
-    if (error) return NextResponse.json({ error: `transactions: ${error.message}` }, { status: 500 });
-    const page = data ?? [];
-    for (const t of page) {
-      const accountId = t.account_id as string;
-      if (!enrichable.has(accountId)) continue;
-      const id = t.id as string;
-      matchable.push({ id, accountId, txnDate: t.txn_date as string, amountPaise: t.amount_paise as number });
-      txnStates.set(id, {
-        id,
-        merchant: (t.merchant as string | null) ?? null,
-        notes: (t.notes as string | null) ?? null,
-        categorySource: (t.category_source as string) ?? "default",
-        mmRowRef: (t.mm_row_ref as string | null) ?? null,
-      });
-      descById.set(id, (t.description_raw as string) ?? "");
-    }
-    if (page.length < PAGE) break;
+  let rawTxns: Array<{ id: string; account_id: string; txn_date: string; amount_paise: number; description_raw: string; merchant: string | null; notes: string | null; category_source: string | null; mm_row_ref: string | null }>;
+  try {
+    rawTxns = await fetchAllRows((from, to) =>
+      supabase.from("transactions")
+        .select("id,account_id,txn_date,amount_paise,description_raw,merchant,notes,category_source,mm_row_ref")
+        .eq("user_id", user.id).order("id").range(from, to));
+  } catch (e) {
+    return NextResponse.json({ error: `transactions: ${(e as Error).message}` }, { status: 500 });
+  }
+  for (const t of rawTxns) {
+    const accountId = t.account_id;
+    if (!enrichable.has(accountId)) continue;
+    const id = t.id;
+    matchable.push({ id, accountId, txnDate: t.txn_date, amountPaise: t.amount_paise });
+    txnStates.set(id, {
+      id,
+      merchant: t.merchant ?? null,
+      notes: t.notes ?? null,
+      categorySource: t.category_source ?? "default",
+      mmRowRef: t.mm_row_ref ?? null,
+    });
+    descById.set(id, t.description_raw ?? "");
   }
 
   const { matched, ambiguous, unmatchedMM } = matchMoneyManager(matchable, entries);

@@ -7,6 +7,7 @@ import {
 import { resolveGpayCategory } from "@/lib/ingest/google-pay-category-map";
 import { categoryIndex, guardCategory } from "@/lib/server/rules";
 import type { GooglePayStatementEntry } from "@/lib/ingest/types";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 
@@ -59,28 +60,28 @@ export async function POST(request: NextRequest) {
   // Committed txns on enrichable accounts (paginate past 1000), with current state.
   const matchable: GpayMatchableTxn[] = [];
   const txnStates = new Map<string, GpayTxnState>();
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase.from("transactions")
-      .select("id,account_id,txn_date,amount_paise,ref_no,upi_ref,description_raw,merchant,notes,category_source,enrichment_ref")
-      .eq("user_id", user.id).order("id").range(from, from + PAGE - 1);
-    if (error) return NextResponse.json({ error: `transactions: ${error.message}` }, { status: 500 });
-    const page = data ?? [];
-    for (const t of page) {
-      const accountId = t.account_id as string;
-      if (!enrichable.has(accountId)) continue;
-      const id = t.id as string;
-      const refText = `${(t.ref_no as string | null) ?? ""} ${(t.upi_ref as string | null) ?? ""} ${(t.description_raw as string) ?? ""}`;
-      matchable.push({ id, accountId, txnDate: t.txn_date as string, amountPaise: t.amount_paise as number, refText });
-      txnStates.set(id, {
-        id,
-        merchant: (t.merchant as string | null) ?? null,
-        notes: (t.notes as string | null) ?? null,
-        categorySource: (t.category_source as string) ?? "default",
-        enrichmentRef: (t.enrichment_ref as string | null) ?? null,
-      });
-    }
-    if (page.length < PAGE) break;
+  let rawTxns: Array<{ id: string; account_id: string; txn_date: string; amount_paise: number; ref_no: string | null; upi_ref: string | null; description_raw: string; merchant: string | null; notes: string | null; category_source: string | null; enrichment_ref: string | null }>;
+  try {
+    rawTxns = await fetchAllRows((from, to) =>
+      supabase.from("transactions")
+        .select("id,account_id,txn_date,amount_paise,ref_no,upi_ref,description_raw,merchant,notes,category_source,enrichment_ref")
+        .eq("user_id", user.id).order("id").range(from, to));
+  } catch (e) {
+    return NextResponse.json({ error: `transactions: ${(e as Error).message}` }, { status: 500 });
+  }
+  for (const t of rawTxns) {
+    const accountId = t.account_id;
+    if (!enrichable.has(accountId)) continue;
+    const id = t.id;
+    const refText = `${t.ref_no ?? ""} ${t.upi_ref ?? ""} ${t.description_raw ?? ""}`;
+    matchable.push({ id, accountId, txnDate: t.txn_date, amountPaise: t.amount_paise, refText });
+    txnStates.set(id, {
+      id,
+      merchant: t.merchant ?? null,
+      notes: t.notes ?? null,
+      categorySource: t.category_source ?? "default",
+      enrichmentRef: t.enrichment_ref ?? null,
+    });
   }
 
   const { matched, ambiguous, unmatched, byBank } = matchGooglePayStatement(entries, matchable, accounts);

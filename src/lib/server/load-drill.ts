@@ -1,6 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { type DrillTxn } from "@/lib/drilldown";
 import { type CategoryOption } from "@/components/category-select";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export interface DrillAccount {
   id: string;
@@ -25,9 +26,14 @@ export interface DrillData {
  */
 export async function loadDrillData(): Promise<DrillData> {
   const supabase = await createSupabaseServer();
-  const [{ data: accountsRaw }, { data: txnsRaw }, { data: catsRaw }] = await Promise.all([
+  type RawTxn = { id: string; txn_date: string; amount_paise: number; tags: string[] | null; account_id: string | null; category_id: string | null; description_raw: string | null; merchant: string | null; category_source: string | null };
+  const [{ data: accountsRaw }, txnsRaw, { data: catsRaw }] = await Promise.all([
     supabase.from("accounts").select("id,name,kind,anchor_balance_paise,anchor_date"),
-    supabase.from("transactions").select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source"),
+    // Transactions can exceed Supabase's 1000-row cap — drain every page (order("id") tie-break for a total order).
+    fetchAllRows<RawTxn>((from, to) =>
+      supabase.from("transactions")
+        .select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source")
+        .order("id").range(from, to)),
     supabase.from("categories").select("id,name,parent_id"),
   ]);
 
@@ -52,22 +58,22 @@ export async function loadDrillData(): Promise<DrillData> {
   }));
 
   const months = new Set<string>();
-  const drillTxns: DrillTxn[] = (txnsRaw ?? []).map((t) => {
-    const txnDate = t.txn_date as string;
+  const drillTxns: DrillTxn[] = txnsRaw.map((t) => {
+    const txnDate = t.txn_date;
     months.add(txnDate.slice(0, 7));
     return {
-      id: t.id as string,
+      id: t.id,
       txnDate,
-      amountPaise: t.amount_paise as number,
-      accountId: (t.account_id as string) ?? "",
-      accountName: t.account_id ? accNameById.get(t.account_id as string) ?? "" : "",
-      descriptionRaw: (t.description_raw as string) ?? "",
-      merchant: (t.merchant as string | null) ?? "",
-      categoryId: (t.category_id as string) ?? "",
-      categoryName: t.category_id ? nameById.get(t.category_id as string) ?? "" : "",
-      parent: t.category_id ? parentByCatId.get(t.category_id as string) ?? null : null,
-      categorySource: (t.category_source as string) ?? "default",
-      tags: (t.tags as string[]) ?? [],
+      amountPaise: t.amount_paise,
+      accountId: t.account_id ?? "",
+      accountName: t.account_id ? accNameById.get(t.account_id) ?? "" : "",
+      descriptionRaw: t.description_raw ?? "",
+      merchant: t.merchant ?? "",
+      categoryId: t.category_id ?? "",
+      categoryName: t.category_id ? nameById.get(t.category_id) ?? "" : "",
+      parent: t.category_id ? parentByCatId.get(t.category_id) ?? null : null,
+      categorySource: t.category_source ?? "default",
+      tags: t.tags ?? [],
     };
   });
 

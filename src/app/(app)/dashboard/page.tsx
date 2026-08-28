@@ -12,6 +12,7 @@ import {
   accountBalances, holdingsValue, SPEND_CLASSES,
 } from "@/lib/halan";
 import { TrendingUp, PiggyBank, Wallet, LineChart } from "lucide-react";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export const dynamic = "force-dynamic";
 
@@ -31,16 +32,25 @@ function Tile({ label, value, sub, tone, href }: { label: string; value: string;
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServer();
-  const [{ data: accountsRaw }, { data: txnsRaw }, { data: catsRaw }, { data: snapsRaw }, { data: pricesRaw }] = await Promise.all([
+  type RawTxn = { id: string; txn_date: string; amount_paise: number; tags: string[] | null; account_id: string | null; category_id: string | null; description_raw: string | null; merchant: string | null; category_source: string | null };
+  type RawSnap = { account_id: string; as_of: string; isin: string; qty: number; last_price_paise: number };
+  type RawPrice = { isin: string; price_paise: number; price_date: string };
+  const [{ data: accountsRaw }, txns, { data: catsRaw }, snapsRaw, pricesRaw] = await Promise.all([
     supabase.from("accounts").select("id,name,kind,anchor_balance_paise,anchor_date"),
-    supabase.from("transactions").select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source"),
+    // Transactions, snapshots and prices can all exceed Supabase's 1000-row cap — drain every page.
+    fetchAllRows<RawTxn>((from, to) =>
+      supabase.from("transactions")
+        .select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source")
+        .order("id").range(from, to)),
     supabase.from("categories").select("id,name,parent_id"),
-    supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise").order("as_of", { ascending: false }),
-    supabase.from("prices").select("isin,price_paise,price_date"),
+    fetchAllRows<RawSnap>((from, to) =>
+      supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise")
+        .order("as_of", { ascending: false }).order("account_id").range(from, to)),
+    fetchAllRows<RawPrice>((from, to) =>
+      supabase.from("prices").select("isin,price_paise,price_date").order("isin").range(from, to)),
   ]);
 
   const accounts = accountsRaw ?? [];
-  const txns = txnsRaw ?? [];
   const cats = catsRaw ?? [];
 
   // Investments: current holdings (latest snapshot per account) valued at latest prices, last-known fallback.

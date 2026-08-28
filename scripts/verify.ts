@@ -43,6 +43,7 @@ import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import { detectSourceKind, isMarkdown, isPdf, needsPyodide, ACCEPT_ATTR } from "../src/lib/convert/types.js";
 import { globMatches, matchProfileByFilename } from "../src/lib/convert/glob.js";
 import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "../src/lib/ingest/types.js";
+import { fetchAllRows, type PageResult } from "../src/lib/supabase/paginate.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1507,6 +1508,78 @@ console.log("\n" + "-".repeat(78));
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CONVERT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
-console.log("\n" + "=".repeat(78));
-console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+// ---- FA-1: fetchAllRows drains past Supabase's 1000-row select cap ----
+// Wrapped in an async IIFE (not a bare block) because this is the only section needing `await`, and
+// the script compiles as CommonJS (package.json "type": "commonjs"), which forbids top-level await.
+void (async () => {
+  async function fakePage<Row>(rows: Row[], calls: Array<[number, number]>, failOnPage?: number) {
+    return async (from: number, to: number): Promise<PageResult<Row>> => {
+      calls.push([from, to]);
+      if (failOnPage !== undefined && calls.length === failOnPage) return { data: null, error: { message: "boom" } };
+      return { data: rows.slice(from, to + 1), error: null };
+    };
+  }
+  const rows2500 = Array.from({ length: 2500 }, (_, i) => i);
+  const calls2500: Array<[number, number]> = [];
+  const out2500 = await fetchAllRows(await fakePage(rows2500, calls2500));
+
+  const rows2000 = Array.from({ length: 2000 }, (_, i) => i);
+  const calls2000: Array<[number, number]> = [];
+  const out2000 = await fetchAllRows(await fakePage(rows2000, calls2000));
+
+  const calls0: Array<[number, number]> = [];
+  const out0 = await fetchAllRows(await fakePage([] as number[], calls0));
+
+  let threwWithMessage = false;
+  const rowsForFailure = Array.from({ length: 1500 }, (_, i) => i);
+  try {
+    await fetchAllRows(await fakePage(rowsForFailure, [], 2));
+  } catch (e) {
+    threwWithMessage = (e as Error).message === "boom";
+  }
+
+  const dashboardPage = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
+  const loadDrill = readFileSync("src/lib/server/load-drill.ts", "utf8");
+  const enrichRoute = readFileSync("src/app/api/enrich/route.ts", "utf8");
+  const mmRoute = readFileSync("src/app/api/enrich/money-manager/route.ts", "utf8");
+  const gpayRoute = readFileSync("src/app/api/enrich/google-pay-statement/route.ts", "utf8");
+  const rulesApplyRoute = readFileSync("src/app/api/rules/apply/route.ts", "utf8");
+  const aiSuggestRoute = readFileSync("src/app/api/ai/suggest/route.ts", "utf8");
+  const compassPage = readFileSync("src/app/(app)/compass/page.tsx", "utf8");
+  const holdingsPage = readFileSync("src/app/(app)/holdings/page.tsx", "utf8");
+  const loansPage = readFileSync("src/app/(app)/loans/page.tsx", "utf8");
+  const calculatorsPage = readFileSync("src/app/(app)/calculators/page.tsx", "utf8");
+  const pricesIndex = readFileSync("src/lib/prices/index.ts", "utf8");
+
+  const checks: Array<[string, boolean]> = [
+    [`2500 rows over 3 pages, exact ranges (0,999)(1000,1999)(2000,2499 tail)`,
+      out2500.length === 2500 && calls2500.length === 3 &&
+      calls2500[0][0] === 0 && calls2500[0][1] === 999 &&
+      calls2500[1][0] === 1000 && calls2500[1][1] === 1999 &&
+      calls2500[2][0] === 2000 && calls2500[2][1] === 2999],
+    [`exactly 2000 rows still takes a 3rd (empty) terminating page`, out2000.length === 2000 && calls2000.length === 3],
+    [`0 rows makes exactly 1 call and returns []`, out0.length === 0 && calls0.length === 1],
+    [`a page error throws with the underlying message (no swallowed failure)`, threwWithMessage],
+    [`load-drill.ts drains transactions via fetchAllRows`, loadDrill.includes("fetchAllRows<RawTxn>")],
+    [`dashboard drains transactions/snapshots/prices via fetchAllRows`,
+      dashboardPage.includes("fetchAllRows<RawTxn>") && dashboardPage.includes("fetchAllRows<RawSnap>") && dashboardPage.includes("fetchAllRows<RawPrice>")],
+    [`compass drains snapshots/prices via fetchAllRows`, compassPage.includes("fetchAllRows<RawSnap>") && compassPage.includes("fetchAllRows<RawPrice>")],
+    [`holdings page drains snapshots via fetchAllRows`, holdingsPage.includes("fetchAllRows<RawSnap>")],
+    [`loans page drains schedule rows via fetchAllRows`, loansPage.includes("fetchAllRows<RawScheduleRow>")],
+    [`calculators page drains realized-gain segments via fetchAllRows`, calculatorsPage.includes("fetchAllRows<RawSeg>")],
+    [`ai/suggest drains default-category transactions via fetchAllRows`, aiSuggestRoute.includes("fetchAllRows(")],
+    [`prices/index.ts (service client) drains instruments via fetchAllRows`, pricesIndex.includes("fetchAllRows(")],
+    [`the 4 hand-rolled drains now call fetchAllRows and no longer hand-loop`,
+      enrichRoute.includes("fetchAllRows") && !enrichRoute.includes("for (let from = 0") &&
+      mmRoute.includes("fetchAllRows") && !mmRoute.includes("for (let from = 0") &&
+      gpayRoute.includes("fetchAllRows") && !gpayRoute.includes("for (let from = 0") &&
+      rulesApplyRoute.includes("fetchAllRows") && !rulesApplyRoute.includes("for (let from = 0")],
+    [`the intentional /transactions 300-row review cap is untouched`,
+      readFileSync("src/app/(app)/transactions/page.tsx", "utf8").includes(".limit(300)")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  console.log("\n" + "=".repeat(78));
+  console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
+  process.exit(failures === 0 ? 0 : 1);
+})();

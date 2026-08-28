@@ -44,6 +44,7 @@ import { detectSourceKind, isMarkdown, isPdf, needsPyodide, ACCEPT_ATTR } from "
 import { globMatches, matchProfileByFilename } from "../src/lib/convert/glob.js";
 import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "../src/lib/ingest/types.js";
 import { fetchAllRows, type PageResult } from "../src/lib/supabase/paginate.js";
+import { safeNextPath } from "../src/lib/safe-path.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1506,6 +1507,26 @@ console.log("\n" + "-".repeat(78));
       mig10.includes("filename_match_pattern") && mig10.includes("bank_profiles")],
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CONVERT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- FA-6/FA-4: safeNextPath (open-redirect guard) + commit route body guard ----
+{
+  const callbackRoute = readFileSync("src/app/auth/callback/route.ts", "utf8");
+  const commitRoute = readFileSync("src/app/api/commit/route.ts", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`accepts a real in-app path unchanged`, safeNextPath("/dashboard") === "/dashboard"],
+    [`accepts an in-app path with a query string unchanged`, safeNextPath("/transactions?tab=review") === "/transactions?tab=review"],
+    [`rejects protocol-relative "//evil.com" → fallback`, safeNextPath("//evil.com") === "/dashboard"],
+    [`rejects backslash-prefixed "/\\evil.com" → fallback`, safeNextPath("/\\evil.com") === "/dashboard"],
+    [`rejects a scheme "https://evil.com" → fallback`, safeNextPath("https://evil.com") === "/dashboard"],
+    [`rejects "javascript:alert(1)" → fallback`, safeNextPath("javascript:alert(1)") === "/dashboard"],
+    [`rejects a path missing the leading slash → fallback`, safeNextPath("dashboard") === "/dashboard"],
+    [`null/undefined/empty → fallback`, safeNextPath(null) === "/dashboard" && safeNextPath(undefined) === "/dashboard" && safeNextPath("") === "/dashboard"],
+    [`a custom fallback is honored`, safeNextPath("//evil.com", "/login") === "/login"],
+    [`auth callback wires safeNextPath(`, callbackRoute.includes("safeNextPath(")],
+    [`commit route guards JSON parsing with .catch(() => null)`, commitRoute.includes("request.json().catch(() => null)")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`SAFE-NEXT-PATH ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
 // ---- FA-1: fetchAllRows drains past Supabase's 1000-row select cap ----

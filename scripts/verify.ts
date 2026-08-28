@@ -43,6 +43,16 @@ import { formatPaise, normalizeDesc } from "../src/lib/ingest/util.js";
 import { detectSourceKind, isMarkdown, isPdf, needsPyodide, ACCEPT_ATTR } from "../src/lib/convert/types.js";
 import { globMatches, matchProfileByFilename } from "../src/lib/convert/glob.js";
 import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "../src/lib/ingest/types.js";
+import { fetchAllRows, type PageResult } from "../src/lib/supabase/paginate.js";
+import { safeNextPath } from "../src/lib/safe-path.js";
+import { runBounded } from "../src/lib/concurrency.js";
+import { filterCategoryOptions } from "../src/lib/category-filter.js";
+import { addDaysISO } from "../src/lib/dates.js";
+import { type TxnLike } from "../src/lib/halan.js";
+import {
+  type CategoryMonthGroup, type AccountSumGroup, bucketTotalsFromGroups, monthlyCashFlowFromGroups,
+  leakageByParentFromGroups, accountBalancesFromSums,
+} from "../src/lib/halan-agg.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1507,6 +1517,345 @@ console.log("\n" + "-".repeat(78));
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CONVERT ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
-console.log("\n" + "=".repeat(78));
-console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+// ---- FA-6/FA-4: safeNextPath (open-redirect guard) + commit route body guard ----
+{
+  const callbackRoute = readFileSync("src/app/auth/callback/route.ts", "utf8");
+  const commitRoute = readFileSync("src/app/api/commit/route.ts", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`accepts a real in-app path unchanged`, safeNextPath("/dashboard") === "/dashboard"],
+    [`accepts an in-app path with a query string unchanged`, safeNextPath("/transactions?tab=review") === "/transactions?tab=review"],
+    [`rejects protocol-relative "//evil.com" → fallback`, safeNextPath("//evil.com") === "/dashboard"],
+    [`rejects backslash-prefixed "/\\evil.com" → fallback`, safeNextPath("/\\evil.com") === "/dashboard"],
+    [`rejects a scheme "https://evil.com" → fallback`, safeNextPath("https://evil.com") === "/dashboard"],
+    [`rejects "javascript:alert(1)" → fallback`, safeNextPath("javascript:alert(1)") === "/dashboard"],
+    [`rejects a path missing the leading slash → fallback`, safeNextPath("dashboard") === "/dashboard"],
+    [`null/undefined/empty → fallback`, safeNextPath(null) === "/dashboard" && safeNextPath(undefined) === "/dashboard" && safeNextPath("") === "/dashboard"],
+    [`a custom fallback is honored`, safeNextPath("//evil.com", "/login") === "/login"],
+    [`auth callback wires safeNextPath(`, callbackRoute.includes("safeNextPath(")],
+    [`commit route guards JSON parsing with .catch(() => null)`, commitRoute.includes("request.json().catch(() => null)")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`SAFE-NEXT-PATH ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 2: category picker search/grouping (pure) + migration to the shared component ----
+{
+  const sample = [
+    { id: "p1", name: "01 Income", parent: null },
+    { id: "p2", name: "02 Spend-it Needs", parent: null },
+    { id: "p3", name: "08 Invest-it", parent: null },
+    { id: "l1", name: "Groceries", parent: "02 Spend-it Needs" },
+    { id: "l2", name: "Salary", parent: "01 Income" },
+    { id: "l3", name: "SIP Mutual Fund", parent: "08 Invest-it" },
+    { id: "l4", name: "Stocks / Direct Equity", parent: "08 Invest-it" },
+  ];
+  const reviewTable = readFileSync("src/components/review-table.tsx", "utf8");
+  const drillTxnRow = readFileSync("src/components/dashboard/drill-txn-row.tsx", "utf8");
+  const pickerSrc = readFileSync("src/components/category-picker.tsx", "utf8");
+
+  const emptyQuery = filterCategoryOptions(sample, "");
+  const emptyQueryFlat = emptyQuery.flatMap((g) => g.options);
+  const leafMatch = filterCategoryOptions(sample, "grocer").flatMap((g) => g.options);
+  const leafMatchSpaced = filterCategoryOptions(sample, "  GROCER  ").flatMap((g) => g.options);
+  const parentMatch = filterCategoryOptions(sample, "invest").flatMap((g) => g.options);
+
+  const checks: Array<[string, boolean]> = [
+    [`parent rows (parent===null) are always excluded from results`, emptyQueryFlat.every((o) => o.id !== "p1" && o.id !== "p2" && o.id !== "p3")],
+    [`empty query returns every leaf`, emptyQueryFlat.length === 4],
+    [`a leaf-name fragment matches ("grocer" → Groceries)`, leafMatch.length === 1 && leafMatch[0].id === "l1"],
+    [`matching is case/whitespace-insensitive`, leafMatchSpaced.length === 1 && leafMatchSpaced[0].id === "l1"],
+    [`a parent-bucket term returns every leaf under it ("invest" → SIP + Stocks)`, parentMatch.map((o) => o.id).sort().join(",") === "l3,l4"],
+    [`groups and options are sorted by name`, emptyQuery.map((g) => g.parent).join("|") === "01 Income|02 Spend-it Needs|08 Invest-it"],
+    [`review-table migrated to the shared CategoryPicker`, reviewTable.includes("CategoryPicker")],
+    [`drill-txn-row migrated to the shared CategoryPicker`, drillTxnRow.includes("CategoryPicker")],
+    [`the picker component is built on the pure category-filter module`, pickerSrc.includes("@/lib/category-filter")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CATPICKER ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 6: migration 0011 (indexes + aggregation RPCs) — source-grep only, not executed against a DB ----
+{
+  const mig11 = readFileSync("supabase/migrations/0011_transactions_indexes.sql", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`adds the three query-shape indexes`,
+      mig11.includes("transactions_user_source_idx") && mig11.includes("transactions_user_id_id_idx") && mig11.includes("transactions_account_date_idx")],
+    [`every index is idempotent (if not exists)`,
+      (mig11.match(/create index if not exists/g) ?? []).length === 3],
+    [`defines both aggregation functions`,
+      mig11.includes("dashboard_category_month_totals") && mig11.includes("dashboard_account_balances")],
+    [`both functions run security invoker (the caller's own RLS), not definer`,
+      (mig11.match(/security invoker/g) ?? []).length >= 2 && !mig11.includes("security definer")],
+    [`the category-totals function does NOT join to categories (classification logic stays in already-tested TS)`,
+      !/dashboard_category_month_totals[\s\S]*?\$\$;/.exec(mig11)?.[0].includes("join")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`MIGRATION-0011 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 6: halan-agg.ts reconstructs the exact same dashboard numbers from pre-grouped rows ----
+// (the group-by "server side" is simulated in pure JS here — this proves the RECONSTRUCTION math in
+// halan-agg.ts is equivalent to the raw-row halan.ts path; it does NOT execute the actual SQL.)
+{
+  interface RawTxn { categoryId: string | null; txnDate: string; amountPaise: number; tags: string[]; accountId: string }
+  const parentById = new Map<string, string>([
+    ["c1", "01 Income"], ["c2", "02 Spend-it Needs"], ["c3", "03 Spend-it Wants"], ["c4", "08 Invest-it"],
+  ]);
+  const rows: RawTxn[] = [
+    { categoryId: "c1", txnDate: "2026-01-05", amountPaise: 500000, tags: [], accountId: "A" },
+    { categoryId: "c2", txnDate: "2026-01-10", amountPaise: -20000, tags: [], accountId: "A" },
+    { categoryId: "c3", txnDate: "2026-01-15", amountPaise: -15000, tags: ["leakage"], accountId: "A" },
+    { categoryId: "c4", txnDate: "2026-01-20", amountPaise: -100000, tags: [], accountId: "B" },
+    { categoryId: null, txnDate: "2026-02-01", amountPaise: -5000, tags: [], accountId: "B" },
+    { categoryId: "c1", txnDate: "2026-02-05", amountPaise: 500000, tags: [], accountId: "A" },
+    { categoryId: "c2", txnDate: "2026-02-10", amountPaise: -22000, tags: [], accountId: "B" },
+    { categoryId: "c3", txnDate: "2026-02-12", amountPaise: -8000, tags: [], accountId: "A" },
+    { categoryId: "c2", txnDate: "2025-12-31", amountPaise: -3000, tags: [], accountId: "A" },
+  ];
+  const accounts = [
+    { id: "A", name: "Account A", kind: "bank", anchorBalancePaise: 1000000, anchorDate: "2026-01-01" },
+    { id: "B", name: "Account B", kind: "bank", anchorBalancePaise: 0, anchorDate: null },
+  ];
+
+  // Path (a): the raw-row halan.ts path (already gate-tested elsewhere).
+  const halanTxns: TxnLike[] = rows.map((r) => ({
+    txnDate: r.txnDate, amountPaise: r.amountPaise, parent: r.categoryId ? parentById.get(r.categoryId) ?? null : null, tags: r.tags,
+  }));
+  const flowsA = monthlyCashFlow(halanTxns);
+  const bucketsA = bucketTotals(halanTxns);
+  const leakA = leakageByParent(halanTxns);
+  const { balances: balancesA, netWorthPaise: netWorthA } = accountBalances(
+    accounts, rows.map((r) => ({ accountId: r.accountId, txnDate: r.txnDate, amountPaise: r.amountPaise })));
+
+  // Path (b): simulate the SQL GROUP BY in pure JS, then reconstruct via halan-agg.ts — the same code
+  // path the dashboard actually calls when the RPC succeeds.
+  const groupMap = new Map<string, CategoryMonthGroup>();
+  for (const r of rows) {
+    const month = r.txnDate.slice(0, 7);
+    const isLeakage = r.tags.includes("leakage");
+    const isPositive = r.amountPaise >= 0;
+    const key = `${r.categoryId}|${month}|${isLeakage}|${isPositive}`;
+    const cur = groupMap.get(key) ?? { categoryId: r.categoryId, month, isLeakage, isPositive, amountSumPaise: 0, txnCount: 0 };
+    cur.amountSumPaise += r.amountPaise;
+    cur.txnCount += 1;
+    groupMap.set(key, cur);
+  }
+  const groups = [...groupMap.values()];
+  const flowsB = monthlyCashFlowFromGroups(groups, parentById);
+  const bucketsB = bucketTotalsFromGroups(groups, parentById);
+  const leakB = leakageByParentFromGroups(groups, parentById);
+
+  const sumMap = new Map<string, number>();
+  for (const r of rows) {
+    const acct = accounts.find((a) => a.id === r.accountId)!;
+    if (acct.anchorDate && r.txnDate < acct.anchorDate) continue;
+    sumMap.set(r.accountId, (sumMap.get(r.accountId) ?? 0) + r.amountPaise);
+  }
+  const sums: AccountSumGroup[] = [...sumMap.entries()].map(([accountId, amountSumPaise]) => ({ accountId, amountSumPaise }));
+  const { balances: balancesB, netWorthPaise: netWorthB } = accountBalancesFromSums(accounts, sums);
+
+  const checks: Array<[string, boolean]> = [
+    [`monthlyCashFlow matches monthlyCashFlowFromGroups, paise-exact`, JSON.stringify(flowsA) === JSON.stringify(flowsB)],
+    [`bucketTotals matches bucketTotalsFromGroups, paise-exact`, JSON.stringify(bucketsA) === JSON.stringify(bucketsB)],
+    [`leakageByParent matches leakageByParentFromGroups, paise-exact`, JSON.stringify(leakA) === JSON.stringify(leakB)],
+    [`accountBalances matches accountBalancesFromSums, paise-exact`, JSON.stringify(balancesA) === JSON.stringify(balancesB) && netWorthA === netWorthB],
+    // Hand-computed spot checks (not just self-consistency): Jan income 500000, Feb income 500000,
+    // Jan leakage 15000, net worth = A's anchor (1000000) + its 5 anchor-eligible rows (500000-20000-15000+500000-8000=957000)
+    // = 1957000, plus all of B's rows (-100000-5000-22000=-127000) = 1830000.
+    [`spot check: Jan income = ₹5,000.00`, flowsA.find((f) => f.month === "2026-01")?.incomePaise === 500000],
+    [`spot check: Jan leakage = ₹150.00 (only the tagged, negative row)`, flowsA.find((f) => f.month === "2026-01")?.leakagePaise === 15000],
+    [`spot check: net worth = A (₹19,570.00) + B (-₹1,270.00) = ₹18,300.00`, netWorthA === 1830000],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`HALAN-AGG ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 5: AI category assist never fails silently ----
+{
+  const panel = readFileSync("src/components/ai-suggest-panel.tsx", "utf8");
+  const envExample = readFileSync(".env.example", "utf8");
+  const integrationsPanel = readFileSync("src/components/integrations-panel.tsx", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`a disabled/no-adapter provider renders a loud destructive-toned alert, not muted info text`,
+      panel.includes("disabledReason") && panel.includes("border-destructive")],
+    [`the alert links to Settings so vn can fix the provider in one click`, panel.includes('href="/settings"')],
+    [`.env.example documents the wired providers first and doesn't call AI-suggest "deferred"`,
+      !envExample.includes("deferred") && envExample.indexOf("GEMINI_API_KEY") < envExample.indexOf("ANTHROPIC_API_KEY")],
+    [`.env.example documents DEBUG_AI_SUGGEST, GEMINI_MODEL and OPENAI_MODEL`,
+      envExample.includes("DEBUG_AI_SUGGEST") && envExample.includes("GEMINI_MODEL") && envExample.includes("OPENAI_MODEL")],
+    [`.env.example points at /settings, not the stale /integrations path`, envExample.includes("/settings") && !envExample.includes("/integrations")],
+    [`the no-key hint in Settings names a provider that actually has an adapter`,
+      integrationsPanel.includes("GEMINI_API_KEY") && !integrationsPanel.includes("ANTHROPIC_API_KEY")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`AI-STATE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 4: visible account filter on /transactions ----
+{
+  const tabs = readFileSync("src/components/transactions-tabs.tsx", "utf8");
+  const accountSelect = readFileSync("src/components/account-select.tsx", "utf8");
+  const txnsPage2 = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+  const accountsPanel = readFileSync("src/components/accounts-panel.tsx", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`tab switching preserves other URL params (no longer a bare "?tab=" rewrite)`,
+      tabs.includes("URLSearchParams(window.location.search)") && !tabs.includes('`/transactions?tab=${next}`')],
+    [`AccountSelect pushes the same ?account= param the account-page deep-link uses`, accountSelect.includes('next.set("account"') && accountSelect.includes("router.push")],
+    [`AccountSelect always keeps tab=review on navigation`, accountSelect.includes('next.set("tab", "review")')],
+    [`/transactions mounts the visible account filter on the Review tab`, txnsPage2.includes("<AccountSelect")],
+    [`the account-page deep-link still targets ?tab=review&account=`, accountsPanel.includes("tab=review&account=")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`TX-FILTER ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 3: same-day transaction context (bounded date-window read) ----
+{
+  const txnContext = readFileSync("src/components/txn-context.tsx", "utf8");
+  const reviewTable2 = readFileSync("src/components/review-table.tsx", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`addDaysISO steps a plain day forward/back`, addDaysISO("2026-03-15", 2) === "2026-03-17" && addDaysISO("2026-03-15", -2) === "2026-03-13"],
+    [`addDaysISO crosses a month boundary`, addDaysISO("2026-03-01", -2) === "2026-02-27"],
+    [`addDaysISO crosses a year boundary`, addDaysISO("2026-12-30", 2) === "2027-01-01"],
+    [`addDaysISO handles a Feb leap day correctly (2028 is a leap year)`, addDaysISO("2028-02-28", 1) === "2028-02-29"],
+    [`TxnContext bounds its read to a bank/account + date window + row cap (never a whole-ledger fetch)`,
+      txnContext.includes('.eq("account_id"') && txnContext.includes('.gte("txn_date"') && txnContext.includes('.lte("txn_date"') && txnContext.includes(".limit(")],
+    [`review-table wires TxnContext per row`, reviewTable2.includes("TxnContext")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`TXN-CONTEXT ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- FA-1 / FA-7: fetchAllRows + runBounded (both need `await`) ----
+// Wrapped in a single async IIFE (not a bare block) because these are the only sections needing
+// `await`, and the script compiles as CommonJS (package.json "type": "commonjs"), which forbids
+// top-level await.
+void (async () => {
+  // ---- FA-7: runBounded chunking/stop-on-failure/completed-count ----
+  {
+    const callLog: number[] = [];
+    const ok25 = await runBounded(Array.from({ length: 25 }, (_, i) => i), 10, async (i) => {
+      callLog.push(i);
+      return { error: null };
+    });
+
+    const chunkStarts: number[][] = [];
+    let currentChunk: number[] = [];
+    const failing = await runBounded(Array.from({ length: 30 }, (_, i) => i), 10, async (i) => {
+      currentChunk.push(i);
+      if (currentChunk.length === 10) { chunkStarts.push(currentChunk); currentChunk = []; }
+      // Fail every item in the 2nd chunk (indices 10-19).
+      if (i >= 10 && i < 20) return { error: `boom-${i}` };
+      return { error: null };
+    });
+
+    const single = await runBounded([1, 2, 3], 10, async () => ({ error: null }));
+    const empty = await runBounded([] as number[], 10, async () => ({ error: null }));
+
+    const checks: Array<[string, boolean]> = [
+      [`25 items / limit 10, all succeed → completed 25, no error`, ok25.completed === 25 && ok25.error === null && callLog.length === 25],
+      [`a failing chunk stops further chunks (only chunks 1-2 run, not chunk 3)`, chunkStarts.length === 2],
+      [`completed counts only successes from before + within the failing chunk (chunk 1's 10)`, failing.completed === 10],
+      [`the first error message is surfaced`, failing.error === "boom-10"],
+      [`limit >= items degenerates to one chunk`, single.completed === 3 && single.error === null],
+      [`empty input → completed 0, no error, fn never called`, empty.completed === 0 && empty.error === null],
+    ];
+    for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CONCURRENCY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+    const mmRouteSrc = readFileSync("src/app/api/enrich/money-manager/route.ts", "utf8");
+    const gpayRouteSrc = readFileSync("src/app/api/enrich/google-pay-statement/route.ts", "utf8");
+    const grepChecks: Array<[string, boolean]> = [
+      [`money-manager apply route uses runBounded and no longer hand-loops`, mmRouteSrc.includes("runBounded(") && !mmRouteSrc.includes("for (const w of plan)")],
+      [`google-pay-statement apply route uses runBounded and no longer hand-loops`, gpayRouteSrc.includes("runBounded(") && !gpayRouteSrc.includes("for (const w of plan)")],
+    ];
+    for (const [label, ok] of grepChecks) { if (!ok) failures++; console.log(`CONCURRENCY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+  }
+
+  // ---- FA-1: fetchAllRows drains past Supabase's 1000-row select cap ----
+  async function fakePage<Row>(rows: Row[], calls: Array<[number, number]>, failOnPage?: number) {
+    return async (from: number, to: number): Promise<PageResult<Row>> => {
+      calls.push([from, to]);
+      if (failOnPage !== undefined && calls.length === failOnPage) return { data: null, error: { message: "boom" } };
+      return { data: rows.slice(from, to + 1), error: null };
+    };
+  }
+  const rows2500 = Array.from({ length: 2500 }, (_, i) => i);
+  const calls2500: Array<[number, number]> = [];
+  const out2500 = await fetchAllRows(await fakePage(rows2500, calls2500));
+
+  const rows2000 = Array.from({ length: 2000 }, (_, i) => i);
+  const calls2000: Array<[number, number]> = [];
+  const out2000 = await fetchAllRows(await fakePage(rows2000, calls2000));
+
+  const calls0: Array<[number, number]> = [];
+  const out0 = await fetchAllRows(await fakePage([] as number[], calls0));
+
+  let threwWithMessage = false;
+  const rowsForFailure = Array.from({ length: 1500 }, (_, i) => i);
+  try {
+    await fetchAllRows(await fakePage(rowsForFailure, [], 2));
+  } catch (e) {
+    threwWithMessage = (e as Error).message === "boom";
+  }
+
+  const dashboardPage = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
+  const loadDrill = readFileSync("src/lib/server/load-drill.ts", "utf8");
+  const enrichRoute = readFileSync("src/app/api/enrich/route.ts", "utf8");
+  const mmRoute = readFileSync("src/app/api/enrich/money-manager/route.ts", "utf8");
+  const gpayRoute = readFileSync("src/app/api/enrich/google-pay-statement/route.ts", "utf8");
+  const rulesApplyRoute = readFileSync("src/app/api/rules/apply/route.ts", "utf8");
+  const aiSuggestRoute = readFileSync("src/app/api/ai/suggest/route.ts", "utf8");
+  const compassPage = readFileSync("src/app/(app)/compass/page.tsx", "utf8");
+  const holdingsPage = readFileSync("src/app/(app)/holdings/page.tsx", "utf8");
+  const loansPage = readFileSync("src/app/(app)/loans/page.tsx", "utf8");
+  const calculatorsPage = readFileSync("src/app/(app)/calculators/page.tsx", "utf8");
+  const pricesIndex = readFileSync("src/lib/prices/index.ts", "utf8");
+
+  const checks: Array<[string, boolean]> = [
+    [`2500 rows over 3 pages, exact ranges (0,999)(1000,1999)(2000,2499 tail)`,
+      out2500.length === 2500 && calls2500.length === 3 &&
+      calls2500[0][0] === 0 && calls2500[0][1] === 999 &&
+      calls2500[1][0] === 1000 && calls2500[1][1] === 1999 &&
+      calls2500[2][0] === 2000 && calls2500[2][1] === 2999],
+    [`exactly 2000 rows still takes a 3rd (empty) terminating page`, out2000.length === 2000 && calls2000.length === 3],
+    [`0 rows makes exactly 1 call and returns []`, out0.length === 0 && calls0.length === 1],
+    [`a page error throws with the underlying message (no swallowed failure)`, threwWithMessage],
+    [`load-drill.ts drains transactions via fetchAllRows`, loadDrill.includes("fetchAllRows<RawTxn>")],
+    [`dashboard drains snapshots/prices via fetchAllRows directly; transactions drain moved into the Pass-6 aggregates fallback`,
+      dashboardPage.includes("fetchAllRows<RawSnap>") && dashboardPage.includes("fetchAllRows<RawPrice>") &&
+      readFileSync("src/lib/server/dashboard-aggregates.ts", "utf8").includes("fetchAllRows<RawTxn>")],
+    [`compass drains snapshots/prices via fetchAllRows`, compassPage.includes("fetchAllRows<RawSnap>") && compassPage.includes("fetchAllRows<RawPrice>")],
+    [`holdings page drains snapshots via fetchAllRows`, holdingsPage.includes("fetchAllRows<RawSnap>")],
+    [`loans page drains schedule rows via fetchAllRows`, loansPage.includes("fetchAllRows<RawScheduleRow>")],
+    [`calculators page drains realized-gain segments via fetchAllRows`, calculatorsPage.includes("fetchAllRows<RawSeg>")],
+    [`ai/suggest drains default-category transactions via fetchAllRows`, aiSuggestRoute.includes("fetchAllRows(")],
+    [`prices/index.ts (service client) drains instruments via fetchAllRows`, pricesIndex.includes("fetchAllRows(")],
+    [`the 4 hand-rolled drains now call fetchAllRows and no longer hand-loop`,
+      enrichRoute.includes("fetchAllRows") && !enrichRoute.includes("for (let from = 0") &&
+      mmRoute.includes("fetchAllRows") && !mmRoute.includes("for (let from = 0") &&
+      gpayRoute.includes("fetchAllRows") && !gpayRoute.includes("for (let from = 0") &&
+      rulesApplyRoute.includes("fetchAllRows") && !rulesApplyRoute.includes("for (let from = 0")],
+    [`the intentional /transactions 300-row review cap is untouched`,
+      readFileSync("src/app/(app)/transactions/page.tsx", "utf8").includes(".limit(300)")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+  // ---- Pass 1: review-save legibility (single count source, prop re-sync, no swallowed errors) ----
+  {
+    const reviewTable = readFileSync("src/components/review-table.tsx", "utf8");
+    const dashboardPage2 = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
+    const txnsPage = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+    const reviewCountSrc = readFileSync("src/lib/server/review-count.ts", "utf8");
+    const checks: Array<[string, boolean]> = [
+      [`review-table no longer hardcodes the "Uncategorized Review" name`, !reviewTable.includes("Uncategorized Review")],
+      [`review-table's count is driven by the server-supplied reviewTotal prop`, reviewTable.includes("reviewTotal")],
+      [`review-table calls router.refresh() after a successful save`, reviewTable.includes("router.refresh()")],
+      [`review-table surfaces a write error inline instead of swallowing it`, reviewTable.includes("errors[r.id]") && reviewTable.includes("setErrors")],
+      [`review-table re-syncs local rows on fresh server props (props-driven effect)`, reviewTable.includes("useEffect") && reviewTable.includes("[transactions, reviewTotal]")],
+      [`review-table virtualizes the row list`, reviewTable.includes("useVirtualizer")],
+      [`dashboard no longer uses the wrong parent-10/tags formula for the review tile`, !dashboardPage2.includes("tags.length === 0")],
+      [`dashboard drives its Review-queue tile from the shared countUncategorized helper`, dashboardPage2.includes("countUncategorized")],
+      [`transactions page drives the Review panel count from the same shared helper`, txnsPage.includes("countUncategorized")],
+      [`countUncategorized resolves the leaf by the shared FALLBACK_CATEGORY constant, not a re-hardcoded string`, reviewCountSrc.includes("FALLBACK_CATEGORY") && !/"Uncategorized Review"/.test(reviewCountSrc)],
+      [`countUncategorized uses an exact head-count query (no row fetch)`, reviewCountSrc.includes('{ count: "exact", head: true }')],
+    ];
+    for (const [label, ok] of checks) { if (!ok) failures++; console.log(`REVIEW ${ok ? "PASS" : "FAIL"}: ${label}`); }
+  }
+
+  console.log("\n" + "=".repeat(78));
+  console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
+  process.exit(failures === 0 ? 0 : 1);
+})();

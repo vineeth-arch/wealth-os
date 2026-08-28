@@ -3,6 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import { parseBhimUpi, parseGooglePay } from "@/lib/ingest/parsers/market";
 import { matchEnrichment, mergeMerchant, type MatchableTxn, type MatchableAccount } from "@/lib/ingest/enrich";
 import type { UpiEnrichmentRow } from "@/lib/ingest/types";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 
@@ -42,25 +43,20 @@ export async function POST(request: NextRequest) {
   // Keep each txn's CURRENT merchant too, so enrichment LAYERS onto it instead of overwriting a prior source.
   const txns: MatchableTxn[] = [];
   const currentMerchant = new Map<string, string | null>();
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase.from("transactions")
-      .select("id,account_id,txn_date,amount_paise,merchant")
-      .eq("user_id", user.id)
-      .order("id")
-      .range(from, from + PAGE - 1);
-    if (error) return NextResponse.json({ error: `transactions: ${error.message}` }, { status: 500 });
-    const page = data ?? [];
-    for (const t of page) {
-      txns.push({
-        id: t.id as string,
-        accountId: t.account_id as string,
-        txnDate: t.txn_date as string,
-        amountPaise: t.amount_paise as number,
-      });
-      currentMerchant.set(t.id as string, (t.merchant as string | null) ?? null);
-    }
-    if (page.length < PAGE) break;
+  let rawTxns: Array<{ id: string; account_id: string; txn_date: string; amount_paise: number; merchant: string | null }>;
+  try {
+    rawTxns = await fetchAllRows((from, to) =>
+      supabase.from("transactions")
+        .select("id,account_id,txn_date,amount_paise,merchant")
+        .eq("user_id", user.id)
+        .order("id")
+        .range(from, to));
+  } catch (e) {
+    return NextResponse.json({ error: `transactions: ${(e as Error).message}` }, { status: 500 });
+  }
+  for (const t of rawTxns) {
+    txns.push({ id: t.id, accountId: t.account_id, txnDate: t.txn_date, amountPaise: t.amount_paise });
+    currentMerchant.set(t.id, t.merchant ?? null);
   }
 
   const { data: acctRows } = await supabase.from("accounts")

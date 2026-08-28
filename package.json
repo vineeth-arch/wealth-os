@@ -22,6 +22,7 @@
     "@radix-ui/react-tooltip": "^1.2.9",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.108.1",
+    "@tanstack/react-virtual": "^3.14.10",
     "@types/node": "^25.9.3",
     "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",

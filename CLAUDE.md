@@ -58,7 +58,7 @@ the bucket math. 30 PASS reports + "ALL GATES PASSED" = good. Anything else = no
 - **The verified parsers in `src/lib/ingest/parsers/` are precious.** They reconcile to the paisa. Do not "tidy" their imports. `next.config.mjs` carries a `webpack.extensionAlias` specifically so webpack follows their `.js`->`.ts` specifiers without editing them. Leave both alone.
 - **RLS isolation:** every user-data table has `user_id` and an owner policy. Reference tables (`instruments`, `prices`, `price_sources`) are read-only to authenticated users, written by service role only.
 - **Reporting is by transaction date + calendar month.** Statement periods exist for reconciliation only. Net-worth anchor per account = opening balance of its earliest imported statement (set automatically at commit).
-- **Commit re-validates server-side.** `/api/commit` re-derives content hashes, re-checks categories against the taxonomy, and re-checks reconciliation. The client may only edit category/tags/include. Keep that boundary.
+- **Commit re-validates server-side — partially.** `/api/commit` re-derives content hashes from the row fields it receives and re-checks that each category name exists in the taxonomy (it does NOT re-check `auto_assignable`/Leakage-Review, unlike `ai/apply`, `rules/apply`, and both enrich routes). It does **not** re-parse or re-check anything else: amounts, dates, and balances come straight from the request body (there is no server-side re-parse — `/api/import`'s parse result is never persisted or compared against), and `reconciled` is computed from a client-supplied `expectedDeltaPaise` against client-supplied amounts, then only *recorded* on the `imports` row — it never gates the write. The client can in fact submit any amount/date. Follow-up: a real server-side re-parse + the missing auto_assignable guard (see AUDIT.md FA-5).
 - **Pydantic-equivalent discipline:** the `wire.ts` shapes are the client/server contract; don't pass loose objects across `/api/*`.
 
 ## Architecture
@@ -100,6 +100,10 @@ lazily/CDN-loaded Python→WASM runtime used solely in `src/lib/convert/*` for i
 conversion (never bundled, never in the gate or `next build` execution); and `services/convert/` — a
 small out-of-tree FastAPI service (PyMuPDF4LLM) for server-side PDF→markdown, the only engine that
 reproduces the PDF fixtures (PyMuPDF has no working Pyodide build).
+
+**`@tanstack/react-virtual`** (justified: the review grid renders up to 300 rows and needs to stay
+responsive as that count grows toward 1000+ once the review-list cap is lifted) — windows the
+`/transactions` Review table body so only visible rows mount; used solely in `src/components/review-table.tsx`.
 
 ## Gotchas
 

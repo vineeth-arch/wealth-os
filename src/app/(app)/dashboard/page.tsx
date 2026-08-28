@@ -7,11 +7,11 @@ import { CashFlowChart, type FlowPoint } from "@/components/charts";
 import { FlowKpis } from "@/components/dashboard/flow-kpis";
 import { SpendBuckets } from "@/components/dashboard/spend-buckets";
 import { formatINR, formatMonth, formatDate } from "@/lib/format";
-import {
-  type TxnLike, type HoldingLike, type PriceLike, monthlyCashFlow, bucketTotals, leakageByParent,
-  accountBalances, holdingsValue, SPEND_CLASSES,
-} from "@/lib/halan";
+import { type HoldingLike, type PriceLike, holdingsValue, SPEND_CLASSES } from "@/lib/halan";
 import { TrendingUp, PiggyBank, Wallet, LineChart } from "lucide-react";
+import { fetchAllRows } from "@/lib/supabase/paginate";
+import { countUncategorized } from "@/lib/server/review-count";
+import { loadDashboardAggregates } from "@/lib/server/dashboard-aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -31,16 +31,26 @@ function Tile({ label, value, sub, tone, href }: { label: string; value: string;
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServer();
-  const [{ data: accountsRaw }, { data: txnsRaw }, { data: catsRaw }, { data: snapsRaw }, { data: pricesRaw }] = await Promise.all([
+  type RawSnap = { account_id: string; as_of: string; isin: string; qty: number; last_price_paise: number };
+  type RawPrice = { isin: string; price_paise: number; price_date: string };
+  // Accounts and categories stay a plain select — both are always small (one row per account/category).
+  // Transactions are NOT drained here: loadDashboardAggregates tries the migration-0011 RPCs first (a
+  // few hundred grouped rows) and only falls back to the full per-transaction drain on an RPC error.
+  const [{ data: accountsRaw }, { data: catsRaw }, snapsRaw, pricesRaw, reviewTotal] = await Promise.all([
     supabase.from("accounts").select("id,name,kind,anchor_balance_paise,anchor_date"),
-    supabase.from("transactions").select("id,txn_date,amount_paise,tags,account_id,category_id,description_raw,merchant,category_source"),
     supabase.from("categories").select("id,name,parent_id"),
-    supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise").order("as_of", { ascending: false }),
-    supabase.from("prices").select("isin,price_paise,price_date"),
+    fetchAllRows<RawSnap>((from, to) =>
+      supabase.from("holdings_snapshots").select("account_id,as_of,isin,qty,last_price_paise")
+        .order("as_of", { ascending: false }).order("account_id").range(from, to)),
+    fetchAllRows<RawPrice>((from, to) =>
+      supabase.from("prices").select("isin,price_paise,price_date").order("isin").range(from, to)),
+    countUncategorized(supabase),
   ]);
 
-  const accounts = accountsRaw ?? [];
-  const txns = txnsRaw ?? [];
+  const accounts = (accountsRaw ?? []).map((a) => ({
+    id: a.id as string, name: a.name as string, kind: a.kind as string,
+    anchorBalancePaise: a.anchor_balance_paise as number | null, anchorDate: a.anchor_date as string | null,
+  }));
   const cats = catsRaw ?? [];
 
   // Investments: current holdings (latest snapshot per account) valued at latest prices, last-known fallback.
@@ -64,10 +74,20 @@ export default async function DashboardPage() {
     if (!cur) covMap.set(id, { from: d, to: d });
     else { if (d < cur.from) cur.from = d; if (d > cur.to) cur.to = d; }
   }
-  const accNameById = new Map(accounts.map((a) => [a.id as string, a.name as string]));
+  const accNameById = new Map(accounts.map((a) => [a.id, a.name]));
   const coverage = [...covMap.entries()].map(([id, r]) => ({ name: accNameById.get(id) ?? id, from: r.from, to: r.to }));
 
-  if (txns.length === 0) {
+  // category_id -> parent bucket name (a leaf's bucket is its parent; a parent maps to itself).
+  const nameById = new Map(cats.map((c) => [c.id as string, c.name as string]));
+  const parentById = new Map<string, string>();
+  for (const c of cats) {
+    const parentName = c.parent_id ? nameById.get(c.parent_id as string) ?? null : null;
+    parentById.set(c.id as string, parentName ?? (c.name as string));
+  }
+
+  const agg = await loadDashboardAggregates(supabase, accounts, parentById);
+
+  if (agg.totalTxnCount === 0) {
     return (
       <div className="mx-auto max-w-2xl space-y-6">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
@@ -82,41 +102,20 @@ export default async function DashboardPage() {
     );
   }
 
-  // category_id -> parent bucket name
-  const nameById = new Map(cats.map((c) => [c.id as string, c.name as string]));
-  const parentByCatId = new Map<string, string | null>();
-  for (const c of cats) {
-    const parentName = c.parent_id ? nameById.get(c.parent_id as string) ?? null : null;
-    // a leaf's bucket is its parent; a parent maps to itself
-    parentByCatId.set(c.id as string, parentName ?? (c.name as string));
-  }
-  const halanTxns: TxnLike[] = txns.map((t) => ({
-    txnDate: t.txn_date as string,
-    amountPaise: t.amount_paise as number,
-    parent: t.category_id ? parentByCatId.get(t.category_id as string) ?? null : null,
-    tags: (t.tags as string[]) ?? [],
-  }));
-
-  const flows = monthlyCashFlow(halanTxns);
+  const flows = agg.flows;
   const flowData: FlowPoint[] = flows.map((f) => ({ month: f.month, income: f.incomePaise, spend: f.spendPaise, invest: f.investPaise }));
   const latest = flows[flows.length - 1];
 
-  const { netWorthPaise, balances } = accountBalances(
-    accounts.map((a) => ({ id: a.id as string, name: a.name as string, kind: a.kind as string, anchorBalancePaise: a.anchor_balance_paise as number | null, anchorDate: a.anchor_date as string | null })),
-    txns.map((t) => ({ accountId: t.account_id as string, txnDate: t.txn_date as string, amountPaise: t.amount_paise as number })),
-  );
-
-  const buckets = bucketTotals(halanTxns).filter((b) => SPEND_CLASSES.has(b.cls) && b.outflowPaise > 0).sort((a, b) => b.outflowPaise - a.outflowPaise);
-  const leak = leakageByParent(halanTxns);
-
-  const reviewCount = halanTxns.filter((t) => t.parent === "10 Transfers & Adjustments" && (t.tags.length === 0)).length;
+  const { netWorthPaise, balances } = agg;
+  const buckets = agg.buckets.filter((b) => SPEND_CLASSES.has(b.cls) && b.outflowPaise > 0).sort((a, b) => b.outflowPaise - a.outflowPaise);
+  const leak = agg.leak;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">{latest ? `Latest month: ${formatMonth(latest.month)}` : ""} · {txns.length} transactions</p>
+          <p className="text-sm text-muted-foreground">{latest ? `Latest month: ${formatMonth(latest.month)}` : ""} · {agg.totalTxnCount} transactions</p>
         </div>
         <Button asChild variant="outline"><Link href="/transactions?tab=import">Import</Link></Button>
       </div>
@@ -183,9 +182,9 @@ export default async function DashboardPage() {
             <CardDescription>Uncategorized transactions waiting for a real bucket.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{reviewCount}</div>
-            <p className="mt-1 text-sm text-muted-foreground">in Uncategorized Review</p>
-            {reviewCount > 0 && <Button asChild variant="outline" className="mt-3"><Link href="/transactions?tab=review">Review now</Link></Button>}
+            <div className="text-3xl font-semibold">{reviewTotal.count}</div>
+            <p className="mt-1 text-sm text-muted-foreground">in {nameById.get(reviewTotal.reviewCategoryId) ?? "the review category"}</p>
+            {reviewTotal.count > 0 && <Button asChild variant="outline" className="mt-3"><Link href="/transactions?tab=review">Review now</Link></Button>}
           </CardContent>
         </Card>
       </div>

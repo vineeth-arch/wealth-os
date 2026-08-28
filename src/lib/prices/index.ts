@@ -5,6 +5,7 @@ import { mfdataSource } from "./mfdata.js";
 import { amfiSource } from "./amfi.js";
 import { yahooSource } from "./yahoo.js";
 import { manualSource } from "./manual.js";
+import { fetchAllRows } from "../supabase/paginate.js";
 
 /** Adapter registry. NOTE: importing this module pulls in yahoo-finance2 — never import it from the gate. */
 export const SOURCES: Record<PriceSourceId, PriceSource> = {
@@ -28,19 +29,23 @@ export interface RefreshResult {
  * quote wins; a source throwing is recorded and the next is tried. Manual gold is skipped (no fetch).
  */
 export async function refreshPrices(svc: SupabaseClient): Promise<RefreshResult> {
-  const { data, error } = await svc
-    .from("instruments")
-    .select("isin,asset_class,amfi_scheme_code,yahoo_symbol");
-  if (error) return { attempted: 0, fetched: 0, failed: 0, errors: [`instruments: ${error.message}`] };
+  // Reference table — can exceed Supabase's 1000-row cap as more instruments get imported.
+  let data: Array<{ isin: string; asset_class: string; amfi_scheme_code: string | null; yahoo_symbol: string | null }>;
+  try {
+    data = await fetchAllRows((from, to) =>
+      svc.from("instruments").select("isin,asset_class,amfi_scheme_code,yahoo_symbol").order("isin").range(from, to));
+  } catch (e) {
+    return { attempted: 0, fetched: 0, failed: 0, errors: [`instruments: ${(e as Error).message}`] };
+  }
 
   const result: RefreshResult = { attempted: 0, fetched: 0, failed: 0, errors: [] };
 
-  for (const row of data ?? []) {
+  for (const row of data) {
     const inst: InstrumentRef = {
-      isin: row.isin as string,
+      isin: row.isin,
       assetClass: row.asset_class as InstrumentRef["assetClass"],
-      amfiSchemeCode: row.amfi_scheme_code as string | null,
-      yahooSymbol: row.yahoo_symbol as string | null,
+      amfiSchemeCode: row.amfi_scheme_code,
+      yahooSymbol: row.yahoo_symbol,
     };
     const ids = selectSourceIds(inst.assetClass);
     if (ids.length === 0 || ids.every((id) => SOURCES[id].kind === "manual")) continue;

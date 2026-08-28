@@ -6,18 +6,22 @@ import type { CommitRequest } from "@/lib/ingest/wire";
 export const runtime = "nodejs";
 
 /**
- * Persists reviewed transactions. Trust boundary: amounts/dates come from the server-side
- * parse (the client only edits category + tags + include). Here the server RE-DERIVES the
- * content hash from immutable fields (client cannot set it), RE-VALIDATES every category
- * against the taxonomy, and RE-CHECKS reconciliation. Dedup is enforced by a unique index
- * on (account_id, content_hash), so re-importing an overlapping period inserts nothing.
+ * Persists reviewed transactions. Trust boundary today is PARTIAL (see AUDIT.md FA-5): the
+ * server RE-DERIVES the content hash from the row fields it receives (client cannot set the
+ * hash directly) and RE-VALIDATES every category name against the taxonomy — but amounts,
+ * dates, and balances come straight from the request body, NOT from a server-side re-parse
+ * (none exists; /api/import's parse result is never persisted or compared against), and
+ * `reconciled` is computed from a client-supplied expectedDeltaPaise against client-supplied
+ * amounts and only recorded on the imports row — it never gates the write. Dedup is enforced
+ * by a unique index on (account_id, content_hash), so re-importing an overlapping period
+ * inserts nothing. Follow-up: a real server-side re-parse to close the amount/date gap.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const body = (await request.json()) as CommitRequest;
+  const body = (await request.json().catch(() => null)) as CommitRequest | null;
   if (!body?.accountId || !Array.isArray(body.statements)) {
     return NextResponse.json({ error: "accountId and statements are required" }, { status: 400 });
   }

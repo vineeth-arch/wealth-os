@@ -99,7 +99,8 @@ export function IntegrationsPanel({ llm, integrations, priceSources }: {
           })}
           {!llm.some((p) => p.available) && (
             <p className="text-xs text-muted-foreground">
-              No provider key detected. Set e.g. <code>ANTHROPIC_API_KEY</code> in the server environment to connect.
+              No provider key detected. AI-suggest only has an adapter for Gemini and OpenAI — set
+              <code> GEMINI_API_KEY</code> or <code>OPENAI_API_KEY</code> in the server environment to connect.
             </p>
           )}
         </CardContent>

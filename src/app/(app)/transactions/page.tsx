@@ -11,6 +11,8 @@ import { TransactionsTabs, type TxTab } from "@/components/transactions-tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { countUncategorized } from "@/lib/server/review-count";
+import { AccountSelect } from "@/components/account-select";
 
 export const dynamic = "force-dynamic";
 
@@ -79,11 +81,12 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
     .select("id,txn_date,amount_paise,description_raw,merchant,tags,category_id,category_source,account_id")
     .order("txn_date", { ascending: false }).limit(300);
   if (accountFilter) txnQuery = txnQuery.eq("account_id", accountFilter);
-  const [{ data: txnsRaw }, { data: catsRaw }, { data: acctsRaw }, { data: llmRows }] = await Promise.all([
+  const [{ data: txnsRaw }, { data: catsRaw }, { data: acctsRaw }, { data: llmRows }, reviewTotal] = await Promise.all([
     txnQuery,
     supabase.from("categories").select("id,name,parent_id,auto_assignable"),
     supabase.from("accounts").select("id,name"),
     supabase.from("integrations").select("provider,meta").eq("kind", "llm"),
+    countUncategorized(supabase),
   ]);
 
   // Active LLM provider's label for the AI-suggest panel (default Gemini — same as the suggest route).
@@ -111,23 +114,20 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
     categoryId: (t.category_id as string) ?? "",
     categorySource: (t.category_source as string) ?? "default",
     accountName: t.account_id ? acctById.get(t.account_id as string) ?? "" : "",
+    accountId: (t.account_id as string) ?? "",
   }));
 
-  const filterName = accountFilter ? acctById.get(accountFilter) ?? "" : "";
+  const accountOptions = [...acctById.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-6">
-      {accountFilter && (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="rounded-full border bg-muted/40 px-3 py-1">Filtered to <span className="font-medium">{filterName || "account"}</span></span>
-          <Link href="/transactions?tab=review" className="text-xs text-muted-foreground hover:text-foreground">Clear</Link>
-        </div>
-      )}
+      <AccountSelect accounts={accountOptions} value={accountFilter} />
       <EnrichPanel />
       <MoneyManagerPanel />
       <GooglePayStatementPanel />
       <AiSuggestPanel categories={aiCategories} providerLabel={providerLabel} />
-      <ReviewTable transactions={transactions} categories={categories} />
+      <ReviewTable transactions={transactions} categories={categories}
+        reviewCategoryId={reviewTotal.reviewCategoryId} reviewTotal={reviewTotal.count} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoldingsPanel } from "@/components/holdings-panel";
 import { UpstoxPanel } from "@/components/upstox-panel";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,14 @@ type InstrumentJoin = {
 
 export default async function HoldingsPage() {
   const supabase = await createSupabaseServer();
-  const [{ data: accountsRaw }, { data: snapsRaw }] = await Promise.all([
+  type RawSnap = { account_id: string; as_of: string; isin: string; qty: number; avg_price_paise: number | null; last_price_paise: number; instruments: unknown };
+  // Holdings snapshots can exceed Supabase's 1000-row cap — drain every page.
+  const [{ data: accountsRaw }, snapsRaw] = await Promise.all([
     supabase.from("accounts").select("id,name,institution").in("institution", ["ZERODHA", "UPSTOX"]).order("name"),
-    supabase.from("holdings_snapshots")
-      .select("account_id,as_of,isin,qty,avg_price_paise,last_price_paise,instruments(name,asset_class,symbol,amfi_scheme_code,yahoo_symbol)")
-      .order("as_of", { ascending: false }),
+    fetchAllRows<RawSnap>((from, to) =>
+      supabase.from("holdings_snapshots")
+        .select("account_id,as_of,isin,qty,avg_price_paise,last_price_paise,instruments(name,asset_class,symbol,amfi_scheme_code,yahoo_symbol)")
+        .order("as_of", { ascending: false }).order("account_id").range(from, to)),
   ]);
 
   const accounts = (accountsRaw ?? []).map((a) => ({ id: a.id as string, name: a.name as string }));

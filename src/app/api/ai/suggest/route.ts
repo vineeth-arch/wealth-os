@@ -6,6 +6,7 @@ import { resolveLlmDispatch } from "@/lib/integrations";
 import { LlmKeyMissingError, type SuggestCategories } from "@/lib/llm/provider";
 import { suggestCategories as geminiSuggest } from "@/lib/llm/gemini";
 import { suggestCategories as openaiSuggest } from "@/lib/llm/openai";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 
@@ -33,10 +34,16 @@ export async function POST() {
   const { providerId, model } = decision;
   const suggest = ADAPTERS[providerId];
 
-  // Committed transactions still on the default fallback.
-  const { data: txnRows } = await supabase.from("transactions")
-    .select("id,description_raw,merchant").eq("user_id", user.id).eq("category_source", "default");
-  const txns = (txnRows ?? []) as Array<{ id: string; description_raw: string; merchant: string | null }>;
+  // Committed transactions still on the default fallback (paginate past Supabase's 1000-row cap).
+  let txns: Array<{ id: string; description_raw: string; merchant: string | null }>;
+  try {
+    txns = await fetchAllRows((from, to) =>
+      supabase.from("transactions")
+        .select("id,description_raw,merchant").eq("user_id", user.id).eq("category_source", "default")
+        .order("id").range(from, to));
+  } catch (e) {
+    return NextResponse.json({ error: `transactions: ${(e as Error).message}` }, { status: 500 });
+  }
 
   // Dedup by normalized description → one suggestion per distinct vendor string. Fold in the
   // UPI-enriched counterpart name when present (description-level text, like description_raw — never

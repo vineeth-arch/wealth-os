@@ -31,7 +31,11 @@ export function TransactionsTabs({ initialTab, importSection, reviewSection, rul
 
   function switchTo(next: TxTab) {
     setTab(next);
-    window.history.replaceState(null, "", `/transactions?tab=${next}`);
+    // Preserve every other param (e.g. `account`) — a plain "?tab=" rewrite used to drop them, so
+    // switching tabs silently lost the account filter set on the Review tab.
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", next);
+    window.history.replaceState(null, "", `/transactions?${params.toString()}`);
   }
   function go(next: TxTab) {
     if (next === tab) return;

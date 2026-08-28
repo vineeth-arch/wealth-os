@@ -1,6 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { SEED_CATEGORIES } from "@/lib/seed-data";
 import { LoansPanel, type LoanRecord, type AccountOption, type ImportedScheduleRow } from "@/components/loans-panel";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,15 @@ export default async function LoansPage() {
     .order("created_at", { ascending: true });
   const { data: accountsRaw } = await supabase.from("accounts").select("id,name").order("name");
   // Stored actual rows for imported loans — their irregular installments are the source of truth.
-  const { data: scheduleRaw } = await supabase.from("loan_schedule_rows")
-    .select("loan_id,instl_no,due_date,instl_paise,principal_paise,interest_paise,os_principal_paise")
-    .order("instl_no", { ascending: true });
+  // Multiple imported loans' schedules together can exceed Supabase's 1000-row cap — drain every page.
+  type RawScheduleRow = { loan_id: string; instl_no: number; due_date: string; instl_paise: number; principal_paise: number; interest_paise: number; os_principal_paise: number };
+  const scheduleRaw = await fetchAllRows<RawScheduleRow>((from, to) =>
+    supabase.from("loan_schedule_rows")
+      .select("loan_id,instl_no,due_date,instl_paise,principal_paise,interest_paise,os_principal_paise")
+      .order("instl_no", { ascending: true }).order("loan_id").range(from, to));
 
   const scheduleByLoan = new Map<string, ImportedScheduleRow[]>();
-  for (const r of scheduleRaw ?? []) {
+  for (const r of scheduleRaw) {
     const list = scheduleByLoan.get(r.loan_id as string) ?? [];
     list.push({
       instlNo: r.instl_no as number,

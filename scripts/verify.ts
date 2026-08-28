@@ -48,6 +48,11 @@ import { safeNextPath } from "../src/lib/safe-path.js";
 import { runBounded } from "../src/lib/concurrency.js";
 import { filterCategoryOptions } from "../src/lib/category-filter.js";
 import { addDaysISO } from "../src/lib/dates.js";
+import { type TxnLike } from "../src/lib/halan.js";
+import {
+  type CategoryMonthGroup, type AccountSumGroup, bucketTotalsFromGroups, monthlyCashFlowFromGroups,
+  leakageByParentFromGroups, accountBalancesFromSums,
+} from "../src/lib/halan-agg.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1567,6 +1572,100 @@ console.log("\n" + "-".repeat(78));
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CATPICKER ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
+// ---- Pass 6: migration 0011 (indexes + aggregation RPCs) — source-grep only, not executed against a DB ----
+{
+  const mig11 = readFileSync("supabase/migrations/0011_transactions_indexes.sql", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`adds the three query-shape indexes`,
+      mig11.includes("transactions_user_source_idx") && mig11.includes("transactions_user_id_id_idx") && mig11.includes("transactions_account_date_idx")],
+    [`every index is idempotent (if not exists)`,
+      (mig11.match(/create index if not exists/g) ?? []).length === 3],
+    [`defines both aggregation functions`,
+      mig11.includes("dashboard_category_month_totals") && mig11.includes("dashboard_account_balances")],
+    [`both functions run security invoker (the caller's own RLS), not definer`,
+      (mig11.match(/security invoker/g) ?? []).length >= 2 && !mig11.includes("security definer")],
+    [`the category-totals function does NOT join to categories (classification logic stays in already-tested TS)`,
+      !/dashboard_category_month_totals[\s\S]*?\$\$;/.exec(mig11)?.[0].includes("join")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`MIGRATION-0011 ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
+// ---- Pass 6: halan-agg.ts reconstructs the exact same dashboard numbers from pre-grouped rows ----
+// (the group-by "server side" is simulated in pure JS here — this proves the RECONSTRUCTION math in
+// halan-agg.ts is equivalent to the raw-row halan.ts path; it does NOT execute the actual SQL.)
+{
+  interface RawTxn { categoryId: string | null; txnDate: string; amountPaise: number; tags: string[]; accountId: string }
+  const parentById = new Map<string, string>([
+    ["c1", "01 Income"], ["c2", "02 Spend-it Needs"], ["c3", "03 Spend-it Wants"], ["c4", "08 Invest-it"],
+  ]);
+  const rows: RawTxn[] = [
+    { categoryId: "c1", txnDate: "2026-01-05", amountPaise: 500000, tags: [], accountId: "A" },
+    { categoryId: "c2", txnDate: "2026-01-10", amountPaise: -20000, tags: [], accountId: "A" },
+    { categoryId: "c3", txnDate: "2026-01-15", amountPaise: -15000, tags: ["leakage"], accountId: "A" },
+    { categoryId: "c4", txnDate: "2026-01-20", amountPaise: -100000, tags: [], accountId: "B" },
+    { categoryId: null, txnDate: "2026-02-01", amountPaise: -5000, tags: [], accountId: "B" },
+    { categoryId: "c1", txnDate: "2026-02-05", amountPaise: 500000, tags: [], accountId: "A" },
+    { categoryId: "c2", txnDate: "2026-02-10", amountPaise: -22000, tags: [], accountId: "B" },
+    { categoryId: "c3", txnDate: "2026-02-12", amountPaise: -8000, tags: [], accountId: "A" },
+    { categoryId: "c2", txnDate: "2025-12-31", amountPaise: -3000, tags: [], accountId: "A" },
+  ];
+  const accounts = [
+    { id: "A", name: "Account A", kind: "bank", anchorBalancePaise: 1000000, anchorDate: "2026-01-01" },
+    { id: "B", name: "Account B", kind: "bank", anchorBalancePaise: 0, anchorDate: null },
+  ];
+
+  // Path (a): the raw-row halan.ts path (already gate-tested elsewhere).
+  const halanTxns: TxnLike[] = rows.map((r) => ({
+    txnDate: r.txnDate, amountPaise: r.amountPaise, parent: r.categoryId ? parentById.get(r.categoryId) ?? null : null, tags: r.tags,
+  }));
+  const flowsA = monthlyCashFlow(halanTxns);
+  const bucketsA = bucketTotals(halanTxns);
+  const leakA = leakageByParent(halanTxns);
+  const { balances: balancesA, netWorthPaise: netWorthA } = accountBalances(
+    accounts, rows.map((r) => ({ accountId: r.accountId, txnDate: r.txnDate, amountPaise: r.amountPaise })));
+
+  // Path (b): simulate the SQL GROUP BY in pure JS, then reconstruct via halan-agg.ts — the same code
+  // path the dashboard actually calls when the RPC succeeds.
+  const groupMap = new Map<string, CategoryMonthGroup>();
+  for (const r of rows) {
+    const month = r.txnDate.slice(0, 7);
+    const isLeakage = r.tags.includes("leakage");
+    const isPositive = r.amountPaise >= 0;
+    const key = `${r.categoryId}|${month}|${isLeakage}|${isPositive}`;
+    const cur = groupMap.get(key) ?? { categoryId: r.categoryId, month, isLeakage, isPositive, amountSumPaise: 0, txnCount: 0 };
+    cur.amountSumPaise += r.amountPaise;
+    cur.txnCount += 1;
+    groupMap.set(key, cur);
+  }
+  const groups = [...groupMap.values()];
+  const flowsB = monthlyCashFlowFromGroups(groups, parentById);
+  const bucketsB = bucketTotalsFromGroups(groups, parentById);
+  const leakB = leakageByParentFromGroups(groups, parentById);
+
+  const sumMap = new Map<string, number>();
+  for (const r of rows) {
+    const acct = accounts.find((a) => a.id === r.accountId)!;
+    if (acct.anchorDate && r.txnDate < acct.anchorDate) continue;
+    sumMap.set(r.accountId, (sumMap.get(r.accountId) ?? 0) + r.amountPaise);
+  }
+  const sums: AccountSumGroup[] = [...sumMap.entries()].map(([accountId, amountSumPaise]) => ({ accountId, amountSumPaise }));
+  const { balances: balancesB, netWorthPaise: netWorthB } = accountBalancesFromSums(accounts, sums);
+
+  const checks: Array<[string, boolean]> = [
+    [`monthlyCashFlow matches monthlyCashFlowFromGroups, paise-exact`, JSON.stringify(flowsA) === JSON.stringify(flowsB)],
+    [`bucketTotals matches bucketTotalsFromGroups, paise-exact`, JSON.stringify(bucketsA) === JSON.stringify(bucketsB)],
+    [`leakageByParent matches leakageByParentFromGroups, paise-exact`, JSON.stringify(leakA) === JSON.stringify(leakB)],
+    [`accountBalances matches accountBalancesFromSums, paise-exact`, JSON.stringify(balancesA) === JSON.stringify(balancesB) && netWorthA === netWorthB],
+    // Hand-computed spot checks (not just self-consistency): Jan income 500000, Feb income 500000,
+    // Jan leakage 15000, net worth = A's anchor (1000000) + its 5 anchor-eligible rows (500000-20000-15000+500000-8000=957000)
+    // = 1957000, plus all of B's rows (-100000-5000-22000=-127000) = 1830000.
+    [`spot check: Jan income = ₹5,000.00`, flowsA.find((f) => f.month === "2026-01")?.incomePaise === 500000],
+    [`spot check: Jan leakage = ₹150.00 (only the tagged, negative row)`, flowsA.find((f) => f.month === "2026-01")?.leakagePaise === 15000],
+    [`spot check: net worth = A (₹19,570.00) + B (-₹1,270.00) = ₹18,300.00`, netWorthA === 1830000],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`HALAN-AGG ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 // ---- Pass 5: AI category assist never fails silently ----
 {
   const panel = readFileSync("src/components/ai-suggest-panel.tsx", "utf8");
@@ -1715,8 +1814,9 @@ void (async () => {
     [`0 rows makes exactly 1 call and returns []`, out0.length === 0 && calls0.length === 1],
     [`a page error throws with the underlying message (no swallowed failure)`, threwWithMessage],
     [`load-drill.ts drains transactions via fetchAllRows`, loadDrill.includes("fetchAllRows<RawTxn>")],
-    [`dashboard drains transactions/snapshots/prices via fetchAllRows`,
-      dashboardPage.includes("fetchAllRows<RawTxn>") && dashboardPage.includes("fetchAllRows<RawSnap>") && dashboardPage.includes("fetchAllRows<RawPrice>")],
+    [`dashboard drains snapshots/prices via fetchAllRows directly; transactions drain moved into the Pass-6 aggregates fallback`,
+      dashboardPage.includes("fetchAllRows<RawSnap>") && dashboardPage.includes("fetchAllRows<RawPrice>") &&
+      readFileSync("src/lib/server/dashboard-aggregates.ts", "utf8").includes("fetchAllRows<RawTxn>")],
     [`compass drains snapshots/prices via fetchAllRows`, compassPage.includes("fetchAllRows<RawSnap>") && compassPage.includes("fetchAllRows<RawPrice>")],
     [`holdings page drains snapshots via fetchAllRows`, holdingsPage.includes("fetchAllRows<RawSnap>")],
     [`loans page drains schedule rows via fetchAllRows`, loansPage.includes("fetchAllRows<RawScheduleRow>")],

@@ -45,6 +45,7 @@ import { globMatches, matchProfileByFilename } from "../src/lib/convert/glob.js"
 import type { StatementParseResult, UpiEnrichmentRow, MoneyManagerEntry } from "../src/lib/ingest/types.js";
 import { fetchAllRows, type PageResult } from "../src/lib/supabase/paginate.js";
 import { safeNextPath } from "../src/lib/safe-path.js";
+import { runBounded } from "../src/lib/concurrency.js";
 
 const F = (p: string) => readFileSync(`fixtures/${p}`, "utf8");
 let failures = 0;
@@ -1529,10 +1530,52 @@ console.log("\n" + "-".repeat(78));
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`SAFE-NEXT-PATH ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
-// ---- FA-1: fetchAllRows drains past Supabase's 1000-row select cap ----
-// Wrapped in an async IIFE (not a bare block) because this is the only section needing `await`, and
-// the script compiles as CommonJS (package.json "type": "commonjs"), which forbids top-level await.
+// ---- FA-1 / FA-7: fetchAllRows + runBounded (both need `await`) ----
+// Wrapped in a single async IIFE (not a bare block) because these are the only sections needing
+// `await`, and the script compiles as CommonJS (package.json "type": "commonjs"), which forbids
+// top-level await.
 void (async () => {
+  // ---- FA-7: runBounded chunking/stop-on-failure/completed-count ----
+  {
+    const callLog: number[] = [];
+    const ok25 = await runBounded(Array.from({ length: 25 }, (_, i) => i), 10, async (i) => {
+      callLog.push(i);
+      return { error: null };
+    });
+
+    const chunkStarts: number[][] = [];
+    let currentChunk: number[] = [];
+    const failing = await runBounded(Array.from({ length: 30 }, (_, i) => i), 10, async (i) => {
+      currentChunk.push(i);
+      if (currentChunk.length === 10) { chunkStarts.push(currentChunk); currentChunk = []; }
+      // Fail every item in the 2nd chunk (indices 10-19).
+      if (i >= 10 && i < 20) return { error: `boom-${i}` };
+      return { error: null };
+    });
+
+    const single = await runBounded([1, 2, 3], 10, async () => ({ error: null }));
+    const empty = await runBounded([] as number[], 10, async () => ({ error: null }));
+
+    const checks: Array<[string, boolean]> = [
+      [`25 items / limit 10, all succeed → completed 25, no error`, ok25.completed === 25 && ok25.error === null && callLog.length === 25],
+      [`a failing chunk stops further chunks (only chunks 1-2 run, not chunk 3)`, chunkStarts.length === 2],
+      [`completed counts only successes from before + within the failing chunk (chunk 1's 10)`, failing.completed === 10],
+      [`the first error message is surfaced`, failing.error === "boom-10"],
+      [`limit >= items degenerates to one chunk`, single.completed === 3 && single.error === null],
+      [`empty input → completed 0, no error, fn never called`, empty.completed === 0 && empty.error === null],
+    ];
+    for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CONCURRENCY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+
+    const mmRouteSrc = readFileSync("src/app/api/enrich/money-manager/route.ts", "utf8");
+    const gpayRouteSrc = readFileSync("src/app/api/enrich/google-pay-statement/route.ts", "utf8");
+    const grepChecks: Array<[string, boolean]> = [
+      [`money-manager apply route uses runBounded and no longer hand-loops`, mmRouteSrc.includes("runBounded(") && !mmRouteSrc.includes("for (const w of plan)")],
+      [`google-pay-statement apply route uses runBounded and no longer hand-loops`, gpayRouteSrc.includes("runBounded(") && !gpayRouteSrc.includes("for (const w of plan)")],
+    ];
+    for (const [label, ok] of grepChecks) { if (!ok) failures++; console.log(`CONCURRENCY ${ok ? "PASS" : "FAIL"}: ${label}`); }
+  }
+
+  // ---- FA-1: fetchAllRows drains past Supabase's 1000-row select cap ----
   async function fakePage<Row>(rows: Row[], calls: Array<[number, number]>, failOnPage?: number) {
     return async (from: number, to: number): Promise<PageResult<Row>> => {
       calls.push([from, to]);

@@ -10,6 +10,7 @@ import { categoryIndex, guardCategory } from "@/lib/server/rules";
 import type { MatchableTxn } from "@/lib/ingest/enrich";
 import type { MoneyManagerEntry } from "@/lib/ingest/types";
 import { fetchAllRows } from "@/lib/supabase/paginate";
+import { runBounded } from "@/lib/concurrency";
 
 export const runtime = "nodejs";
 
@@ -123,15 +124,14 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // mode === apply: write only the changed rows. Per-row (each row's notes/merchant/category differ).
-  let applied = 0;
-  for (const w of plan) {
-    if (!w.changed) continue;
-    const update = buildUpdate(w);
-    const { error } = await supabase.from("transactions").update(update).eq("id", w.id).eq("user_id", user.id);
-    if (error) return NextResponse.json({ error: `apply ${w.id}: ${error.message}` }, { status: 500 });
-    applied++;
-  }
+  // mode === apply: write only the changed rows. Per-row (each row's notes/merchant/category differ,
+  // so a value-grouped .in() update — the pattern used elsewhere in this codebase — doesn't apply here);
+  // bounded concurrency instead of a strictly serial loop.
+  const changed = plan.filter((w) => w.changed);
+  const { completed: applied, error: applyError } = await runBounded(changed, 10, (w) =>
+    supabase.from("transactions").update(buildUpdate(w)).eq("id", w.id).eq("user_id", user.id)
+      .then((r) => ({ error: r.error?.message ?? null })));
+  if (applyError) return NextResponse.json({ error: `apply: ${applyError}`, applied }, { status: 500 });
 
   return NextResponse.json({
     mode, parsed: entries.length, matched: matched.length, ambiguous: ambiguous.length,

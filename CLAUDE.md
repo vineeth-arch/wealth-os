@@ -101,6 +101,10 @@ conversion (never bundled, never in the gate or `next build` execution); and `se
 small out-of-tree FastAPI service (PyMuPDF4LLM) for server-side PDF→markdown, the only engine that
 reproduces the PDF fixtures (PyMuPDF has no working Pyodide build).
 
+**`@tanstack/react-virtual`** (justified: the review grid renders up to 300 rows and needs to stay
+responsive as that count grows toward 1000+ once the review-list cap is lifted) — windows the
+`/transactions` Review table body so only visible rows mount; used solely in `src/components/review-table.tsx`.
+
 ## Gotchas
 
 - **Next 15: `cookies()` is async.** The Supabase server client is `await createSupabaseServer()`. Don't make it sync.

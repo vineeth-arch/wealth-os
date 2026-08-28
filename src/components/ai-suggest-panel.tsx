@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useBusy } from "@/components/busy-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
   const [prompt, setPrompt] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const { begin, end } = useBusy();
+  const router = useRouter();
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
@@ -122,6 +124,7 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
       if (!mounted.current) return;
       if (!res.ok) throw new Error(json.error ?? "request failed");
       setInfo(`Re-ran rules: ${json.recategorized} set by rule${json.reclaimedFromAi ? ` (${json.reclaimedFromAi} reclaimed from AI)` : ""}, ${json.remaining} unchanged (of ${json.scanned} scanned).`);
+      router.refresh();
     } catch (e) { if (mounted.current) setError((e as Error).message); }
     finally { end(busyId); }
   }
@@ -129,6 +132,7 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
   function onApplied(key: string, updated: number, ruleCreated: boolean) {
     setSuggestions((ss) => ss.filter((s) => s.key !== key));
     setInfo(`Applied to ${updated} transaction(s)${ruleCreated ? " and created a rule" : ""}.`);
+    router.refresh();
   }
 
   return (

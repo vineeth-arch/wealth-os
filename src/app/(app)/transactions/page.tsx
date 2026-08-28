@@ -11,6 +11,7 @@ import { TransactionsTabs, type TxTab } from "@/components/transactions-tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { countUncategorized } from "@/lib/server/review-count";
 
 export const dynamic = "force-dynamic";
 
@@ -79,11 +80,12 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
     .select("id,txn_date,amount_paise,description_raw,merchant,tags,category_id,category_source,account_id")
     .order("txn_date", { ascending: false }).limit(300);
   if (accountFilter) txnQuery = txnQuery.eq("account_id", accountFilter);
-  const [{ data: txnsRaw }, { data: catsRaw }, { data: acctsRaw }, { data: llmRows }] = await Promise.all([
+  const [{ data: txnsRaw }, { data: catsRaw }, { data: acctsRaw }, { data: llmRows }, reviewTotal] = await Promise.all([
     txnQuery,
     supabase.from("categories").select("id,name,parent_id,auto_assignable"),
     supabase.from("accounts").select("id,name"),
     supabase.from("integrations").select("provider,meta").eq("kind", "llm"),
+    countUncategorized(supabase),
   ]);
 
   // Active LLM provider's label for the AI-suggest panel (default Gemini — same as the suggest route).
@@ -127,7 +129,8 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
       <MoneyManagerPanel />
       <GooglePayStatementPanel />
       <AiSuggestPanel categories={aiCategories} providerLabel={providerLabel} />
-      <ReviewTable transactions={transactions} categories={categories} />
+      <ReviewTable transactions={transactions} categories={categories}
+        reviewCategoryId={reviewTotal.reviewCategoryId} reviewTotal={reviewTotal.count} />
     </div>
   );
 }

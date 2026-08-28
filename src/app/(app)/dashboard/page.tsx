@@ -13,6 +13,7 @@ import {
 } from "@/lib/halan";
 import { TrendingUp, PiggyBank, Wallet, LineChart } from "lucide-react";
 import { fetchAllRows } from "@/lib/supabase/paginate";
+import { countUncategorized } from "@/lib/server/review-count";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function DashboardPage() {
   type RawTxn = { id: string; txn_date: string; amount_paise: number; tags: string[] | null; account_id: string | null; category_id: string | null; description_raw: string | null; merchant: string | null; category_source: string | null };
   type RawSnap = { account_id: string; as_of: string; isin: string; qty: number; last_price_paise: number };
   type RawPrice = { isin: string; price_paise: number; price_date: string };
-  const [{ data: accountsRaw }, txns, { data: catsRaw }, snapsRaw, pricesRaw] = await Promise.all([
+  const [{ data: accountsRaw }, txns, { data: catsRaw }, snapsRaw, pricesRaw, reviewTotal] = await Promise.all([
     supabase.from("accounts").select("id,name,kind,anchor_balance_paise,anchor_date"),
     // Transactions, snapshots and prices can all exceed Supabase's 1000-row cap — drain every page.
     fetchAllRows<RawTxn>((from, to) =>
@@ -48,6 +49,7 @@ export default async function DashboardPage() {
         .order("as_of", { ascending: false }).order("account_id").range(from, to)),
     fetchAllRows<RawPrice>((from, to) =>
       supabase.from("prices").select("isin,price_paise,price_date").order("isin").range(from, to)),
+    countUncategorized(supabase),
   ]);
 
   const accounts = accountsRaw ?? [];
@@ -118,8 +120,6 @@ export default async function DashboardPage() {
 
   const buckets = bucketTotals(halanTxns).filter((b) => SPEND_CLASSES.has(b.cls) && b.outflowPaise > 0).sort((a, b) => b.outflowPaise - a.outflowPaise);
   const leak = leakageByParent(halanTxns);
-
-  const reviewCount = halanTxns.filter((t) => t.parent === "10 Transfers & Adjustments" && (t.tags.length === 0)).length;
 
   return (
     <div className="space-y-6">
@@ -193,9 +193,9 @@ export default async function DashboardPage() {
             <CardDescription>Uncategorized transactions waiting for a real bucket.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{reviewCount}</div>
-            <p className="mt-1 text-sm text-muted-foreground">in Uncategorized Review</p>
-            {reviewCount > 0 && <Button asChild variant="outline" className="mt-3"><Link href="/transactions?tab=review">Review now</Link></Button>}
+            <div className="text-3xl font-semibold">{reviewTotal.count}</div>
+            <p className="mt-1 text-sm text-muted-foreground">in {nameById.get(reviewTotal.reviewCategoryId) ?? "the review category"}</p>
+            {reviewTotal.count > 0 && <Button asChild variant="outline" className="mt-3"><Link href="/transactions?tab=review">Review now</Link></Button>}
           </CardContent>
         </Card>
       </div>

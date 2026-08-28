@@ -1643,6 +1643,28 @@ void (async () => {
   ];
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`PAGINATE ${ok ? "PASS" : "FAIL"}: ${label}`); }
 
+  // ---- Pass 1: review-save legibility (single count source, prop re-sync, no swallowed errors) ----
+  {
+    const reviewTable = readFileSync("src/components/review-table.tsx", "utf8");
+    const dashboardPage2 = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
+    const txnsPage = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+    const reviewCountSrc = readFileSync("src/lib/server/review-count.ts", "utf8");
+    const checks: Array<[string, boolean]> = [
+      [`review-table no longer hardcodes the "Uncategorized Review" name`, !reviewTable.includes("Uncategorized Review")],
+      [`review-table's count is driven by the server-supplied reviewTotal prop`, reviewTable.includes("reviewTotal")],
+      [`review-table calls router.refresh() after a successful save`, reviewTable.includes("router.refresh()")],
+      [`review-table surfaces a write error inline instead of swallowing it`, reviewTable.includes("errors[r.id]") && reviewTable.includes("setErrors")],
+      [`review-table re-syncs local rows on fresh server props (props-driven effect)`, reviewTable.includes("useEffect") && reviewTable.includes("[transactions, reviewTotal]")],
+      [`review-table virtualizes the row list`, reviewTable.includes("useVirtualizer")],
+      [`dashboard no longer uses the wrong parent-10/tags formula for the review tile`, !dashboardPage2.includes("tags.length === 0")],
+      [`dashboard drives its Review-queue tile from the shared countUncategorized helper`, dashboardPage2.includes("countUncategorized")],
+      [`transactions page drives the Review panel count from the same shared helper`, txnsPage.includes("countUncategorized")],
+      [`countUncategorized resolves the leaf by the shared FALLBACK_CATEGORY constant, not a re-hardcoded string`, reviewCountSrc.includes("FALLBACK_CATEGORY") && !/"Uncategorized Review"/.test(reviewCountSrc)],
+      [`countUncategorized uses an exact head-count query (no row fetch)`, reviewCountSrc.includes('{ count: "exact", head: true }')],
+    ];
+    for (const [label, ok] of checks) { if (!ok) failures++; console.log(`REVIEW ${ok ? "PASS" : "FAIL"}: ${label}`); }
+  }
+
   console.log("\n" + "=".repeat(78));
   console.log(failures === 0 ? "ALL GATES PASSED" : `${failures} GATE(S) FAILED`);
   process.exit(failures === 0 ? 0 : 1);

@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { countUncategorized } from "@/lib/server/review-count";
+import { AccountSelect } from "@/components/account-select";
 
 export const dynamic = "force-dynamic";
 
@@ -116,16 +117,11 @@ async function ReviewSection({ accountFilter }: { accountFilter: string }) {
     accountId: (t.account_id as string) ?? "",
   }));
 
-  const filterName = accountFilter ? acctById.get(accountFilter) ?? "" : "";
+  const accountOptions = [...acctById.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-6">
-      {accountFilter && (
-        <div className="flex items-center gap-2 text-sm">
-          <span className="rounded-full border bg-muted/40 px-3 py-1">Filtered to <span className="font-medium">{filterName || "account"}</span></span>
-          <Link href="/transactions?tab=review" className="text-xs text-muted-foreground hover:text-foreground">Clear</Link>
-        </div>
-      )}
+      <AccountSelect accounts={accountOptions} value={accountFilter} />
       <EnrichPanel />
       <MoneyManagerPanel />
       <GooglePayStatementPanel />

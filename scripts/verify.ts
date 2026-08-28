@@ -1567,6 +1567,23 @@ console.log("\n" + "-".repeat(78));
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CATPICKER ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
+// ---- Pass 4: visible account filter on /transactions ----
+{
+  const tabs = readFileSync("src/components/transactions-tabs.tsx", "utf8");
+  const accountSelect = readFileSync("src/components/account-select.tsx", "utf8");
+  const txnsPage2 = readFileSync("src/app/(app)/transactions/page.tsx", "utf8");
+  const accountsPanel = readFileSync("src/components/accounts-panel.tsx", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`tab switching preserves other URL params (no longer a bare "?tab=" rewrite)`,
+      tabs.includes("URLSearchParams(window.location.search)") && !tabs.includes('`/transactions?tab=${next}`')],
+    [`AccountSelect pushes the same ?account= param the account-page deep-link uses`, accountSelect.includes('next.set("account"') && accountSelect.includes("router.push")],
+    [`AccountSelect always keeps tab=review on navigation`, accountSelect.includes('next.set("tab", "review")')],
+    [`/transactions mounts the visible account filter on the Review tab`, txnsPage2.includes("<AccountSelect")],
+    [`the account-page deep-link still targets ?tab=review&account=`, accountsPanel.includes("tab=review&account=")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`TX-FILTER ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 // ---- Pass 3: same-day transaction context (bounded date-window read) ----
 {
   const txnContext = readFileSync("src/components/txn-context.tsx", "utf8");

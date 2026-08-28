@@ -1567,6 +1567,26 @@ console.log("\n" + "-".repeat(78));
   for (const [label, ok] of checks) { if (!ok) failures++; console.log(`CATPICKER ${ok ? "PASS" : "FAIL"}: ${label}`); }
 }
 
+// ---- Pass 5: AI category assist never fails silently ----
+{
+  const panel = readFileSync("src/components/ai-suggest-panel.tsx", "utf8");
+  const envExample = readFileSync(".env.example", "utf8");
+  const integrationsPanel = readFileSync("src/components/integrations-panel.tsx", "utf8");
+  const checks: Array<[string, boolean]> = [
+    [`a disabled/no-adapter provider renders a loud destructive-toned alert, not muted info text`,
+      panel.includes("disabledReason") && panel.includes("border-destructive")],
+    [`the alert links to Settings so vn can fix the provider in one click`, panel.includes('href="/settings"')],
+    [`.env.example documents the wired providers first and doesn't call AI-suggest "deferred"`,
+      !envExample.includes("deferred") && envExample.indexOf("GEMINI_API_KEY") < envExample.indexOf("ANTHROPIC_API_KEY")],
+    [`.env.example documents DEBUG_AI_SUGGEST, GEMINI_MODEL and OPENAI_MODEL`,
+      envExample.includes("DEBUG_AI_SUGGEST") && envExample.includes("GEMINI_MODEL") && envExample.includes("OPENAI_MODEL")],
+    [`.env.example points at /settings, not the stale /integrations path`, envExample.includes("/settings") && !envExample.includes("/integrations")],
+    [`the no-key hint in Settings names a provider that actually has an adapter`,
+      integrationsPanel.includes("GEMINI_API_KEY") && !integrationsPanel.includes("ANTHROPIC_API_KEY")],
+  ];
+  for (const [label, ok] of checks) { if (!ok) failures++; console.log(`AI-STATE ${ok ? "PASS" : "FAIL"}: ${label}`); }
+}
+
 // ---- Pass 4: visible account filter on /transactions ----
 {
   const tabs = readFileSync("src/components/transactions-tabs.tsx", "utf8");

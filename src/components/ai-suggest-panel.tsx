@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useBusy } from "@/components/busy-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [disabledReason, setDisabledReason] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const { begin, end } = useBusy();
@@ -98,13 +100,13 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
 
   async function runSuggest() {
     const busyId = begin("AI-suggest");
-    setLoading(true); setError(null); setInfo(null); setPrompt(null);
+    setLoading(true); setError(null); setInfo(null); setPrompt(null); setDisabledReason(null);
     try {
       const res = await fetch("/api/ai/suggest", { method: "POST" });
       const json = await res.json().catch(() => ({}));
       if (!mounted.current) return;
       if (!res.ok) throw new Error(json.error ?? "request failed");
-      if (json.disabled) { setSuggestions([]); setInfo(json.reason ?? "AI suggestions are disabled."); }
+      if (json.disabled) { setSuggestions([]); setDisabledReason(json.reason ?? "AI suggestions are not configured."); }
       else {
         setSuggestions(json.suggestions ?? []);
         setModel(json.model ?? null);
@@ -117,7 +119,7 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
 
   async function runRerun() {
     const busyId = begin("Re-run rules");
-    setError(null); setInfo(null);
+    setError(null); setInfo(null); setDisabledReason(null);
     try {
       const res = await fetch("/api/rules/apply", { method: "POST" });
       const json = await res.json().catch(() => ({}));
@@ -155,6 +157,13 @@ export function AiSuggestPanel({ categories, providerLabel }: { categories: AiCa
           {model && <span className="text-xs text-muted-foreground">model: {model}</span>}
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
+        {disabledReason && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <p className="font-medium">AI suggestions are not available</p>
+            <p className="mt-1">{disabledReason}</p>
+            <Link href="/settings" className="mt-1 inline-block underline">Open Settings → Integrations</Link>
+          </div>
+        )}
         {info && <p className="text-sm text-muted-foreground">{info}</p>}
         {prompt && (
           <details className="rounded-md border p-2 text-xs">
